@@ -87,14 +87,7 @@ import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.operators.ExtractTimestampsOperator;
 import org.apache.flink.streaming.runtime.operators.TimestampsAndPeriodicWatermarksOperator;
 import org.apache.flink.streaming.runtime.operators.TimestampsAndPunctuatedWatermarksOperator;
-import org.apache.flink.streaming.runtime.partitioner.BroadcastPartitioner;
-import org.apache.flink.streaming.runtime.partitioner.CustomPartitionerWrapper;
-import org.apache.flink.streaming.runtime.partitioner.ForwardPartitioner;
-import org.apache.flink.streaming.runtime.partitioner.GlobalPartitioner;
-import org.apache.flink.streaming.runtime.partitioner.RebalancePartitioner;
-import org.apache.flink.streaming.runtime.partitioner.RescalePartitioner;
-import org.apache.flink.streaming.runtime.partitioner.ShufflePartitioner;
-import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
+import org.apache.flink.streaming.runtime.partitioner.*;
 import org.apache.flink.streaming.util.keys.KeySelectorUtil;
 import org.apache.flink.util.Preconditions;
 
@@ -406,6 +399,11 @@ public class DataStream<T> {
 						clean(keySelector)));
 	}
 
+	@PublicEvolving
+	public DataStream<T> powerOfBothChoices(KeySelector<T, ?> keySelector) {
+		return setConnectionType(new PowerOfBothChoicesPartitioner<T>(keySelector));
+	}
+
 	/**
 	 * Sets the partitioning of the {@link DataStream} so that the output elements
 	 * are broadcasted to every parallel instance of the next operation.
@@ -462,10 +460,6 @@ public class DataStream<T> {
 	 * @return The DataStream with rebalance partitioning set.
 	 */
 	public DataStream<T> rebalance() {
-		return setConnectionType(new RebalancePartitioner<T>());
-	}
-
-	public DataStream<T> powerOfBothChoices() {
 		return setConnectionType(new RebalancePartitioner<T>());
 	}
 
