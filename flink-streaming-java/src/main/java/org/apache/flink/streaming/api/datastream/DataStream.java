@@ -465,6 +465,10 @@ public class DataStream<T> {
 		return setConnectionType(new RebalancePartitioner<T>());
 	}
 
+	public DataStream<T> powerOfBothChoices() {
+		return setConnectionType(new RebalancePartitioner<T>());
+	}
+
 	/**
 	 * Sets the partitioning of the {@link DataStream} so that the output elements
 	 * are distributed evenly to a subset of instances of the next operation in a round-robin

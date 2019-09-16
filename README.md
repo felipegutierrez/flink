@@ -13,6 +13,12 @@ $ git remote fetch
 $ git pull
 ```
 
+ - Instruction on the [official Flink sodumentation](https://ci.apache.org/projects/flink/flink-docs-stable/flinkDev/ide_setup.html).
+ - Implementing the [Power of both choices](https://melmeric.files.wordpress.com/2014/11/the-power-of-both-choices-practical-load-balancing-for-distributed-stream-processing-engines.pdf) in Flink.
+
+
+## Original README.md file
+
 Apache Flink is an open source stream processing framework with powerful stream- and batch-processing capabilities.
 
 Learn more about Flink at [https://flink.apache.org/](https://flink.apache.org/)
