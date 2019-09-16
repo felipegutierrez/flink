@@ -1,5 +1,18 @@
 # Apache Flink
 
+This version of Apache Flink is forked from the original github repository and it is updated by:
+```
+$ git remote -v
+origin	git@github.com:felipegutierrez/flink.git (fetch)
+origin	git@github.com:felipegutierrez/flink.git (push)
+upstream	https://github.com/apache/flink.git (fetch)
+upstream	https://github.com/apache/flink.git (push)
+// From original github repository
+$ git remote fetch
+// From my own github repository
+$ git pull
+```
+
 Apache Flink is an open source stream processing framework with powerful stream- and batch-processing capabilities.
 
 Learn more about Flink at [https://flink.apache.org/](https://flink.apache.org/)

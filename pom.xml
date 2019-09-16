@@ -809,12 +809,8 @@ under the License.
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-compiler-plugin</artifactId>
 						<configuration>
-							<source>11</source>
-							<target>11</target>
-							<compilerArgs combine.children="append">
-								<arg>--add-exports=java.base/sun.net.util=ALL-UNNAMED</arg>
-								<arg>--add-exports=java.management/sun.management=ALL-UNNAMED</arg>
-							</compilerArgs>
+							<source>${java.version}</source>
+							<target>${java.version}</target>
 						</configuration>
 					</plugin>
 				</plugins>
