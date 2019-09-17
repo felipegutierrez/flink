@@ -4,11 +4,18 @@ import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.partitioning.util.WordCountPartitionData;
 import org.apache.flink.streaming.examples.wordcount.util.WordCountData;
 import org.apache.flink.util.Collector;
+
+import java.util.Calendar;
+import java.util.Date;
 
 /**
  * Implements the "WordCount" program that computes a simple word occurrence
@@ -40,6 +47,7 @@ public class WordCountPartitioning {
 
 		// set up the execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime);
 
 		// make parameters available in the web interface
 		env.getConfig().setGlobalJobParameters(params);
@@ -53,7 +61,8 @@ public class WordCountPartitioning {
 			System.out.println("Executing WordCount example with default input data set.");
 			System.out.println("Use --input to specify file input.");
 			// get default test text data
-			text = env.fromElements(WordCountPartitionData.WORDS);
+			// text = env.fromElements(WordCountPartitionData.WORDS);
+			text = env.addSource(new WordSource(true));
 		}
 
 		// @formatter:off
@@ -63,6 +72,7 @@ public class WordCountPartitioning {
 				.powerOfBothChoices(new WordKeySelector())
 				// group by the tuple field "0" and sum up tuple field "1"
 				.keyBy(0)
+				.window(TumblingEventTimeWindows.of(Time.seconds(5)))
 				.sum(1);
 		// @formatter:on
 
@@ -81,6 +91,55 @@ public class WordCountPartitioning {
 	// *************************************************************************
 	// USER FUNCTIONS
 	// *************************************************************************
+
+	private static class WordSource implements SourceFunction<String> {
+		private static final long DEFAULT_INTERVAL_CHANGE_DATA_SOURCE = Time.minutes(1).toMilliseconds();
+		private volatile boolean running = true;
+		private long startTime;
+		private boolean allowSkew;
+		private boolean useDataSkewedFile;
+
+		public WordSource(boolean allowSkew) {
+			this.allowSkew = allowSkew;
+			this.startTime = Calendar.getInstance().getTimeInMillis();
+		}
+
+		@Override
+		public void run(SourceContext<String> ctx) throws Exception {
+			while (running) {
+				final String[] words;
+				if (useDataSkewedFile()) {
+					words = WordCountPartitionData.WORDS_SKEW;
+				} else {
+					words = WordCountPartitionData.WORDS;
+				}
+				for (int i = 0; i < words.length; i++) {
+					String word = words[i];
+					ctx.collectWithTimestamp(word, (new Date()).getTime());
+				}
+				Thread.sleep(4000);
+			}
+		}
+
+		private boolean useDataSkewedFile() {
+			if (allowSkew) {
+				long elapsedTime = Calendar.getInstance().getTimeInMillis() - DEFAULT_INTERVAL_CHANGE_DATA_SOURCE;
+				if (elapsedTime >= startTime) {
+					startTime = Calendar.getInstance().getTimeInMillis();
+					useDataSkewedFile = (useDataSkewedFile ? false : true);
+
+					String msg = "Changed source file. useDataSkewedFile[" + useDataSkewedFile + "]";
+					System.out.println(msg);
+				}
+			}
+			return useDataSkewedFile;
+		}
+
+		@Override
+		public void cancel() {
+			running = false;
+		}
+	}
 
 	/**
 	 * Implements the string tokenizer that splits sentences into words as a
