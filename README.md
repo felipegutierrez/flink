@@ -16,7 +16,8 @@ $ git pull
  - The example is implemented on the file [WordCountPartitioning](felipegutierrez/flink/blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/partitioning/WordCountPartitioning.java).
  - Sometimes the caniuse-lite is outdated and you will have to run the command `npm update` in another terminal.
  - Use `mvn clean package -DskipTests -Dcheckstyle.skip` to compile this project on the terminal or import it into the Intellij IDEA.
- - In order to run the Flink standalone cluster with this new version you have just to replace the file `lib/flink-dist_2.11-1.9.0.jar` to the new file `lib/flink-dist_2.11-1.10.jar` on the master and worker nodes. The new jar is located at `flink/flink-dist/target/flink-dist_2.11-1.10-SNAPSHOT.jar`
+ - In order to run the Flink standalone cluster with this new version you have just to replace the file `lib/flink-dist_2.11-1.9.0.jar` to the new file `lib/flink-dist_2.11-1.10.jar` on the master and worker nodes. The new jar is located at `flink/flink-dist/target/flink-dist_2.11-1.10-SNAPSHOT.jar`.
+ - Deploy the application using the following command: `./bin/flink run examples/streaming/WordCountPartitioning.jar -partition [rebalance|rescale|forward|shuffle|global|power|''] &`.
  - Instruction on the [official Flink sodumentation](https://ci.apache.org/projects/flink/flink-docs-stable/flinkDev/ide_setup.html).
  - Implementing the [Power of both choices](https://melmeric.files.wordpress.com/2014/11/the-power-of-both-choices-practical-load-balancing-for-distributed-stream-processing-engines.pdf) in Flink.
 

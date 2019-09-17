@@ -36,6 +36,15 @@ import java.util.Date;
  */
 
 public class WordCountPartitioning {
+	private static final String PARTITION = "partition";
+	private static final String PARTITION_TYPE_REBALANCE = "rebalance";
+	private static final String PARTITION_TYPE_BROADCAST = "broadcast";
+	private static final String PARTITION_TYPE_SHUFFLE = "shuffle";
+	private static final String PARTITION_TYPE_FORWARD = "forward";
+	private static final String PARTITION_TYPE_RESCALE = "rescale";
+	private static final String PARTITION_TYPE_GLOBAL = "global";
+	private static final String PARTITION_TYPE_POWER_OF_BOTH_CHOICES = "power";
+
 	// *************************************************************************
 	// PROGRAM
 	// *************************************************************************
@@ -62,26 +71,46 @@ public class WordCountPartitioning {
 			System.out.println("Use --input to specify file input.");
 			// get default test text data
 			// text = env.fromElements(WordCountPartitionData.WORDS);
-			text = env.addSource(new WordSource(true));
+			text = env.addSource(new WordSource(true)).name("source").uid("source");
 		}
 
-		// @formatter:off
-		DataStream<Tuple2<String, Integer>> counts =
-			// split up the lines in pairs (2-tuples) containing: (word,1)
-			text.flatMap(new Tokenizer())
-				.powerOfBothChoices(new WordKeySelector())
-				// group by the tuple field "0" and sum up tuple field "1"
-				.keyBy(0)
-				.window(TumblingEventTimeWindows.of(Time.seconds(5)))
-				.sum(1);
-		// @formatter:on
+		DataStream<Tuple2<String, Integer>> tokenizer = text
+			.flatMap(new Tokenizer()).name("tokenizer").uid("tokenizer");
+
+		DataStream<Tuple2<String, Integer>> partitioning = null;
+		if (params.get(PARTITION) != null) {
+			if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_REBALANCE)) {
+				partitioning = tokenizer.rebalance();
+			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_BROADCAST)) {
+				partitioning = tokenizer.broadcast();
+			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_SHUFFLE)) {
+				partitioning = tokenizer.shuffle();
+			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_FORWARD)) {
+				partitioning = tokenizer.forward();
+			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_RESCALE)) {
+				partitioning = tokenizer.rescale();
+			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_GLOBAL)) {
+				partitioning = tokenizer.global();
+			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_POWER_OF_BOTH_CHOICES)) {
+				partitioning = tokenizer.powerOfBothChoices(new WordKeySelector());
+			} else {
+				System.err.println("Wrong partition strategy chosen.");
+				partitioning = tokenizer;
+			}
+		} else {
+			partitioning = tokenizer;
+		}
+		DataStream<Tuple2<String, Integer>> counts = partitioning
+			.keyBy(0)
+			.window(TumblingEventTimeWindows.of(Time.seconds(5)))
+			.sum(1).name("sum").uid("sum");
 
 		// emit result
 		if (params.has("output")) {
 			counts.writeAsText(params.get("output"));
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
-			counts.print();
+			counts.print().name("print").uid("print");
 		}
 
 		// execute program
@@ -126,7 +155,7 @@ public class WordCountPartitioning {
 				long elapsedTime = Calendar.getInstance().getTimeInMillis() - DEFAULT_INTERVAL_CHANGE_DATA_SOURCE;
 				if (elapsedTime >= startTime) {
 					startTime = Calendar.getInstance().getTimeInMillis();
-					useDataSkewedFile = (useDataSkewedFile ? false : true);
+					useDataSkewedFile = (!useDataSkewedFile);
 
 					String msg = "Changed source file. useDataSkewedFile[" + useDataSkewedFile + "]";
 					System.out.println(msg);
