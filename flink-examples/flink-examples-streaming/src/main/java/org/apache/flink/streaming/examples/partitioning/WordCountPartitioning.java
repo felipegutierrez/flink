@@ -57,6 +57,7 @@ public class WordCountPartitioning {
 		// set up the execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime);
+		env.disableOperatorChaining();
 
 		// make parameters available in the web interface
 		env.getConfig().setGlobalJobParameters(params);
