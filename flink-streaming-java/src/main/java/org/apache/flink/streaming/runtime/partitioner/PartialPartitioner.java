@@ -17,7 +17,7 @@ import java.io.ObjectOutputStream;
  * @param <T> Type of the elements in the Stream being rebalanced
  */
 @Internal
-public class PowerOfBothChoicesPartitioner<T> extends StreamPartitioner<T> {
+public class PartialPartitioner<T> extends StreamPartitioner<T> {
 	private static final long serialVersionUID = 1L;
 	private KeySelector<T, ?> keySelector;
 	private long[] targetChannelStats;
@@ -27,12 +27,12 @@ public class PowerOfBothChoicesPartitioner<T> extends StreamPartitioner<T> {
 	private int workersPerKey = 2;
 	private int currentPrime = 2;
 
-	public PowerOfBothChoicesPartitioner(KeySelector<T, ?> keySelector) {
+	public PartialPartitioner(KeySelector<T, ?> keySelector) {
 		this.initializedStats = false;
 		this.keySelector = keySelector;
 	}
 
-	public PowerOfBothChoicesPartitioner(KeySelector<T, ?> keySelector, int numWorkersPerKey) {
+	public PartialPartitioner(KeySelector<T, ?> keySelector, int numWorkersPerKey) {
 		this.initializedStats = false;
 		this.keySelector = keySelector;
 		this.workersPerKey = numWorkersPerKey;

@@ -21,13 +21,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.Public;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.FilterFunction;
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.Partitioner;
-import org.apache.flink.api.common.functions.RichFilterFunction;
-import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.io.OutputFormat;
 import org.apache.flink.api.common.operators.Keys;
 import org.apache.flink.api.common.operators.ResourceSpec;
@@ -59,24 +53,11 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SocketClientSink;
 import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
-import org.apache.flink.streaming.api.operators.ProcessOperator;
-import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
-import org.apache.flink.streaming.api.operators.StreamFilter;
-import org.apache.flink.streaming.api.operators.StreamFlatMap;
-import org.apache.flink.streaming.api.operators.StreamMap;
-import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
-import org.apache.flink.streaming.api.operators.StreamSink;
+import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.streaming.api.transformations.UnionTransformation;
-import org.apache.flink.streaming.api.windowing.assigners.GlobalWindows;
-import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
-import org.apache.flink.streaming.api.windowing.assigners.WindowAssigner;
+import org.apache.flink.streaming.api.windowing.assigners.*;
 import org.apache.flink.streaming.api.windowing.evictors.CountEvictor;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.triggers.CountTrigger;
@@ -200,8 +181,7 @@ public class DataStream<T> {
 	 * the same type with each other. The DataStreams merged using this operator
 	 * will be transformed simultaneously.
 	 *
-	 * @param streams
-	 *            The DataStreams to union output with.
+	 * @param streams The DataStreams to union output with.
 	 * @return The {@link DataStream}.
 	 */
 	@SafeVarargs
@@ -212,7 +192,7 @@ public class DataStream<T> {
 		for (DataStream<T> newStream : streams) {
 			if (!getType().equals(newStream.getType())) {
 				throw new IllegalArgumentException("Cannot union streams of different types: "
-						+ getType() + " and " + newStream.getType());
+					+ getType() + " and " + newStream.getType());
 			}
 
 			unionedTransforms.add(newStream.getTransformation());
@@ -225,10 +205,9 @@ public class DataStream<T> {
 	 * {@link org.apache.flink.streaming.api.collector.selector.OutputSelector}.
 	 * Calling this method on an operator creates a new {@link SplitStream}.
 	 *
-	 * @param outputSelector
-	 *            The user defined
-	 *            {@link org.apache.flink.streaming.api.collector.selector.OutputSelector}
-	 *            for directing the tuples.
+	 * @param outputSelector The user defined
+	 *                       {@link org.apache.flink.streaming.api.collector.selector.OutputSelector}
+	 *                       for directing the tuples.
 	 * @return The {@link SplitStream}
 	 * @deprecated Please use side output instead.
 	 */
@@ -243,8 +222,7 @@ public class DataStream<T> {
 	 * The DataStreams connected using this operator can be used with
 	 * CoFunctions to apply joint transformations.
 	 *
-	 * @param dataStream
-	 *            The DataStream with which this stream will be connected.
+	 * @param dataStream The DataStream with which this stream will be connected.
 	 * @return The {@link ConnectedStreams}.
 	 */
 	public <R> ConnectedStreams<T, R> connect(DataStream<R> dataStream) {
@@ -269,18 +247,17 @@ public class DataStream<T> {
 	@PublicEvolving
 	public <R> BroadcastConnectedStream<T, R> connect(BroadcastStream<R> broadcastStream) {
 		return new BroadcastConnectedStream<>(
-				environment,
-				this,
-				Preconditions.checkNotNull(broadcastStream),
-				broadcastStream.getBroadcastStateDescriptor());
+			environment,
+			this,
+			Preconditions.checkNotNull(broadcastStream),
+			broadcastStream.getBroadcastStateDescriptor());
 	}
 
 	/**
 	 * It creates a new {@link KeyedStream} that uses the provided key for partitioning
 	 * its operator states.
 	 *
-	 * @param key
-	 *            The KeySelector to be used for extracting the key for partitioning
+	 * @param key The KeySelector to be used for extracting the key for partitioning
 	 * @return The {@link DataStream} with partitioned state (i.e. KeyedStream)
 	 */
 	public <K> KeyedStream<T, K> keyBy(KeySelector<T, K> key) {
@@ -292,7 +269,7 @@ public class DataStream<T> {
 	 * It creates a new {@link KeyedStream} that uses the provided key with explicit type information
 	 * for partitioning its operator states.
 	 *
-	 * @param key The KeySelector to be used for extracting the key for partitioning.
+	 * @param key     The KeySelector to be used for extracting the key for partitioning.
 	 * @param keyType The type information describing the key type.
 	 * @return The {@link DataStream} with partitioned state (i.e. KeyedStream)
 	 */
@@ -305,9 +282,8 @@ public class DataStream<T> {
 	/**
 	 * Partitions the operator state of a {@link DataStream} by the given key positions.
 	 *
-	 * @param fields
-	 *            The position of the fields on which the {@link DataStream}
-	 *            will be grouped.
+	 * @param fields The position of the fields on which the {@link DataStream}
+	 *               will be grouped.
 	 * @return The {@link DataStream} with partitioned state (i.e. KeyedStream)
 	 */
 	public KeyedStream<T, Tuple> keyBy(int... fields) {
@@ -324,9 +300,8 @@ public class DataStream<T> {
 	 * of the {@link DataStream}'s underlying type. A dot can be used to drill
 	 * down into objects, as in {@code "field1.getInnerField2()" }.
 	 *
-	 * @param fields
-	 *            One or more field expressions on which the state of the {@link DataStream} operators will be
-	 *            partitioned.
+	 * @param fields One or more field expressions on which the state of the {@link DataStream} operators will be
+	 *               partitioned.
 	 * @return The {@link DataStream} with partitioned state (i.e. KeyedStream)
 	 **/
 	public KeyedStream<T, Tuple> keyBy(String... fields) {
@@ -335,7 +310,7 @@ public class DataStream<T> {
 
 	private KeyedStream<T, Tuple> keyBy(Keys<T> keys) {
 		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
-				getType(), getExecutionConfig())));
+			getType(), getExecutionConfig())));
 	}
 
 	/**
@@ -345,7 +320,7 @@ public class DataStream<T> {
 	 * <p>Note: This method works only on single field keys.
 	 *
 	 * @param partitioner The partitioner to assign partitions to keys.
-	 * @param field The field index on which the DataStream is partitioned.
+	 * @param field       The field index on which the DataStream is partitioned.
 	 * @return The partitioned DataStream.
 	 */
 	public <K> DataStream<T> partitionCustom(Partitioner<K> partitioner, int field) {
@@ -360,7 +335,7 @@ public class DataStream<T> {
 	 * <p>Note: This method works only on single field keys.
 	 *
 	 * @param partitioner The partitioner to assign partitions to keys.
-	 * @param field The expression for the field on which the DataStream is partitioned.
+	 * @param field       The expression for the field on which the DataStream is partitioned.
 	 * @return The partitioned DataStream.
 	 */
 	public <K> DataStream<T> partitionCustom(Partitioner<K> partitioner, String field) {
@@ -377,16 +352,14 @@ public class DataStream<T> {
 	 * <p>Note: This method works only on single field keys, i.e. the selector cannot return tuples
 	 * of fields.
 	 *
-	 * @param partitioner
-	 * 		The partitioner to assign partitions to keys.
-	 * @param keySelector
-	 * 		The KeySelector with which the DataStream is partitioned.
+	 * @param partitioner The partitioner to assign partitions to keys.
+	 * @param keySelector The KeySelector with which the DataStream is partitioned.
 	 * @return The partitioned DataStream.
 	 * @see KeySelector
 	 */
 	public <K> DataStream<T> partitionCustom(Partitioner<K> partitioner, KeySelector<T, K> keySelector) {
 		return setConnectionType(new CustomPartitionerWrapper<>(clean(partitioner),
-				clean(keySelector)));
+			clean(keySelector)));
 	}
 
 	//	private helper method for custom partitioning
@@ -394,14 +367,45 @@ public class DataStream<T> {
 		KeySelector<T, K> keySelector = KeySelectorUtil.getSelectorForOneKey(keys, partitioner, getType(), getExecutionConfig());
 
 		return setConnectionType(
-				new CustomPartitionerWrapper<>(
-						clean(partitioner),
-						clean(keySelector)));
+			new CustomPartitionerWrapper<>(
+				clean(partitioner),
+				clean(keySelector)));
 	}
 
+	/**
+	 * Sets the partitioning of the {@link DataStream} so that the output is
+	 * partitioned using the given {@link KeySelector}. This setting only
+	 * effects the how the outputs will be distributed between the parallel
+	 * instances of the next processing operator.
+	 *
+	 * @param keySelector The function that extracts the key from an element in the Stream
+	 * @return The partitioned DataStream
+	 */
 	@PublicEvolving
-	public DataStream<T> powerOfBothChoices(KeySelector<T, ?> keySelector) {
-		return setConnectionType(new PowerOfBothChoicesPartitioner<T>(keySelector));
+	public DataStream<T> partitionByPartial(KeySelector<T, ?> keySelector) {
+		return setConnectionType(new PartialPartitioner<T>(clean(keySelector)));
+	}
+
+	public DataStream<T> partitionByPartial(String... fields) {
+		return partitionByPartial(new Keys.ExpressionKeys<T>(fields, getType()));
+	}
+
+	public DataStream<T> partitionByPartial(int... fields) {
+		if (getType() instanceof BasicArrayTypeInfo || getType() instanceof PrimitiveArrayTypeInfo) {
+			return null;
+			// return partitionByPartial(new KeySelectorUtil.ArrayKeySelector<T>(fields));
+		} else {
+			return partitionByPartial(new Keys.ExpressionKeys<T>(fields, getType()));
+		}
+	}
+
+	private DataStream<T> partitionByPartial(Keys<T> keys) {
+		KeySelector<T, ?> keySelector = clean(KeySelectorUtil.getSelectorForKeys(
+			keys,
+			getType(),
+			getExecutionConfig()));
+
+		return setConnectionType(new PartialPartitioner<T>(keySelector));
 	}
 
 	/**
@@ -558,10 +562,8 @@ public class DataStream<T> {
 	 * iteration head. If no data received in the set time, the stream
 	 * terminates.
 	 *
-	 * @param maxWaitTimeMillis
-	 *            Number of milliseconds to wait between inputs before shutting
-	 *            down
-	 *
+	 * @param maxWaitTimeMillis Number of milliseconds to wait between inputs before shutting
+	 *                          down
 	 * @return The iterative data stream created.
 	 */
 	@PublicEvolving
@@ -576,17 +578,15 @@ public class DataStream<T> {
 	 * {@link RichMapFunction} to gain access to other features provided by the
 	 * {@link org.apache.flink.api.common.functions.RichFunction} interface.
 	 *
-	 * @param mapper
-	 *            The MapFunction that is called for each element of the
-	 *            DataStream.
-	 * @param <R>
-	 *            output type
+	 * @param mapper The MapFunction that is called for each element of the
+	 *               DataStream.
+	 * @param <R>    output type
 	 * @return The transformed {@link DataStream}.
 	 */
 	public <R> SingleOutputStreamOperator<R> map(MapFunction<T, R> mapper) {
 
 		TypeInformation<R> outType = TypeExtractor.getMapReturnTypes(clean(mapper), getType(),
-				Utils.getCallLocationName(), true);
+			Utils.getCallLocationName(), true);
 
 		return transform("Map", outType, new StreamMap<>(clean(mapper)));
 	}
@@ -599,18 +599,15 @@ public class DataStream<T> {
 	 * gain access to other features provided by the
 	 * {@link org.apache.flink.api.common.functions.RichFunction} interface.
 	 *
-	 * @param flatMapper
-	 *            The FlatMapFunction that is called for each element of the
-	 *            DataStream
-	 *
-	 * @param <R>
-	 *            output type
+	 * @param flatMapper The FlatMapFunction that is called for each element of the
+	 *                   DataStream
+	 * @param <R>        output type
 	 * @return The transformed {@link DataStream}.
 	 */
 	public <R> SingleOutputStreamOperator<R> flatMap(FlatMapFunction<T, R> flatMapper) {
 
 		TypeInformation<R> outType = TypeExtractor.getFlatMapReturnTypes(clean(flatMapper),
-				getType(), Utils.getCallLocationName(), true);
+			getType(), Utils.getCallLocationName(), true);
 
 		return transform("Flat Map", outType, new StreamFlatMap<>(clean(flatMapper)));
 
@@ -624,10 +621,8 @@ public class DataStream<T> {
 	 * or more output elements.
 	 *
 	 * @param processFunction The {@link ProcessFunction} that is called for each element
-	 *                      in the stream.
-	 *
-	 * @param <R> The type of elements emitted by the {@code ProcessFunction}.
-	 *
+	 *                        in the stream.
+	 * @param <R>             The type of elements emitted by the {@code ProcessFunction}.
 	 * @return The transformed {@link DataStream}.
 	 */
 	@PublicEvolving
@@ -654,17 +649,15 @@ public class DataStream<T> {
 	 * or more output elements.
 	 *
 	 * @param processFunction The {@link ProcessFunction} that is called for each element
-	 *                      in the stream.
-	 * @param outputType {@link TypeInformation} for the result type of the function.
-	 *
-	 * @param <R> The type of elements emitted by the {@code ProcessFunction}.
-	 *
+	 *                        in the stream.
+	 * @param outputType      {@link TypeInformation} for the result type of the function.
+	 * @param <R>             The type of elements emitted by the {@code ProcessFunction}.
 	 * @return The transformed {@link DataStream}.
 	 */
 	@Internal
 	public <R> SingleOutputStreamOperator<R> process(
-			ProcessFunction<T, R> processFunction,
-			TypeInformation<R> outputType) {
+		ProcessFunction<T, R> processFunction,
+		TypeInformation<R> outputType) {
 
 		ProcessOperator<T, R> operator = new ProcessOperator<>(clean(processFunction));
 
@@ -680,9 +673,8 @@ public class DataStream<T> {
 	 * features provided by the
 	 * {@link org.apache.flink.api.common.functions.RichFunction} interface.
 	 *
-	 * @param filter
-	 *            The FilterFunction that is called for each element of the
-	 *            DataStream.
+	 * @param filter The FilterFunction that is called for each element of the
+	 *               DataStream.
 	 * @return The filtered DataStream.
 	 */
 	public SingleOutputStreamOperator<T> filter(FilterFunction<T> filter) {
@@ -697,12 +689,10 @@ public class DataStream<T> {
 	 * <p>The transformation projects each Tuple of the DataSet onto a (sub)set of
 	 * fields.
 	 *
-	 * @param fieldIndexes
-	 *            The field indexes of the input tuples that are retained. The
-	 *            order of fields in the output tuple corresponds to the order
-	 *            of field indexes.
+	 * @param fieldIndexes The field indexes of the input tuples that are retained. The
+	 *                     order of fields in the output tuple corresponds to the order
+	 *                     of field indexes.
 	 * @return The projected DataStream
-	 *
 	 * @see Tuple
 	 * @see DataStream
 	 */
@@ -736,7 +726,7 @@ public class DataStream<T> {
 	 *
 	 * <p>Note: This operation is inherently non-parallel since all elements have to pass through
 	 * the same operator instance.
-	 *
+	 * <p>
 	 * {@link org.apache.flink.streaming.api.environment.StreamExecutionEnvironment#setStreamTimeCharacteristic(org.apache.flink.streaming.api.TimeCharacteristic)}
 	 *
 	 * @param size The size of the window.
@@ -788,13 +778,13 @@ public class DataStream<T> {
 	 * <p>Note: This operation is inherently non-parallel since all elements have to pass through
 	 * the same operator instance.
 	 *
-	 * @param size The size of the windows in number of elements.
+	 * @param size  The size of the windows in number of elements.
 	 * @param slide The slide interval in number of elements.
 	 */
 	public AllWindowedStream<T, GlobalWindow> countWindowAll(long size, long slide) {
 		return windowAll(GlobalWindows.create())
-				.evictor(CountEvictor.of(size))
-				.trigger(CountTrigger.of(slide));
+			.evictor(CountEvictor.of(size))
+			.trigger(CountTrigger.of(slide));
 	}
 
 	/**
@@ -832,12 +822,11 @@ public class DataStream<T> {
 	 * {@link TimestampExtractor#getCurrentWatermark()} to keep track of watermarks.
 	 *
 	 * @param extractor The TimestampExtractor that is called for each element of the DataStream.
-	 *
-	 * @deprecated Please use {@link #assignTimestampsAndWatermarks(AssignerWithPeriodicWatermarks)}
-	 *             of {@link #assignTimestampsAndWatermarks(AssignerWithPunctuatedWatermarks)}
-	 *             instead.
 	 * @see #assignTimestampsAndWatermarks(AssignerWithPeriodicWatermarks)
 	 * @see #assignTimestampsAndWatermarks(AssignerWithPunctuatedWatermarks)
+	 * @deprecated Please use {@link #assignTimestampsAndWatermarks(AssignerWithPeriodicWatermarks)}
+	 * of {@link #assignTimestampsAndWatermarks(AssignerWithPunctuatedWatermarks)}
+	 * instead.
 	 */
 	@Deprecated
 	public SingleOutputStreamOperator<T> assignTimestamps(TimestampExtractor<T> extractor) {
@@ -847,7 +836,7 @@ public class DataStream<T> {
 		int inputParallelism = getTransformation().getParallelism();
 		ExtractTimestampsOperator<T> operator = new ExtractTimestampsOperator<>(clean(extractor));
 		return transform("ExtractTimestamps", getTransformation().getOutputType(), operator)
-				.setParallelism(inputParallelism);
+			.setParallelism(inputParallelism);
 	}
 
 	/**
@@ -876,13 +865,12 @@ public class DataStream<T> {
 	 * @param timestampAndWatermarkAssigner The implementation of the timestamp assigner and
 	 *                                      watermark generator.
 	 * @return The stream after the transformation, with assigned timestamps and watermarks.
-	 *
 	 * @see AssignerWithPeriodicWatermarks
 	 * @see AssignerWithPunctuatedWatermarks
 	 * @see #assignTimestampsAndWatermarks(AssignerWithPunctuatedWatermarks)
 	 */
 	public SingleOutputStreamOperator<T> assignTimestampsAndWatermarks(
-			AssignerWithPeriodicWatermarks<T> timestampAndWatermarkAssigner) {
+		AssignerWithPeriodicWatermarks<T> timestampAndWatermarkAssigner) {
 
 		// match parallelism to input, otherwise dop=1 sources could lead to some strange
 		// behaviour: the watermark will creep along very slowly because the elements
@@ -891,10 +879,10 @@ public class DataStream<T> {
 		final AssignerWithPeriodicWatermarks<T> cleanedAssigner = clean(timestampAndWatermarkAssigner);
 
 		TimestampsAndPeriodicWatermarksOperator<T> operator =
-				new TimestampsAndPeriodicWatermarksOperator<>(cleanedAssigner);
+			new TimestampsAndPeriodicWatermarksOperator<>(cleanedAssigner);
 
 		return transform("Timestamps/Watermarks", getTransformation().getOutputType(), operator)
-				.setParallelism(inputParallelism);
+			.setParallelism(inputParallelism);
 	}
 
 	/**
@@ -919,13 +907,12 @@ public class DataStream<T> {
 	 * @param timestampAndWatermarkAssigner The implementation of the timestamp assigner and
 	 *                                      watermark generator.
 	 * @return The stream after the transformation, with assigned timestamps and watermarks.
-	 *
 	 * @see AssignerWithPunctuatedWatermarks
 	 * @see AssignerWithPeriodicWatermarks
 	 * @see #assignTimestampsAndWatermarks(AssignerWithPeriodicWatermarks)
 	 */
 	public SingleOutputStreamOperator<T> assignTimestampsAndWatermarks(
-			AssignerWithPunctuatedWatermarks<T> timestampAndWatermarkAssigner) {
+		AssignerWithPunctuatedWatermarks<T> timestampAndWatermarkAssigner) {
 
 		// match parallelism to input, otherwise dop=1 sources could lead to some strange
 		// behaviour: the watermark will creep along very slowly because the elements
@@ -934,10 +921,10 @@ public class DataStream<T> {
 		final AssignerWithPunctuatedWatermarks<T> cleanedAssigner = clean(timestampAndWatermarkAssigner);
 
 		TimestampsAndPunctuatedWatermarksOperator<T> operator =
-				new TimestampsAndPunctuatedWatermarksOperator<>(cleanedAssigner);
+			new TimestampsAndPunctuatedWatermarksOperator<>(cleanedAssigner);
 
 		return transform("Timestamps/Watermarks", getTransformation().getOutputType(), operator)
-				.setParallelism(inputParallelism);
+			.setParallelism(inputParallelism);
 	}
 
 	// ------------------------------------------------------------------------
@@ -1015,9 +1002,7 @@ public class DataStream<T> {
 	 *
 	 * <p>For every element of the DataStream the result of {@link Object#toString()} is written.
 	 *
-	 * @param path
-	 *            The path pointing to the location the text file is written to.
-	 *
+	 * @param path The path pointing to the location the text file is written to.
 	 * @return The closed DataStream.
 	 */
 	@PublicEvolving
@@ -1031,12 +1016,9 @@ public class DataStream<T> {
 	 *
 	 * <p>For every element of the DataStream the result of {@link Object#toString()} is written.
 	 *
-	 * @param path
-	 *            The path pointing to the location the text file is written to
-	 * @param writeMode
-	 *            Controls the behavior for existing files. Options are
-	 *            NO_OVERWRITE and OVERWRITE.
-	 *
+	 * @param path      The path pointing to the location the text file is written to
+	 * @param writeMode Controls the behavior for existing files. Options are
+	 *                  NO_OVERWRITE and OVERWRITE.
 	 * @return The closed DataStream.
 	 */
 	@PublicEvolving
@@ -1053,9 +1035,7 @@ public class DataStream<T> {
 	 * <p>For every field of an element of the DataStream the result of {@link Object#toString()}
 	 * is written. This method can only be used on data streams of tuples.
 	 *
-	 * @param path
-	 *            the path pointing to the location the text file is written to
-	 *
+	 * @param path the path pointing to the location the text file is written to
 	 * @return the closed DataStream
 	 */
 	@PublicEvolving
@@ -1070,12 +1050,9 @@ public class DataStream<T> {
 	 * <p>For every field of an element of the DataStream the result of {@link Object#toString()}
 	 * is written. This method can only be used on data streams of tuples.
 	 *
-	 * @param path
-	 *            the path pointing to the location the text file is written to
-	 * @param writeMode
-	 *            Controls the behavior for existing files. Options are
-	 *            NO_OVERWRITE and OVERWRITE.
-	 *
+	 * @param path      the path pointing to the location the text file is written to
+	 * @param writeMode Controls the behavior for existing files. Options are
+	 *                  NO_OVERWRITE and OVERWRITE.
 	 * @return the closed DataStream
 	 */
 	@PublicEvolving
@@ -1090,25 +1067,20 @@ public class DataStream<T> {
 	 * <p>For every field of an element of the DataStream the result of {@link Object#toString()}
 	 * is written. This method can only be used on data streams of tuples.
 	 *
-	 * @param path
-	 *            the path pointing to the location the text file is written to
-	 * @param writeMode
-	 *            Controls the behavior for existing files. Options are
-	 *            NO_OVERWRITE and OVERWRITE.
-	 * @param rowDelimiter
-	 *            the delimiter for two rows
-	 * @param fieldDelimiter
-	 *            the delimiter for two fields
-	 *
+	 * @param path           the path pointing to the location the text file is written to
+	 * @param writeMode      Controls the behavior for existing files. Options are
+	 *                       NO_OVERWRITE and OVERWRITE.
+	 * @param rowDelimiter   the delimiter for two rows
+	 * @param fieldDelimiter the delimiter for two fields
 	 * @return the closed DataStream
 	 */
 	@SuppressWarnings("unchecked")
 	@PublicEvolving
 	public <X extends Tuple> DataStreamSink<T> writeAsCsv(
-			String path,
-			WriteMode writeMode,
-			String rowDelimiter,
-			String fieldDelimiter) {
+		String path,
+		WriteMode writeMode,
+		String rowDelimiter,
+		String fieldDelimiter) {
 		Preconditions.checkArgument(
 			getType().isTupleType(),
 			"The writeAsCsv() method can only be used on data streams of tuples.");
@@ -1129,12 +1101,9 @@ public class DataStream<T> {
 	 * Writes the DataStream to a socket as a byte array. The format of the
 	 * output is specified by a {@link SerializationSchema}.
 	 *
-	 * @param hostName
-	 *            host of the socket
-	 * @param port
-	 *            port of the socket
-	 * @param schema
-	 *            schema for serialization
+	 * @param hostName host of the socket
+	 * @param port     port of the socket
+	 * @param schema   schema for serialization
 	 * @return the closed DataStream
 	 */
 	@PublicEvolving
@@ -1164,22 +1133,18 @@ public class DataStream<T> {
 	 * Method for passing user defined operators along with the type
 	 * information that will transform the DataStream.
 	 *
-	 * @param operatorName
-	 *            name of the operator, for logging purposes
-	 * @param outTypeInfo
-	 *            the output type of the operator
-	 * @param operator
-	 *            the object containing the transformation logic
-	 * @param <R>
-	 *            type of the return stream
+	 * @param operatorName name of the operator, for logging purposes
+	 * @param outTypeInfo  the output type of the operator
+	 * @param operator     the object containing the transformation logic
+	 * @param <R>          type of the return stream
 	 * @return the data stream constructed
 	 * @see #transform(String, TypeInformation, OneInputStreamOperatorFactory)
 	 */
 	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> transform(
-			String operatorName,
-			TypeInformation<R> outTypeInfo,
-			OneInputStreamOperator<T, R> operator) {
+		String operatorName,
+		TypeInformation<R> outTypeInfo,
+		OneInputStreamOperator<T, R> operator) {
 
 		return doTransform(operatorName, outTypeInfo, SimpleOperatorFactory.of(operator));
 	}
@@ -1190,34 +1155,34 @@ public class DataStream<T> {
 	 *
 	 * <p>This method uses the rather new operator factories and should only be used when custom factories are needed.
 	 *
-	 * @param operatorName name of the operator, for logging purposes
-	 * @param outTypeInfo the output type of the operator
+	 * @param operatorName    name of the operator, for logging purposes
+	 * @param outTypeInfo     the output type of the operator
 	 * @param operatorFactory the factory for the operator.
-	 * @param <R> type of the return stream
+	 * @param <R>             type of the return stream
 	 * @return the data stream constructed.
 	 */
 	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> transform(
-			String operatorName,
-			TypeInformation<R> outTypeInfo,
-			OneInputStreamOperatorFactory<T, R> operatorFactory) {
+		String operatorName,
+		TypeInformation<R> outTypeInfo,
+		OneInputStreamOperatorFactory<T, R> operatorFactory) {
 		return doTransform(operatorName, outTypeInfo, operatorFactory);
 	}
 
 	private <R> SingleOutputStreamOperator<R> doTransform(
-			String operatorName,
-			TypeInformation<R> outTypeInfo,
-			StreamOperatorFactory<R> operatorFactory) {
+		String operatorName,
+		TypeInformation<R> outTypeInfo,
+		StreamOperatorFactory<R> operatorFactory) {
 
 		// read the output type of the input Transform to coax out errors about MissingTypeInfo
 		transformation.getOutputType();
 
 		OneInputTransformation<T, R> resultTransform = new OneInputTransformation<>(
-				this.transformation,
-				operatorName,
-				operatorFactory,
-				outTypeInfo,
-				environment.getParallelism());
+			this.transformation,
+			operatorName,
+			operatorFactory,
+			outTypeInfo,
+			environment.getParallelism());
 
 		@SuppressWarnings({"unchecked", "rawtypes"})
 		SingleOutputStreamOperator<R> returnStream = new SingleOutputStreamOperator(environment, resultTransform);
@@ -1230,8 +1195,7 @@ public class DataStream<T> {
 	/**
 	 * Internal function for setting the partitioner for the DataStream.
 	 *
-	 * @param partitioner
-	 *            Partitioner to set.
+	 * @param partitioner Partitioner to set.
 	 * @return The modified DataStream.
 	 */
 	protected DataStream<T> setConnectionType(StreamPartitioner<T> partitioner) {
@@ -1243,8 +1207,7 @@ public class DataStream<T> {
 	 * will be executed once the {@link StreamExecutionEnvironment#execute()}
 	 * method is called.
 	 *
-	 * @param sinkFunction
-	 *            The object containing the sink's invoke function.
+	 * @param sinkFunction The object containing the sink's invoke function.
 	 * @return The closed DataStream.
 	 */
 	public DataStreamSink<T> addSink(SinkFunction<T> sinkFunction) {

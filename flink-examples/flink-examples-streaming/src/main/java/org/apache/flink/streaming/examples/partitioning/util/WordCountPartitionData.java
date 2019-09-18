@@ -1,7 +1,7 @@
 package org.apache.flink.streaming.examples.partitioning.util;
 
 public class WordCountPartitionData {
-	public static final String[] WORDS = new String[] {
+	public static final String[] WORDS = new String[]{
 		"To be, or not to be, that is the question",
 		"Whether 'tis nobler in the mind to suffer",
 		"The slings and arrows of outrageous fortune",
@@ -10,7 +10,49 @@ public class WordCountPartitionData {
 		"No more; and by a sleep to say we end"
 	};
 
-	public static final String[] WORDS_SKEW = new String[] {
+	public static final String[] WORDS_SKEW = new String[]{
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
+		"To be, or not to be, that is the question",
 		"To be, or not to be, that is the question",
 		"To be, or not to be, that is the question",
 		"To be, or not to be, that is the question",
