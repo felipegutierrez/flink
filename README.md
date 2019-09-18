@@ -20,6 +20,13 @@ $ git pull
  - Deploy the application using the following command: `./bin/flink run examples/streaming/WordCountPartitioning.jar -partition [rebalance|broadcast|rescale|forward|shuffle|global|power|''] &`.
  - Instruction on the [official Flink sodumentation](https://ci.apache.org/projects/flink/flink-docs-stable/flinkDev/ide_setup.html).
  - Implementing the [Power of both choices](https://melmeric.files.wordpress.com/2014/11/the-power-of-both-choices-practical-load-balancing-for-distributed-stream-processing-engines.pdf) in Flink.
+ - Compile only the package necessary to deploy:
+```
+$ cd flink-partition-tests/
+$ mvn clean install -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true
+$ mvn clean install -DskipTests -Dskip.npm -Dfast
+$ ll flink-examples/flink-examples-streaming/target/
+```
 
 
 ## Original README.md file

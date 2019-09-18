@@ -1,6 +1,8 @@
 package org.apache.flink.streaming.examples.partitioning;
 
+import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -11,21 +13,20 @@ import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.partitioning.util.WordCountPartitionData;
-import org.apache.flink.streaming.examples.wordcount.util.WordCountData;
 import org.apache.flink.util.Collector;
 
 import java.util.Calendar;
 import java.util.Date;
 
 /**
- * Implements the "WordCount" program that computes a simple word occurrence
- * histogram over text files in a streaming fashion.
- *
- * <p>The input is a plain text file with lines separated by newline characters.
- *
- * <p>Usage: <code>WordCount --input &lt;path&gt; --output &lt;path&gt;</code><br>
- * If no parameters are provided, the program is run with default data from
- * {@link WordCountData}.
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition '' &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition rebalance &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition broadcast &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition shuffle &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition forward &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition rescale &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition global &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition power &
  *
  * <p>This example shows how to:
  * <ul>
@@ -62,6 +63,11 @@ public class WordCountPartitioning {
 		// make parameters available in the web interface
 		env.getConfig().setGlobalJobParameters(params);
 
+		String partitionStrategy = "";
+		if (params.get(PARTITION) != null) {
+			partitionStrategy = params.get(PARTITION);
+		}
+
 		// get input data
 		DataStream<String> text;
 		if (params.has("input")) {
@@ -72,27 +78,29 @@ public class WordCountPartitioning {
 			System.out.println("Use --input to specify file input.");
 			// get default test text data
 			// text = env.fromElements(WordCountPartitionData.WORDS);
-			text = env.addSource(new WordSource(true)).name("source").uid("source");
+			text = env.addSource(new WordSource(true)).name("source-" + partitionStrategy).uid("source-" + partitionStrategy);
 		}
 
+		// split lines in strings
 		DataStream<Tuple2<String, Integer>> tokenizer = text
-			.flatMap(new Tokenizer()).name("tokenizer").uid("tokenizer");
+			.flatMap(new Tokenizer()).name("tokenizer-" + partitionStrategy).uid("tokenizer-" + partitionStrategy);
 
+		// choose a partitioning strategy
 		DataStream<Tuple2<String, Integer>> partitioning = null;
-		if (params.get(PARTITION) != null) {
-			if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_REBALANCE)) {
+		if (!Strings.isNullOrEmpty(partitionStrategy)) {
+			if (PARTITION_TYPE_REBALANCE.equalsIgnoreCase(partitionStrategy)) {
 				partitioning = tokenizer.rebalance();
-			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_BROADCAST)) {
+			} else if (PARTITION_TYPE_BROADCAST.equalsIgnoreCase(partitionStrategy)) {
 				partitioning = tokenizer.broadcast();
-			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_SHUFFLE)) {
+			} else if (PARTITION_TYPE_SHUFFLE.equalsIgnoreCase(partitionStrategy)) {
 				partitioning = tokenizer.shuffle();
-			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_FORWARD)) {
+			} else if (PARTITION_TYPE_FORWARD.equalsIgnoreCase(partitionStrategy)) {
 				partitioning = tokenizer.forward();
-			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_RESCALE)) {
+			} else if (PARTITION_TYPE_RESCALE.equalsIgnoreCase(partitionStrategy)) {
 				partitioning = tokenizer.rescale();
-			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_GLOBAL)) {
+			} else if (PARTITION_TYPE_GLOBAL.equalsIgnoreCase(partitionStrategy)) {
 				partitioning = tokenizer.global();
-			} else if (params.get(PARTITION).equalsIgnoreCase(PARTITION_TYPE_POWER_OF_BOTH_CHOICES)) {
+			} else if (PARTITION_TYPE_POWER_OF_BOTH_CHOICES.equalsIgnoreCase(partitionStrategy)) {
 				partitioning = tokenizer.powerOfBothChoices(new WordKeySelector());
 			} else {
 				System.err.println("Wrong partition strategy chosen.");
@@ -101,17 +109,18 @@ public class WordCountPartitioning {
 		} else {
 			partitioning = tokenizer;
 		}
+
+		// process sum in a window using reduce
 		DataStream<Tuple2<String, Integer>> counts = partitioning
-			.keyBy(0)
-			.window(TumblingEventTimeWindows.of(Time.seconds(5)))
-			.sum(1).name("sum").uid("sum");
+			.windowAll(TumblingEventTimeWindows.of(Time.seconds(5)))
+			.reduce(new SumWindowReduce()).name("reduce-" + partitionStrategy).uid("reduce-" + partitionStrategy);
 
 		// emit result
 		if (params.has("output")) {
-			counts.writeAsText(params.get("output"));
+			counts.writeAsText(params.get("output")).name("writeAsText-" + partitionStrategy).uid("writeAsText-" + partitionStrategy);
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
-			counts.print().name("print").uid("print");
+			counts.print().name("print-" + partitionStrategy).uid("print-" + partitionStrategy);
 		}
 
 		// execute program
@@ -121,6 +130,13 @@ public class WordCountPartitioning {
 	// *************************************************************************
 	// USER FUNCTIONS
 	// *************************************************************************
+
+	private static class SumWindowReduce implements ReduceFunction<Tuple2<String, Integer>> {
+		@Override
+		public Tuple2<String, Integer> reduce(Tuple2<String, Integer> value1, Tuple2<String, Integer> value2) {
+			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
+		}
+	}
 
 	private static class WordSource implements SourceFunction<String> {
 		private static final long DEFAULT_INTERVAL_CHANGE_DATA_SOURCE = Time.minutes(1).toMilliseconds();
