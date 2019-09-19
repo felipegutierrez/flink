@@ -320,6 +320,30 @@ under the License.
 						</configuration>
 					</execution>
 
+					<!-- WordCountKeyPartitioning -->
+					<execution>
+						<id>WordCountKeyPartitioning</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>WordCountKeyPartitioning</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.partitioning.WordCountKeyPartitioning</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>org/apache/flink/streaming/examples/partitioning/WordCountKeyPartitioning.class</include>
+								<include>org/apache/flink/streaming/examples/partitioning/WordCountKeyPartitioning$*.class</include>
+								<include>org/apache/flink/streaming/examples/partitioning/util/WordCountPartitionData.class</include>
+							</includes>
+						</configuration>
+					</execution>
+
 					<!-- SocketWindowWordCount -->
 					<execution>
 						<id>SocketWindowWordCount</id>
@@ -505,6 +529,7 @@ under the License.
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WindowJoin.jar" tofile="${project.basedir}/target/WindowJoin.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCount.jar" tofile="${project.basedir}/target/WordCount.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountPartitioning.jar" tofile="${project.basedir}/target/WordCountPartitioning.jar" />
+								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountKeyPartitioning.jar" tofile="${project.basedir}/target/WordCountKeyPartitioning.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-SocketWindowWordCount.jar" tofile="${project.basedir}/target/SocketWindowWordCount.jar" />
 							</target>
 						</configuration>

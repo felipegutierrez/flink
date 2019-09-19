@@ -20,21 +20,20 @@ import java.util.Calendar;
 import java.util.Date;
 
 /**
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition '' &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition rebalance &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition broadcast &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition shuffle &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition forward &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition rescale &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition global &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition custom &
- * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition partial &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition [rebalance|broadcast|shuffle|forward|rescale|global|custom|partial|''] -skew-data-source [true|false] &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition '' -skew-data-source true&
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition rebalance -skew-data-source true &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition broadcast -skew-data-source true &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition shuffle -skew-data-source true &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition forward -skew-data-source true &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition rescale -skew-data-source true &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition global -skew-data-source true &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition custom -skew-data-source true &
+ * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition partial -skew-data-source true &
  *
  * <p>This example shows how to:
  * <ul>
- * <li>write a simple Flink Streaming program,
- * <li>use tuple data types,
- * <li>write and use user-defined functions.
+ * <li>use different physical partition strategies.
  * </ul>
  */
 
@@ -48,6 +47,7 @@ public class WordCountPartitioning {
 	private static final String PARTITION_TYPE_GLOBAL = "global";
 	private static final String PARTITION_TYPE_CUSTOM = "custom";
 	private static final String PARTITION_TYPE_PARTIAL = "partial";
+	private static final String SKEW_DATA_SOURCE = "skew-data-source";
 
 	// *************************************************************************
 	// PROGRAM
@@ -67,61 +67,102 @@ public class WordCountPartitioning {
 		env.getConfig().setGlobalJobParameters(params);
 
 		String partitionStrategy = "";
+		boolean skewDataSource = false;
 		if (params.get(PARTITION) != null) {
 			partitionStrategy = params.get(PARTITION);
+		}
+		if (params.get(SKEW_DATA_SOURCE) != null) {
+			skewDataSource = params.getBoolean(SKEW_DATA_SOURCE);
 		}
 
 		// get input data
 		DataStream<String> text = env.addSource(new WordSource(false, false)).name("source-" + partitionStrategy).uid("source-" + partitionStrategy);
-		// DataStream<String> textSkew = env.addSource(new WordSource(false, true)).name("source-skew-" + partitionStrategy).uid("source-skew-" + partitionStrategy);
+		DataStream<String> textSkew = env.addSource(new WordSource(false, true)).name("source-skew-" + partitionStrategy).uid("source-skew-" + partitionStrategy);
 
 		// split lines in strings
 		DataStream<Tuple2<String, Integer>> tokenizer = text
 			.flatMap(new Tokenizer()).name("tokenizer-" + partitionStrategy).uid("tokenizer-" + partitionStrategy);
-		// DataStream<Tuple2<String, Integer>> tokenizerSkew = textSkew
-		// 	.flatMap(new Tokenizer()).name("tokenizer-skew-" + partitionStrategy).uid("tokenizer-skew-" + partitionStrategy);
+		DataStream<Tuple2<String, Integer>> tokenizerSkew = textSkew
+			.flatMap(new Tokenizer()).name("tokenizer-skew-" + partitionStrategy).uid("tokenizer-skew-" + partitionStrategy);
 
 		// choose a partitioning strategy
 		DataStream<Tuple2<String, Integer>> partitionedStream = null;
 		DataStream<Tuple2<String, Integer>> partitionedStreamSkew = null;
 		if (!Strings.isNullOrEmpty(partitionStrategy)) {
 			if (PARTITION_TYPE_REBALANCE.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.rebalance();
-				// partitionedStreamSkew = tokenizerSkew.rebalance();
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.rebalance();
+				} else {
+					partitionedStream = tokenizer.rebalance();
+				}
 			} else if (PARTITION_TYPE_BROADCAST.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.broadcast();
-				// partitionedStreamSkew = tokenizerSkew.broadcast();
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.broadcast();
+				} else {
+					partitionedStream = tokenizer.broadcast();
+				}
 			} else if (PARTITION_TYPE_SHUFFLE.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.shuffle();
-				// partitionedStreamSkew = tokenizerSkew.shuffle();
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.shuffle();
+				} else {
+					partitionedStream = tokenizer.shuffle();
+				}
 			} else if (PARTITION_TYPE_FORWARD.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.forward();
-				// partitionedStreamSkew = tokenizerSkew.forward();
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.forward();
+				} else {
+					partitionedStream = tokenizer.forward();
+				}
 			} else if (PARTITION_TYPE_RESCALE.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.rescale();
-				// partitionedStreamSkew = tokenizerSkew.rescale();
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.rescale();
+				} else {
+					partitionedStream = tokenizer.rescale();
+				}
 			} else if (PARTITION_TYPE_GLOBAL.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.global();
-				// partitionedStreamSkew = tokenizerSkew.global();
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.global();
+				} else {
+					partitionedStream = tokenizer.global();
+				}
 			} else if (PARTITION_TYPE_CUSTOM.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.partitionCustom(new WordPartitioner(), new WordKeySelector());
-				// 	partitionedStreamSkew = tokenizerSkew.partitionCustom(new WordPartitioner(), new WordKeySelector());
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.partitionCustom(new WordPartitioner(), new WordKeySelector());
+				} else {
+					partitionedStream = tokenizer.partitionCustom(new WordPartitioner(), new WordKeySelector());
+				}
 			} else if (PARTITION_TYPE_PARTIAL.equalsIgnoreCase(partitionStrategy)) {
-				partitionedStream = tokenizer.partitionByPartial(new WordKeySelector());
-				// partitionedStreamSkew = tokenizerSkew.powerOfBothChoices(new WordKeySelector());
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew.partitionByPartial(new WordKeySelector());
+				} else {
+					partitionedStream = tokenizer.partitionByPartial(new WordKeySelector());
+				}
 			} else {
-				partitionedStream = tokenizer;
-				// 	partitionedStreamSkew = tokenizerSkew;
+				if (skewDataSource) {
+					partitionedStreamSkew = tokenizerSkew;
+				} else {
+					partitionedStream = tokenizer;
+				}
 			}
 		} else {
-			partitionedStream = tokenizer;
-			// 	partitionedStreamSkew = tokenizerSkew;
+			if (skewDataSource) {
+				partitionedStreamSkew = tokenizerSkew;
+			} else {
+				partitionedStream = tokenizer;
+			}
 		}
 
-		partitionedStream
-			.keyBy(0)
-			.sum(1).name("sum-" + partitionStrategy).uid("sum-" + partitionStrategy)
-			.print().name("print-" + partitionStrategy).uid("print-" + partitionStrategy);
+		if (skewDataSource) {
+			partitionedStreamSkew
+				.keyBy(0)
+				.sum(1).name("sum-" + partitionStrategy).uid("sum-" + partitionStrategy)
+				.print().name("print-" + partitionStrategy).uid("print-" + partitionStrategy);
+		} else {
+			partitionedStream
+				.keyBy(0)
+				.sum(1).name("sum-" + partitionStrategy).uid("sum-" + partitionStrategy)
+				.print().name("print-" + partitionStrategy).uid("print-" + partitionStrategy);
+		}
 		// DataStream<Tuple2<String, Integer>> replaceMapStream = partitionedStream.map(new WordReplaceMap()).name("map-" + partitionStrategy).uid("map-" + partitionStrategy);
 		// DataStream<Tuple2<String, Integer>> replaceMapStreamSkew = partitionedStreamSkew.map(new WordReplaceMap()).name("map-skew-" + partitionStrategy).uid("map-skew-" + partitionStrategy);
 		// process sum in a window using reduce

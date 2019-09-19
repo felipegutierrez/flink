@@ -53,6 +53,7 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SocketClientSink;
 import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
+import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
@@ -313,6 +314,37 @@ public class DataStream<T> {
 			getType(), getExecutionConfig())));
 	}
 
+	// ------------------------------------------------------------------------
+	//  partial keyed stream
+	// ------------------------------------------------------------------------
+	public <K> KeyedPartialStream<T, K> keyByPartial(KeySelector<T, K> key) {
+		Preconditions.checkNotNull(key);
+		return new KeyedPartialStream<>(this, clean(key));
+	}
+
+	public <K> KeyedPartialStream<T, K> keyByPartial(KeySelector<T, K> key, TypeInformation<K> keyType) {
+		Preconditions.checkNotNull(key);
+		Preconditions.checkNotNull(keyType);
+		return new KeyedPartialStream<>(this, clean(key), keyType);
+	}
+
+	public KeyedPartialStream<T, Tuple> keyByPartial(int... fields) {
+		if (getType() instanceof BasicArrayTypeInfo || getType() instanceof PrimitiveArrayTypeInfo) {
+			return keyByPartial(KeySelectorUtil.getSelectorForArray(fields, getType()));
+		} else {
+			return keyByPartial(new Keys.ExpressionKeys<>(fields, getType()));
+		}
+	}
+
+	public KeyedPartialStream<T, Tuple> keyByPartial(String... fields) {
+		return keyByPartial(new Keys.ExpressionKeys<>(fields, getType()));
+	}
+
+	private KeyedPartialStream<T, Tuple> keyByPartial(Keys<T> keys) {
+		return new KeyedPartialStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
+			getType(), getExecutionConfig())));
+	}
+
 	/**
 	 * Partitions a tuple DataStream on the specified key fields using a custom partitioner.
 	 * This method takes the key position to partition on, and a partitioner that accepts the key type.
@@ -382,30 +414,8 @@ public class DataStream<T> {
 	 * @return The partitioned DataStream
 	 */
 	@PublicEvolving
-	public DataStream<T> partitionByPartial(KeySelector<T, ?> keySelector) {
-		return setConnectionType(new PartialPartitioner<T>(clean(keySelector)));
-	}
-
-	public DataStream<T> partitionByPartial(String... fields) {
-		return partitionByPartial(new Keys.ExpressionKeys<T>(fields, getType()));
-	}
-
-	public DataStream<T> partitionByPartial(int... fields) {
-		if (getType() instanceof BasicArrayTypeInfo || getType() instanceof PrimitiveArrayTypeInfo) {
-			return null;
-			// return partitionByPartial(new KeySelectorUtil.ArrayKeySelector<T>(fields));
-		} else {
-			return partitionByPartial(new Keys.ExpressionKeys<T>(fields, getType()));
-		}
-	}
-
-	private DataStream<T> partitionByPartial(Keys<T> keys) {
-		KeySelector<T, ?> keySelector = clean(KeySelectorUtil.getSelectorForKeys(
-			keys,
-			getType(),
-			getExecutionConfig()));
-
-		return setConnectionType(new PartialPartitioner<T>(keySelector));
+	public <K> DataStream<T> partitionByPartial(KeySelector<T, K> keySelector) {
+		return setConnectionType(new KeyGroupPartialStreamPartitioner<T, K>(clean(keySelector), StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM));
 	}
 
 	/**

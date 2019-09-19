@@ -1,11 +1,12 @@
 package org.apache.flink.streaming.runtime.partitioner;
 
 import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
+import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.util.Preconditions;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -17,40 +18,56 @@ import java.io.ObjectOutputStream;
  * @param <T> Type of the elements in the Stream being rebalanced
  */
 @Internal
-public class PartialPartitioner<T> extends StreamPartitioner<T> {
+public class KeyGroupPartialStreamPartitioner<T, K> extends StreamPartitioner<T> implements ConfigurableStreamPartitioner {
 	private static final long serialVersionUID = 1L;
-	private KeySelector<T, ?> keySelector;
+	private KeySelector<T, K> keySelector;
+	private int maxParallelism;
+
 	private long[] targetChannelStats;
 	private int[] returnArray = new int[1];
 	private boolean initializedStats;
-	private HashFunction[] h;
+	private HashFunction[] hashFunction;
 	private int workersPerKey = 2;
 	private int currentPrime = 2;
 
-	public PartialPartitioner(KeySelector<T, ?> keySelector) {
+	public KeyGroupPartialStreamPartitioner(KeySelector<T, K> keySelector, int maxParallelism) {
+		Preconditions.checkArgument(maxParallelism > 0, "Number of key-groups must be > 0!");
 		this.initializedStats = false;
-		this.keySelector = keySelector;
+		this.keySelector = Preconditions.checkNotNull(keySelector);
+		this.maxParallelism = maxParallelism;
 	}
 
-	public PartialPartitioner(KeySelector<T, ?> keySelector, int numWorkersPerKey) {
+	public KeyGroupPartialStreamPartitioner(KeySelector<T, K> keySelector, int maxParallelism, int numWorkersPerKey) {
+		Preconditions.checkArgument(maxParallelism > 0, "Number of key-groups must be > 0!");
 		this.initializedStats = false;
-		this.keySelector = keySelector;
+		this.keySelector = Preconditions.checkNotNull(keySelector);
+		this.maxParallelism = maxParallelism;
 		this.workersPerKey = numWorkersPerKey;
 	}
 
-	@Override
-	public void setup(int numberOfChannels) {
-		super.setup(numberOfChannels);
+	public int getMaxParallelism() {
+		return maxParallelism;
 	}
 
 	@Override
 	public int selectChannel(SerializationDelegate<StreamRecord<T>> record) {
+		K key;
+		try {
+			key = keySelector.getKey(record.getInstance().getValue());
+		} catch (Exception e) {
+			throw new RuntimeException("Could not extract key from " + record.getInstance().getValue(), e);
+		}
+		return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+		/*
 		// public int[] selectChannels(SerializationDelegate<StreamRecord<T>> record,
 		// int numChannels) {
+		// Initialize statistics of the operator
 		if (!initializedStats) {
+			// The array targetChannelStats is the size of the number of the channels
 			this.targetChannelStats = new long[numberOfChannels];
 			this.initializedStats = true;
-			h = new HashFunction[this.workersPerKey];
+			// Initialize the hashFunction with 2 worker per key by default
+			hashFunction = new HashFunction[this.workersPerKey];
 			for (int i = 0; i < this.workersPerKey; i++) {
 				currentPrime = getNextPrime(currentPrime);
 				h[i] = Hashing.murmur3_128(currentPrime);
@@ -88,6 +105,12 @@ public class PartialPartitioner<T> extends StreamPartitioner<T> {
 		}
 		System.out.println("Selected partition: " + selected);
 		return selected;
+		*/
+	}
+
+	@Override
+	public StreamPartitioner<T> copy() {
+		return this;
 	}
 
 	private int getNextPrime(int x) {
@@ -125,12 +148,13 @@ public class PartialPartitioner<T> extends StreamPartitioner<T> {
 	}
 
 	@Override
-	public StreamPartitioner<T> copy() {
-		return this;
+	public String toString() {
+		return "PARTIAL";
 	}
 
 	@Override
-	public String toString() {
-		return "POWER_OF_BOTH_CHOICES";
+	public void configure(int maxParallelism) {
+		KeyGroupRangeAssignment.checkParallelismPreconditions(maxParallelism);
+		this.maxParallelism = maxParallelism;
 	}
 }
