@@ -11,13 +11,8 @@ import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.streaming.examples.partitioning.util.WordCountPartitionData;
+import org.apache.flink.streaming.examples.partitioning.util.WordSource;
 import org.apache.flink.util.Collector;
-
-import java.util.Calendar;
-import java.util.Date;
 
 /**
  * ./bin/flink run examples/streaming/WordCountPartitioning.jar -partition [rebalance|broadcast|shuffle|forward|rescale|global|custom|partial|''] -skew-data-source [true|false] &
@@ -216,56 +211,6 @@ public class WordCountPartitioning {
 		@Override
 		public Tuple2<String, Integer> reduce(Tuple2<String, Integer> value1, Tuple2<String, Integer> value2) {
 			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
-		}
-	}
-
-	private static class WordSource implements SourceFunction<String> {
-		private static final long DEFAULT_INTERVAL_CHANGE_DATA_SOURCE = Time.minutes(1).toMilliseconds();
-		private volatile boolean running = true;
-		private long startTime;
-		private boolean allowSkew;
-		private boolean useDataSkewedFile;
-
-		public WordSource(boolean allowSkew, boolean useDataSkewedFile) {
-			this.allowSkew = allowSkew;
-			this.useDataSkewedFile = useDataSkewedFile;
-			this.startTime = Calendar.getInstance().getTimeInMillis();
-		}
-
-		@Override
-		public void run(SourceContext<String> ctx) throws Exception {
-			while (running) {
-				final String[] words;
-				if (useDataSkewedFile()) {
-					words = WordCountPartitionData.WORDS_SKEW;
-				} else {
-					words = WordCountPartitionData.WORDS;
-				}
-				for (int i = 0; i < words.length; i++) {
-					String word = words[i];
-					ctx.collectWithTimestamp(word, (new Date()).getTime());
-				}
-				Thread.sleep(3000);
-			}
-		}
-
-		private boolean useDataSkewedFile() {
-			if (allowSkew) {
-				long elapsedTime = Calendar.getInstance().getTimeInMillis() - DEFAULT_INTERVAL_CHANGE_DATA_SOURCE;
-				if (elapsedTime >= startTime) {
-					startTime = Calendar.getInstance().getTimeInMillis();
-					useDataSkewedFile = (!useDataSkewedFile);
-
-					String msg = "Changed source file. useDataSkewedFile[" + useDataSkewedFile + "]";
-					System.out.println(msg);
-				}
-			}
-			return useDataSkewedFile;
-		}
-
-		@Override
-		public void cancel() {
-			running = false;
 		}
 	}
 
