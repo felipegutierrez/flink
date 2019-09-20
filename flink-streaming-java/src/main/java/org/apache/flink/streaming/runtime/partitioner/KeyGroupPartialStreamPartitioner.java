@@ -91,8 +91,8 @@ public class KeyGroupPartialStreamPartitioner<T, K> extends StreamPartitioner<T>
 		}
 
 		// Default option
-		// selected = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
-		selected = selectMinWorker(targetChannelStats, choices);
+		selected = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+		//selected = selectMinWorker(targetChannelStats, choices);
 		// update the channel statistic array
 		targetChannelStats[selected]++;
 
