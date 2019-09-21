@@ -10,6 +10,11 @@ public class WordCountPartitionData {
 		"No more; and by a sleep to say we end"
 	};
 
+	public static final String[] FEW_WORDS = new String[]{
+		"To be or not to be that is the question",
+		"To be or not to be"
+	};
+
 	public static final String[] WORDS_SKEW = new String[]{
 		"To be, or not to be, that is the question",
 		"To be, or not to be, that is the question",

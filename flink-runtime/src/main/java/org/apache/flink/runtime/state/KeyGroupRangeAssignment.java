@@ -49,6 +49,10 @@ public final class KeyGroupRangeAssignment {
 		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism));
 	}
 
+	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism, int workersPerKey) {
+		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism), workersPerKey);
+	}
+
 	/**
 	 * Assigns the given key to a key-group index.
 	 *
@@ -115,6 +119,11 @@ public final class KeyGroupRangeAssignment {
 	 */
 	public static int computeOperatorIndexForKeyGroup(int maxParallelism, int parallelism, int keyGroupId) {
 		return keyGroupId * parallelism / maxParallelism;
+	}
+
+	public static int computeOperatorIndexForKeyGroup(int maxParallelism, int parallelism, int keyGroupId, int workersPerKey) {
+		// return keyGroupId * parallelism / maxParallelism;
+		return 1;
 	}
 
 	/**

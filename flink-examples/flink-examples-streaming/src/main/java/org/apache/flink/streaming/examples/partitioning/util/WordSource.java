@@ -33,7 +33,7 @@ public class WordSource implements SourceFunction<String> {
 			if (useDataSkewedFile()) {
 				words = WordCountPartitionData.WORDS_SKEW;
 			} else {
-				words = WordCountPartitionData.WORDS;
+				words = WordCountPartitionData.FEW_WORDS;
 			}
 			for (int i = 0; i < words.length; i++) {
 				String word = words[i];

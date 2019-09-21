@@ -56,6 +56,7 @@ public class KeyGroupPartialStreamPartitioner<T, K> extends StreamPartitioner<T>
 		int selected = 0;
 		int[] choices;
 
+		/*
 		// Initialize statistics of the operator
 		if (!initializedStats) {
 			// The array targetChannelStats is the size of the number of the channels
@@ -67,10 +68,11 @@ public class KeyGroupPartialStreamPartitioner<T, K> extends StreamPartitioner<T>
 				currentPrime = getNextPrime(currentPrime);
 				hashFunction[i] = Hashing.murmur3_128(currentPrime);
 			}
-		}
+		}*/
 
 		try {
 			key = keySelector.getKey(record.getInstance().getValue());
+			/*
 			int counter = 0;
 			choices = new int[this.workersPerKey];
 
@@ -86,21 +88,22 @@ public class KeyGroupPartialStreamPartitioner<T, K> extends StreamPartitioner<T>
 					counter++;
 				}
 			}
+			*/
 		} catch (Exception e) {
 			throw new RuntimeException("Could not extract key from " + record.getInstance().getValue(), e);
 		}
 
-		// Default option
-		selected = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
-		//selected = selectMinWorker(targetChannelStats, choices);
+		//return selectMinWorker(targetChannelStats, choices);
 		// update the channel statistic array
-		targetChannelStats[selected]++;
+		// targetChannelStats[selected]++;
 
 		// on the original version of Flink 2015 He used to return an array with all choices
 		// returnArray[0] = selected;
 		// return returnArray;
 
-		return selected;
+		// Default option
+		// return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+		return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, workersPerKey);
 	}
 
 	@Override
