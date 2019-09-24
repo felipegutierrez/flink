@@ -18,6 +18,8 @@
 
 package org.apache.flink.runtime.state;
 
+import com.clearspring.analytics.stream.frequency.CountMinSketch;
+import com.clearspring.analytics.stream.frequency.IFrequency;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.util.MathUtils;
 import org.apache.flink.util.Preconditions;
@@ -49,8 +51,8 @@ public final class KeyGroupRangeAssignment {
 		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism));
 	}
 
-	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism, int workersPerKey) {
-		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism), workersPerKey);
+	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism, int hops) {
+		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism, hops));
 	}
 
 	/**
@@ -64,6 +66,10 @@ public final class KeyGroupRangeAssignment {
 		return computeKeyGroupForKeyHash(key.hashCode(), maxParallelism);
 	}
 
+	public static int assignToKeyGroup(Object key, int maxParallelism, int hops) {
+		return computeKeyGroupForKeyHashPartial(key.hashCode(), maxParallelism, hops);
+	}
+
 	/**
 	 * Assigns the given key to a key-group index.
 	 *
@@ -73,6 +79,18 @@ public final class KeyGroupRangeAssignment {
 	 */
 	public static int computeKeyGroupForKeyHash(int keyHash, int maxParallelism) {
 		return MathUtils.murmurHash(keyHash) % maxParallelism;
+	}
+
+	public static int computeKeyGroupForKeyHashPartial(int keyHash, int maxParallelism, int hops) {
+		int keyGroup = MathUtils.murmurHash(keyHash) % maxParallelism;
+		int newKeyGroup = 0;
+		if (hops > 0 && (keyGroup + 32 < maxParallelism)) {
+			newKeyGroup = keyGroup + 32;
+		} else if (hops > 0 && (keyGroup + 32 > maxParallelism)) {
+			newKeyGroup = keyGroup - 32;
+		}
+		System.err.println("key[" + keyHash + "] hops[" + hops + "] keyGroup[" + keyGroup + "] newKeyGroup[" + newKeyGroup + "]");
+		return keyGroup;
 	}
 
 	/**
@@ -119,11 +137,6 @@ public final class KeyGroupRangeAssignment {
 	 */
 	public static int computeOperatorIndexForKeyGroup(int maxParallelism, int parallelism, int keyGroupId) {
 		return keyGroupId * parallelism / maxParallelism;
-	}
-
-	public static int computeOperatorIndexForKeyGroup(int maxParallelism, int parallelism, int keyGroupId, int workersPerKey) {
-		// return keyGroupId * parallelism / maxParallelism;
-		return 1;
 	}
 
 	/**

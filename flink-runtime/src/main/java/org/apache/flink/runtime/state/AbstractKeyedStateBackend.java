@@ -18,6 +18,8 @@
 
 package org.apache.flink.runtime.state;
 
+import com.clearspring.analytics.stream.frequency.CountMinSketch;
+import com.clearspring.analytics.stream.frequency.IFrequency;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.state.State;
@@ -92,6 +94,8 @@ public abstract class AbstractKeyedStateBackend<K> implements
 	/** The key context for this backend. */
 	protected final InternalKeyContext<K> keyContext;
 
+	protected IFrequency frequency;
+
 	public AbstractKeyedStateBackend(
 		TaskKvStateRegistry kvStateRegistry,
 		TypeSerializer<K> keySerializer,
@@ -136,6 +140,7 @@ public abstract class AbstractKeyedStateBackend<K> implements
 		this.keyGroupCompressionDecorator = keyGroupCompressionDecorator;
 		this.ttlTimeProvider = Preconditions.checkNotNull(ttlTimeProvider);
 		this.keySelectionListeners = new ArrayList<>(1);
+		this.frequency = new CountMinSketch(10, 5, 0);
 	}
 
 	private static StreamCompressionDecorator determineStreamCompression(ExecutionConfig executionConfig) {
@@ -171,8 +176,15 @@ public abstract class AbstractKeyedStateBackend<K> implements
 	@Override
 	public void setCurrentKey(K newKey) {
 		notifyKeySelected(newKey);
+
+		int hops = 0;
+		this.frequency.add(newKey.toString(), 1L);
+		if (this.frequency.estimateCount(newKey.toString()) >= 5) {
+			hops = 1;
+		}
+
 		this.keyContext.setCurrentKey(newKey);
-		this.keyContext.setCurrentKeyGroupIndex(KeyGroupRangeAssignment.assignToKeyGroup(newKey, numberOfKeyGroups));
+		this.keyContext.setCurrentKeyGroupIndex(KeyGroupRangeAssignment.assignToKeyGroup(newKey, numberOfKeyGroups, hops));
 	}
 
 	private void notifyKeySelected(K newKey) {

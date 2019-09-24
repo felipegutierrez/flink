@@ -319,6 +319,12 @@ under the License.
 			<artifactId>oshi-core</artifactId>
 			<optional>true</optional>
 		</dependency>
+		<dependency>
+			<groupId>com.clearspring.analytics</groupId>
+			<artifactId>stream</artifactId>
+			<version>2.5.2</version>
+			<scope>compile</scope>
+		</dependency>
 	</dependencies>
 
 	<!-- Dependency Management to converge transitive dependency versions -->

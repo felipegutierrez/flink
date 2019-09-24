@@ -17,6 +17,8 @@
 
 package org.apache.flink.streaming.runtime.partitioner;
 
+import com.clearspring.analytics.stream.frequency.CountMinSketch;
+import com.clearspring.analytics.stream.frequency.IFrequency;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.io.network.api.writer.ChannelSelector;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
@@ -29,14 +31,17 @@ import java.io.Serializable;
  */
 @Internal
 public abstract class StreamPartitioner<T> implements
-		ChannelSelector<SerializationDelegate<StreamRecord<T>>>, Serializable {
+	ChannelSelector<SerializationDelegate<StreamRecord<T>>>, Serializable {
 	private static final long serialVersionUID = 1L;
 
 	protected int numberOfChannels;
 
+	protected IFrequency frequency;
+
 	@Override
 	public void setup(int numberOfChannels) {
 		this.numberOfChannels = numberOfChannels;
+		this.frequency = new CountMinSketch(10, 5, 0);
 	}
 
 	@Override
