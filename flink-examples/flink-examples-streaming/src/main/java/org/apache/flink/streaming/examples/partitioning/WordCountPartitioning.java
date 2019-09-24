@@ -127,11 +127,7 @@ public class WordCountPartitioning {
 					partitionedStream = tokenizer.partitionCustom(new WordPartitioner(), new WordKeySelector());
 				}
 			} else if (PARTITION_TYPE_PARTIAL.equalsIgnoreCase(partitionStrategy)) {
-				if (skewDataSource) {
-					partitionedStreamSkew = tokenizerSkew.partitionByPartial(new WordKeySelector());
-				} else {
-					partitionedStream = tokenizer.partitionByPartial(new WordKeySelector());
-				}
+				// TODO
 			} else {
 				if (skewDataSource) {
 					partitionedStreamSkew = tokenizerSkew;

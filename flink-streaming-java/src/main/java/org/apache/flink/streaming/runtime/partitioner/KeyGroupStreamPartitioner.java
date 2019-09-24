@@ -37,10 +37,17 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 
 	private int maxParallelism;
 
+	private boolean partial;
+
 	public KeyGroupStreamPartitioner(KeySelector<T, K> keySelector, int maxParallelism) {
+		this(keySelector, maxParallelism, false);
+	}
+
+	public KeyGroupStreamPartitioner(KeySelector<T, K> keySelector, int maxParallelism, boolean partial) {
 		Preconditions.checkArgument(maxParallelism > 0, "Number of key-groups must be > 0!");
 		this.keySelector = Preconditions.checkNotNull(keySelector);
 		this.maxParallelism = maxParallelism;
+		this.partial = partial;
 	}
 
 	public int getMaxParallelism() {
@@ -50,12 +57,21 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 	@Override
 	public int selectChannel(SerializationDelegate<StreamRecord<T>> record) {
 		K key;
+		int hops = 0;
 		try {
 			key = keySelector.getKey(record.getInstance().getValue());
+			frequency.add(key.toString(), 1L);
+			if (frequency.estimateCount(key.toString()) >= 5) {
+				hops = 1;
+			}
 		} catch (Exception e) {
 			throw new RuntimeException("Could not extract key from " + record.getInstance().getValue(), e);
 		}
-		return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+		if (partial) {
+			return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, hops);
+		} else {
+			return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+		}
 	}
 
 	@Override
@@ -65,7 +81,11 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 
 	@Override
 	public String toString() {
-		return "HASH";
+		if (partial) {
+			return "PARTIAL";
+		} else {
+			return "HASH";
+		}
 	}
 
 	@Override

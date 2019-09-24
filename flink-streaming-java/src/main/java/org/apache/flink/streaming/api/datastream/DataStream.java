@@ -263,7 +263,7 @@ public class DataStream<T> {
 	 */
 	public <K> KeyedStream<T, K> keyBy(KeySelector<T, K> key) {
 		Preconditions.checkNotNull(key);
-		return new KeyedStream<>(this, clean(key));
+		return new KeyedStream<>(this, clean(key), false);
 	}
 
 	/**
@@ -277,7 +277,7 @@ public class DataStream<T> {
 	public <K> KeyedStream<T, K> keyBy(KeySelector<T, K> key, TypeInformation<K> keyType) {
 		Preconditions.checkNotNull(key);
 		Preconditions.checkNotNull(keyType);
-		return new KeyedStream<>(this, clean(key), keyType);
+		return new KeyedStream<>(this, clean(key), keyType, false);
 	}
 
 	/**
@@ -311,24 +311,24 @@ public class DataStream<T> {
 
 	private KeyedStream<T, Tuple> keyBy(Keys<T> keys) {
 		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
-			getType(), getExecutionConfig())));
+			getType(), getExecutionConfig())), false);
 	}
 
 	// ------------------------------------------------------------------------
 	//  partial keyed stream
 	// ------------------------------------------------------------------------
-	public <K> KeyedPartialStream<T, K> keyByPartial(KeySelector<T, K> key) {
+	public <K> KeyedStream<T, K> keyByPartial(KeySelector<T, K> key) {
 		Preconditions.checkNotNull(key);
-		return new KeyedPartialStream<>(this, clean(key));
+		return new KeyedStream<>(this, clean(key), true);
 	}
 
-	public <K> KeyedPartialStream<T, K> keyByPartial(KeySelector<T, K> key, TypeInformation<K> keyType) {
+	public <K> KeyedStream<T, K> keyByPartial(KeySelector<T, K> key, TypeInformation<K> keyType) {
 		Preconditions.checkNotNull(key);
 		Preconditions.checkNotNull(keyType);
-		return new KeyedPartialStream<>(this, clean(key), keyType);
+		return new KeyedStream<>(this, clean(key), keyType, true);
 	}
 
-	public KeyedPartialStream<T, Tuple> keyByPartial(int... fields) {
+	public KeyedStream<T, Tuple> keyByPartial(int... fields) {
 		if (getType() instanceof BasicArrayTypeInfo || getType() instanceof PrimitiveArrayTypeInfo) {
 			return keyByPartial(KeySelectorUtil.getSelectorForArray(fields, getType()));
 		} else {
@@ -336,13 +336,13 @@ public class DataStream<T> {
 		}
 	}
 
-	public KeyedPartialStream<T, Tuple> keyByPartial(String... fields) {
+	public KeyedStream<T, Tuple> keyByPartial(String... fields) {
 		return keyByPartial(new Keys.ExpressionKeys<>(fields, getType()));
 	}
 
-	private KeyedPartialStream<T, Tuple> keyByPartial(Keys<T> keys) {
-		return new KeyedPartialStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
-			getType(), getExecutionConfig())));
+	private KeyedStream<T, Tuple> keyByPartial(Keys<T> keys) {
+		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
+			getType(), getExecutionConfig())), true);
 	}
 
 	/**
@@ -402,20 +402,6 @@ public class DataStream<T> {
 			new CustomPartitionerWrapper<>(
 				clean(partitioner),
 				clean(keySelector)));
-	}
-
-	/**
-	 * Sets the partitioning of the {@link DataStream} so that the output is
-	 * partitioned using the given {@link KeySelector}. This setting only
-	 * effects the how the outputs will be distributed between the parallel
-	 * instances of the next processing operator.
-	 *
-	 * @param keySelector The function that extracts the key from an element in the Stream
-	 * @return The partitioned DataStream
-	 */
-	@PublicEvolving
-	public <K> DataStream<T> partitionByPartial(KeySelector<T, K> keySelector) {
-		return setConnectionType(new KeyGroupPartialStreamPartitioner<T, K>(clean(keySelector), StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM));
 	}
 
 	/**
