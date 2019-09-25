@@ -155,7 +155,7 @@ public class WordCountPartitioning {
 					partitionedStream = tokenizer.partitionCustom(new WordPartitioner(), new WordKeySelector());
 				}
 			} else if (PARTITION_TYPE_PARTIAL.equalsIgnoreCase(partitionStrategy)) {
-				// TODO
+				// This implementation was done for KeyedStream @WordCountKeyPartitioning
 			} else {
 				if (skewDataSource) {
 					partitionedStreamSkew = tokenizerSkew;
