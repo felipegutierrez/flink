@@ -18,12 +18,15 @@
 
 package org.apache.flink.runtime.state;
 
-import com.clearspring.analytics.stream.frequency.CountMinSketch;
-import com.clearspring.analytics.stream.frequency.IFrequency;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.util.MathUtils;
 import org.apache.flink.util.Preconditions;
 
+/**
+ * Key group range assignment for a KeyedStream.
+ */
+@Internal
 public final class KeyGroupRangeAssignment {
 
 	/**
@@ -32,7 +35,9 @@ public final class KeyGroupRangeAssignment {
 	 */
 	public static final int DEFAULT_LOWER_BOUND_MAX_PARALLELISM = 1 << 7;
 
-	/** The (inclusive) upper bound for max parallelism */
+	/**
+	 * The (inclusive) upper bound for max parallelism
+	 */
 	public static final int UPPER_BOUND_MAX_PARALLELISM = Transformation.UPPER_BOUND_MAX_PARALLELISM;
 
 	private KeyGroupRangeAssignment() {
@@ -42,9 +47,9 @@ public final class KeyGroupRangeAssignment {
 	/**
 	 * Assigns the given key to a parallel operator index.
 	 *
-	 * @param key the key to assign
+	 * @param key            the key to assign
 	 * @param maxParallelism the maximum supported parallelism, aka the number of key-groups.
-	 * @param parallelism the current parallelism of the operator
+	 * @param parallelism    the current parallelism of the operator
 	 * @return the index of the parallel operator to which the given key should be routed.
 	 */
 	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism) {
@@ -58,7 +63,7 @@ public final class KeyGroupRangeAssignment {
 	/**
 	 * Assigns the given key to a key-group index.
 	 *
-	 * @param key the key to assign
+	 * @param key            the key to assign
 	 * @param maxParallelism the maximum supported parallelism, aka the number of key-groups.
 	 * @return the key-group to which the given key is assigned
 	 */
@@ -73,7 +78,7 @@ public final class KeyGroupRangeAssignment {
 	/**
 	 * Assigns the given key to a key-group index.
 	 *
-	 * @param keyHash the hash of the key to assign
+	 * @param keyHash        the hash of the key to assign
 	 * @param maxParallelism the maximum supported parallelism, aka the number of key-groups.
 	 * @return the key-group to which the given key is assigned
 	 */
@@ -96,9 +101,10 @@ public final class KeyGroupRangeAssignment {
 	/**
 	 * Computes the range of key-groups that are assigned to a given operator under the given parallelism and maximum
 	 * parallelism.
-	 *
+	 * <p>
 	 * IMPORTANT: maxParallelism must be <= Short.MAX_VALUE to avoid rounding problems in this method. If we ever want
 	 * to go beyond this boundary, this method must perform arithmetic on long values.
+	 * </p>
 	 *
 	 * @param maxParallelism Maximal parallelism that the job was initially created with.
 	 * @param parallelism    The current parallelism under which the job runs. Must be <= maxParallelism.
@@ -124,9 +130,10 @@ public final class KeyGroupRangeAssignment {
 	/**
 	 * Computes the index of the operator to which a key-group belongs under the given parallelism and maximum
 	 * parallelism.
-	 *
+	 * <p>
 	 * IMPORTANT: maxParallelism must be <= Short.MAX_VALUE to avoid rounding problems in this method. If we ever want
 	 * to go beyond this boundary, this method must perform arithmetic on long values.
+	 * </p>
 	 *
 	 * @param maxParallelism Maximal parallelism that the job was initially created with.
 	 *                       0 < parallelism <= maxParallelism <= Short.MAX_VALUE must hold.
@@ -151,15 +158,15 @@ public final class KeyGroupRangeAssignment {
 		checkParallelismPreconditions(operatorParallelism);
 
 		return Math.min(
-				Math.max(
-						MathUtils.roundUpToPowerOfTwo(operatorParallelism + (operatorParallelism / 2)),
-						DEFAULT_LOWER_BOUND_MAX_PARALLELISM),
-				UPPER_BOUND_MAX_PARALLELISM);
+			Math.max(
+				MathUtils.roundUpToPowerOfTwo(operatorParallelism + (operatorParallelism / 2)),
+				DEFAULT_LOWER_BOUND_MAX_PARALLELISM),
+			UPPER_BOUND_MAX_PARALLELISM);
 	}
 
 	public static void checkParallelismPreconditions(int parallelism) {
 		Preconditions.checkArgument(parallelism > 0
-						&& parallelism <= UPPER_BOUND_MAX_PARALLELISM,
-				"Operator parallelism not within bounds: " + parallelism);
+				&& parallelism <= UPPER_BOUND_MAX_PARALLELISM,
+			"Operator parallelism not within bounds: " + parallelism);
 	}
 }
