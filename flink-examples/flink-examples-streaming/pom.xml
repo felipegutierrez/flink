@@ -317,6 +317,7 @@ under the License.
 								<include>org/apache/flink/streaming/examples/partitioning/WordCountPartitioning$*.class</include>
 								<include>org/apache/flink/streaming/examples/partitioning/util/WordCountPartitionData.class</include>
 								<include>org/apache/flink/streaming/examples/partitioning/util/WordSource.class</include>
+								<include>org/apache/flink/streaming/examples/partitioning/util/WordSourceType.class</include>
 							</includes>
 						</configuration>
 					</execution>

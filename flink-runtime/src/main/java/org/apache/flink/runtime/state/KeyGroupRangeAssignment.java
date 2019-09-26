@@ -94,7 +94,7 @@ public final class KeyGroupRangeAssignment {
 		} else if (hops > 0 && (keyGroup + 32 > maxParallelism)) {
 			newKeyGroup = keyGroup - 32;
 		}
-		System.err.println("key[" + keyHash + "] hops[" + hops + "] keyGroup[" + keyGroup + "] newKeyGroup[" + newKeyGroup + "]");
+		// System.err.println("key[" + keyHash + "] hops[" + hops + "] keyGroup[" + keyGroup + "] newKeyGroup[" + newKeyGroup + "]");
 		return keyGroup;
 	}
 

@@ -17,34 +17,48 @@
 
 package org.apache.flink.streaming.examples.partitioning;
 
-import com.google.common.base.Strings;
 import org.apache.flink.annotation.Public;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.TimeCharacteristic;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.partitioning.util.WordSource;
+import org.apache.flink.streaming.examples.partitioning.util.WordSourceType;
 import org.apache.flink.util.Collector;
 
 /**
- * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition [original|partial] -skew-data-source [true|false] -poolingTimes -1 &
- * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition original -skew-data-source false -poolingTimes 1 &
- * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -skew-data-source false -poolingTimes 1 &
- *
  * <p>This example shows how to:
  * <ul>
- * <li>use different physical partition strategies.
+ * <li>use different physical partition strategies.</li>
+ * <li>This program count words using different partition strategies. The first strategy is the original hash partition from Flink. The second strategy is a load balance based on the frequency of the keys.</li>
  * </ul>
+ * <p>
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition [original|partial] -window [true|false] -input [WORDS|FEW_WORDS|WORDS_SKEW|file] -poolingTimes [times] -output [] &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input /home/felipe/Temp/t8.shakespeare.txt -window false &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input /home/felipe/Temp/t8.shakespeare.txt -window true &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input WORDS -window true &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input FEW_WORDS -window true &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input WORDS_SKEW -window true &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -skew-data-source false -window false -poolingTimes 1 &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -skew-data-source false -window true -poolingTimes 1 &
+ * <p>
  */
 
 @Public
 public class WordCountKeyPartitioning {
 	private static final String PARTITION = "partition";
 	private static final String PARTITION_TYPE_PARTIAL = "partial";
-	private static final String POLLING_TIMES = "poolingTimes";
 	private static final String PARTITION_TYPE_ORIGINAL = "original";
-	private static final String SKEW_DATA_SOURCE = "skew-data-source";
+	private static final String INPUT = "input";
+	private static final String OUTPUT = "output";
+	private static final String WINDOW = "window";
+	private static final String POLLING_TIMES = "poolingTimes";
 
 	// *************************************************************************
 	// PROGRAM
@@ -64,32 +78,53 @@ public class WordCountKeyPartitioning {
 		env.getConfig().setGlobalJobParameters(params);
 
 		String partitionStrategy = "";
-		boolean skewDataSource = false;
+		boolean window = false;
 		long poolingTimes;
-		if (params.get(PARTITION) != null) {
-			partitionStrategy = params.get(PARTITION);
+
+		String input = params.get(INPUT, WordSourceType.WORDS);
+		partitionStrategy = params.get(PARTITION, PARTITION_TYPE_ORIGINAL);
+		window = params.getBoolean(WINDOW, false);
+		poolingTimes = params.getLong(POLLING_TIMES, Long.MAX_VALUE);
+
+		// get input data
+		DataStream<String> text;
+		if (params.has(INPUT) && !WordSourceType.WORDS.equals(input) && !WordSourceType.WORDS_SKEW.equals(input) && !WordSourceType.FEW_WORDS.equals(input)) {
+			// read the text file from given input path
+			text = env.readTextFile(params.get(INPUT));
+		} else {
+			System.out.println("Executing WordCount example with default input data set.");
+			System.out.println("Use --input to specify file input.");
+			// get default test text data
+			text = env.addSource(new WordSource(input, poolingTimes)).name("source-" + partitionStrategy);
 		}
-		if (params.get(SKEW_DATA_SOURCE) != null) {
-			skewDataSource = params.getBoolean(SKEW_DATA_SOURCE);
-		}
-		poolingTimes = params.getLong(POLLING_TIMES, -1);
-		String name = "-" + partitionStrategy + "-" + skewDataSource;
+		// Split string into tokens
+		DataStream<Tuple2<String, Integer>> tokens = text.flatMap(new Tokenizer()).name("tokenizer-" + partitionStrategy);
 
 		// choose a partitioning strategy
-		if (!Strings.isNullOrEmpty(partitionStrategy)) {
-			if (PARTITION_TYPE_ORIGINAL.equalsIgnoreCase(partitionStrategy)) {
-				env.addSource(new WordSource(false, skewDataSource, poolingTimes)).name("source" + name)
-					.flatMap(new Tokenizer()).name("tokenizer" + name)
-					.keyBy(0)
-					.sum(1).name("sum" + name)
-					.print().name("print" + partitionStrategy + "-" + skewDataSource);
-			} else if (PARTITION_TYPE_PARTIAL.equalsIgnoreCase(partitionStrategy)) {
-				env.addSource(new WordSource(false, skewDataSource, poolingTimes)).name("source" + name)
-					.flatMap(new Tokenizer()).name("tokenizer" + name)
-					.keyByPartial(0)
-					.sum(1).name("sum" + name)
-					.print().name("print" + name);
-			}
+		KeyedStream<Tuple2<String, Integer>, Tuple> keyedStream = null;
+		if (PARTITION_TYPE_ORIGINAL.equalsIgnoreCase(partitionStrategy)) {
+			keyedStream = tokens.keyBy(0);
+		} else if (PARTITION_TYPE_PARTIAL.equalsIgnoreCase(partitionStrategy)) {
+			keyedStream = tokens.keyByPartial(0);
+		}
+
+		// Apply window or not -> sum -> print
+		DataStream<Tuple2<String, Integer>> counts = null;
+		if (window) {
+			counts = keyedStream
+				.window(TumblingEventTimeWindows.of(Time.seconds(3)))
+				.sum(1).name("sum-" + partitionStrategy);
+		} else {
+			counts = keyedStream
+				.sum(1).name("sum-" + partitionStrategy);
+		}
+
+		// emit result
+		if (params.has(OUTPUT)) {
+			counts.writeAsText(params.get("output")).name("print-" + partitionStrategy);
+		} else {
+			System.out.println("Printing result to stdout. Use --output to specify output path.");
+			counts.print().name("print-" + partitionStrategy);
 		}
 
 		// execute program
