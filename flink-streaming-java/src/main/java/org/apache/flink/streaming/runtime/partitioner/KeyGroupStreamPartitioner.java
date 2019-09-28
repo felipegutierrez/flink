@@ -57,21 +57,20 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 	@Override
 	public int selectChannel(SerializationDelegate<StreamRecord<T>> record) {
 		K key;
-		int hops = 0;
+		long hops = 0;
+		int channel = 0;
 		try {
 			key = keySelector.getKey(record.getInstance().getValue());
-			frequency.add(key.toString(), 1L);
-			if (frequency.estimateCount(key.toString()) >= 5) {
-				hops = 1;
-			}
 		} catch (Exception e) {
 			throw new RuntimeException("Could not extract key from " + record.getInstance().getValue(), e);
 		}
+		channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
 		if (partial) {
-			return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, hops);
-		} else {
-			return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+			channelKeyFrequency.add(key, channel);
+			hops = channelKeyFrequency.getNumberOfHops();
+			channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, hops);
 		}
+		return channel;
 	}
 
 	@Override

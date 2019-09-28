@@ -56,7 +56,7 @@ public final class KeyGroupRangeAssignment {
 		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism));
 	}
 
-	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism, int hops) {
+	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism, long hops) {
 		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism, hops));
 	}
 
@@ -71,7 +71,7 @@ public final class KeyGroupRangeAssignment {
 		return computeKeyGroupForKeyHash(key.hashCode(), maxParallelism);
 	}
 
-	public static int assignToKeyGroup(Object key, int maxParallelism, int hops) {
+	public static int assignToKeyGroup(Object key, int maxParallelism, long hops) {
 		return computeKeyGroupForKeyHashPartial(key.hashCode(), maxParallelism, hops);
 	}
 
@@ -86,7 +86,7 @@ public final class KeyGroupRangeAssignment {
 		return MathUtils.murmurHash(keyHash) % maxParallelism;
 	}
 
-	public static int computeKeyGroupForKeyHashPartial(int keyHash, int maxParallelism, int hops) {
+	public static int computeKeyGroupForKeyHashPartial(int keyHash, int maxParallelism, long hops) {
 		int keyGroup = MathUtils.murmurHash(keyHash) % maxParallelism;
 		int newKeyGroup = 0;
 		if (hops > 0 && (keyGroup + 32 < maxParallelism)) {

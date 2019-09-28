@@ -45,8 +45,8 @@ import org.apache.flink.util.Collector;
  * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input WORDS -window true &
  * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input FEW_WORDS -window true &
  * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input WORDS_SKEW -window true &
- * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -skew-data-source false -window false -poolingTimes 1 &
- * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -skew-data-source false -window true -poolingTimes 1 &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input WORDS_SKEW -window false -poolingTimes 1 &
+ * ./bin/flink run examples/streaming/WordCountKeyPartitioning.jar -partition partial -input WORDS false -window true -poolingTimes 1 &
  * <p>
  */
 
