@@ -271,10 +271,6 @@ under the License.
 									<shadedPattern>org.apache.flink.fs.s3presto.shaded.io.airlift</shadedPattern>
 								</relocation>
 								<relocation>
-									<pattern>javax.xml.bind</pattern>
-									<shadedPattern>org.apache.flink.fs.s3presto.shaded.javax.xml.bind</shadedPattern>
-								</relocation>
-								<relocation>
 									<pattern>org.HdrHistogram</pattern>
 									<shadedPattern>org.apache.flink.fs.s3presto.shaded.org.HdrHistogram</shadedPattern>
 								</relocation>
@@ -342,6 +338,31 @@ under the License.
 					<version>2.3.0</version>
 				</dependency>
 			</dependencies>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-shade-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>shade-flink</id>
+								<phase>package</phase>
+								<goals>
+									<goal>shade</goal>
+								</goals>
+								<configuration>
+									<relocations combine.children="append">
+										<relocation>
+											<pattern>javax.xml.bind</pattern>
+											<shadedPattern>org.apache.flink.fs.s3presto.shaded.javax.xml.bind</shadedPattern>
+										</relocation>
+									</relocations>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
 		</profile>
 	</profiles>
 
