@@ -23,7 +23,7 @@ $ git pull
  - Compile only the package necessary to deploy:
 ```
 $ cd flink-partition-tests/
-$ mvn clean install -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true
+$ mvn clean install -e -X -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true
 $ mvn clean install -DskipTests -Dskip.npm -Dfast
 $ ll flink-examples/flink-examples-streaming/target/
 ```
