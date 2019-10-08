@@ -179,7 +179,7 @@ public class WordCountCombiner {
 		}
 
 		@Override
-		public void finishBundle(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) throws Exception {
+		public void finishMerge(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) throws Exception {
 			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}

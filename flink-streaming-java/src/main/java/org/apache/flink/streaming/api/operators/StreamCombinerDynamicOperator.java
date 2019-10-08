@@ -1,7 +1,7 @@
 package org.apache.flink.streaming.api.operators;
 
-import org.apache.flink.api.common.functions.CombinerFunction;
 import org.apache.flink.api.common.functions.CombinerDynamicTrigger;
+import org.apache.flink.api.common.functions.CombinerFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

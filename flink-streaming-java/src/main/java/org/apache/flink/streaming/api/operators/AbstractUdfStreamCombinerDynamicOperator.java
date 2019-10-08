@@ -1,8 +1,8 @@
 package org.apache.flink.streaming.api.operators;
 
+import org.apache.flink.api.common.functions.CombinerDynamicTrigger;
 import org.apache.flink.api.common.functions.CombinerFunction;
 import org.apache.flink.api.common.functions.CombinerTriggerCallback;
-import org.apache.flink.api.common.functions.CombinerDynamicTrigger;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,17 +71,13 @@ public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> ex
 		combinerTrigger.onElement(bundleKey, input);
 	}
 
-	/**
-	 * Get the key for current processing element, which will be used as the map
-	 * bundle's key.
-	 */
 	protected abstract K getKey(final IN input) throws Exception;
 
 	@Override
-	public void finishBundle() throws Exception {
+	public void finishMerge() throws Exception {
 		if (!bundle.isEmpty()) {
 			numOfElements = 0;
-			userFunction.finishBundle(bundle, collector);
+			userFunction.finishMerge(bundle, collector);
 			bundle.clear();
 		}
 		combinerTrigger.reset();

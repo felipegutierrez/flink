@@ -34,7 +34,7 @@ public class CombinerTriggerFunction<T> implements CombinerTrigger<T> {
 		count++;
 		long beforeTime = Calendar.getInstance().getTimeInMillis() - Time.seconds(timeout).toMilliseconds();
 		if (count >= maxCount || beforeTime >= startTime) {
-			callback.finishBundle();
+			callback.finishMerge();
 			reset();
 		}
 	}

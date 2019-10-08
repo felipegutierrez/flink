@@ -56,7 +56,7 @@ public class CombinerDynamicTriggerFunction<K, T> implements CombinerDynamicTrig
 		count++;
 		long beforeTime = Calendar.getInstance().getTimeInMillis() - Time.seconds(timeout).toMilliseconds();
 		if (count >= maxCount || beforeTime >= startTime) {
-			callback.finishBundle();
+			callback.finishMerge();
 		}
 	}
 

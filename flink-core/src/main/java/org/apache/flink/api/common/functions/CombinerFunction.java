@@ -21,8 +21,8 @@ public abstract class CombinerFunction<K, V, IN, OUT> implements Function {
 	public abstract V addInput(@Nullable V value, IN input) throws Exception;
 
 	/**
-	 * Called when a bundle is finished. Transform a bundle to zero, one, or more
+	 * Called when a merge is finished. Transform a bundle to zero, one, or more
 	 * output elements.
 	 */
-	public abstract void finishBundle(Map<K, V> buffer, Collector<OUT> out) throws Exception;
+	public abstract void finishMerge(Map<K, V> buffer, Collector<OUT> out) throws Exception;
 }

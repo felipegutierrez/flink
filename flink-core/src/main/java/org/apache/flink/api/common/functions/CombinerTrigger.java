@@ -10,8 +10,8 @@ public interface CombinerTrigger<T> extends Serializable {
 	void registerCallback(CombinerTriggerCallback callback);
 
 	/**
-	 * Called for every element that gets added to the bundle. If the trigger decides to start
-	 * evaluate the input, {@link CombinerTriggerCallback#finishBundle()} should be invoked.
+	 * Called for every element that gets added to the merge. If the trigger decides to start
+	 * evaluate the input, {@link CombinerTriggerCallback#finishMerge()} should be invoked.
 	 *
 	 * @param element The element that arrived.
 	 */
