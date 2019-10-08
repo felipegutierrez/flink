@@ -18,9 +18,7 @@
 package org.apache.flink.streaming.examples.combiner;
 
 import com.google.common.base.Strings;
-import org.apache.flink.api.common.functions.CombinerDynamicTriggerFunction;
 import org.apache.flink.api.common.functions.CombinerFunction;
-import org.apache.flink.api.common.functions.CombinerTriggerFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -102,12 +100,10 @@ public class WordCountCombiner {
 			combinedStream = counts;
 		} else if (COMBINER_STATIC.equalsIgnoreCase(combiner)) {
 			// static combiner
-			CombinerTriggerFunction<Tuple2<String, Integer>> combinerTriggerFunction = new CombinerTriggerFunction<Tuple2<String, Integer>>(10, 5);
-			combinedStream = counts.combine(wordCountCombinerFunction, combinerTriggerFunction, keyCombinerSelector);
+			combinedStream = counts.combine(wordCountCombinerFunction, keyCombinerSelector, 10);
 		} else if (COMBINER_DYNAMIC.equalsIgnoreCase(combiner)) {
-			// static combiner
-			CombinerDynamicTriggerFunction<String, Tuple2<String, Integer>> combinerDynamicTriggerFunction = new CombinerDynamicTriggerFunction<String, Tuple2<String, Integer>>(5);
-			combinedStream = counts.combine(wordCountCombinerFunction, combinerDynamicTriggerFunction, keyCombinerSelector);
+			// Dynamic combiner
+			combinedStream = counts.combine(wordCountCombinerFunction, keyCombinerSelector);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"

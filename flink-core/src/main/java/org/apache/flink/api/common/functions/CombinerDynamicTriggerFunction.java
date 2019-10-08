@@ -23,15 +23,15 @@ public class CombinerDynamicTriggerFunction<K, T> implements CombinerDynamicTrig
 	private transient long maxFrequencyCMS = 0;
 	private transient long startTime;
 
-	public CombinerDynamicTriggerFunction() throws Exception {
+	public CombinerDynamicTriggerFunction() {
 		this(20);
 	}
 
-	public CombinerDynamicTriggerFunction(long timeout) throws Exception {
+	public CombinerDynamicTriggerFunction(long secondsTimeout) {
 		initFrequencySketch();
 		this.maxCount = LIMIT_MIN_COUNT;
 		this.startTime = Calendar.getInstance().getTimeInMillis();
-		this.timeout = timeout;
+		this.timeout = secondsTimeout;
 		Preconditions.checkArgument(this.maxCount > 0, "maxCount must be greater than 0");
 	}
 

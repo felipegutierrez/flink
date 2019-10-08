@@ -1197,23 +1197,42 @@ public class DataStream<T> {
 		return doTransform(operatorName, outTypeInfo, operatorFactory);
 	}
 
+	/**
+	 * Static combiner
+	 */
 	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> combine(
-		CombinerFunction combinerFunction, CombinerTrigger combinerTriggerFunction, KeySelector keyCombinerSelector) {
-		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(clean(combinerFunction),
-			getType(), Utils.getCallLocationName(), false);
+		CombinerFunction combinerFunction,
+		KeySelector keyCombinerSelector,
+		long maxCount) {
 
-		// KeySelector<Tuple2<String, Integer>, String> keyCombinerSelector = (KeySelector<Tuple2<String, Integer>, String>) key -> key.f0;
-		// KeySelector<T, K> keySelector = KeySelectorUtil.getSelectorForOneKey(keys, partitioner, getType(), getExecutionConfig());
+		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
+			clean(combinerFunction),
+			getType(),
+			Utils.getCallLocationName(),
+			false);
+
+		CombinerTriggerFunction<R> combinerTriggerFunction = new CombinerTriggerFunction<R>(maxCount, 5);
 
 		return doTransform("combiner-static", outType, SimpleOperatorFactory.of(new StreamCombinerOperator<>(combinerFunction, combinerTriggerFunction, keyCombinerSelector)));
 	}
 
+	/**
+	 * Dynamic combiner
+	 */
 	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> combine(
-		CombinerFunction combinerFunction, CombinerDynamicTriggerFunction combinerDynamicTriggerFunction, KeySelector keyCombinerSelector) {
-		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(clean(combinerFunction),
-			getType(), Utils.getCallLocationName(), false);
+		CombinerFunction combinerFunction,
+		KeySelector keyCombinerSelector)  {
+
+		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
+			clean(combinerFunction),
+			getType(),
+			Utils.getCallLocationName(),
+			false);
+
+		CombinerDynamicTriggerFunction<?, R> combinerDynamicTriggerFunction = new CombinerDynamicTriggerFunction<>(5);
+
 		return doTransform("combiner-dynamic", outType, SimpleOperatorFactory.of(new StreamCombinerDynamicOperator<>(combinerFunction, combinerDynamicTriggerFunction, keyCombinerSelector)));
 	}
 
