@@ -8,7 +8,6 @@ import java.util.Map;
 
 @Public
 public abstract class CombinerFunction<K, V, IN, OUT> implements Function {
-
 	private static final long serialVersionUID = 1L;
 
 	/**

@@ -37,7 +37,7 @@ public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> ex
 	public AbstractUdfStreamCombinerDynamicOperator(CombinerFunction<K, V, IN, OUT> function,
 													CombinerDynamicTrigger<K, IN> bundleTrigger) {
 		super(function);
-		chainingStrategy = ChainingStrategy.ALWAYS;
+		this.chainingStrategy = ChainingStrategy.ALWAYS;
 		this.bundle = new HashMap<>();
 		this.combinerTrigger = checkNotNull(bundleTrigger, "bundleTrigger is null");
 	}
@@ -46,12 +46,12 @@ public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> ex
 	public void open() throws Exception {
 		super.open();
 
-		numOfElements = 0;
-		collector = new TimestampedCollector<>(output);
+		this.numOfElements = 0;
+		this.collector = new TimestampedCollector<>(output);
 
-		combinerTrigger.registerCallback(this);
+		this.combinerTrigger.registerCallback(this);
 		// reset trigger
-		combinerTrigger.reset();
+		this.combinerTrigger.reset();
 	}
 
 	@Override
@@ -62,24 +62,24 @@ public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> ex
 		final V bundleValue = this.bundle.get(bundleKey);
 
 		// get a new value after adding this element to bundle
-		final V newBundleValue = userFunction.addInput(bundleValue, input);
+		final V newBundleValue = this.userFunction.addInput(bundleValue, input);
 
 		// update to map bundle
-		bundle.put(bundleKey, newBundleValue);
+		this.bundle.put(bundleKey, newBundleValue);
 
-		numOfElements++;
-		combinerTrigger.onElement(bundleKey, input);
+		this.numOfElements++;
+		this.combinerTrigger.onElement(bundleKey, input);
 	}
 
 	protected abstract K getKey(final IN input) throws Exception;
 
 	@Override
 	public void finishMerge() throws Exception {
-		if (!bundle.isEmpty()) {
-			numOfElements = 0;
-			userFunction.finishMerge(bundle, collector);
-			bundle.clear();
+		if (!this.bundle.isEmpty()) {
+			this.numOfElements = 0;
+			this.userFunction.finishMerge(bundle, collector);
+			this.bundle.clear();
 		}
-		combinerTrigger.reset();
+		this.combinerTrigger.reset();
 	}
 }

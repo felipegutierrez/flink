@@ -20,7 +20,6 @@ package org.apache.flink.streaming.examples.combiner;
 import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.CombinerFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -62,7 +61,6 @@ public class WordCountCombiner {
 
 	public static void main(String[] args) throws Exception {
 
-
 		// Checking input parameters
 		final ParameterTool params = ParameterTool.fromArgs(args);
 
@@ -93,17 +91,14 @@ public class WordCountCombiner {
 
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> combinedStream = null;
-		KeySelector<Tuple2<String, Integer>, String> keyCombinerSelector = (KeySelector<Tuple2<String, Integer>, String>) key -> key.f0;
 		CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
 
 		if (Strings.isNullOrEmpty(combiner)) {
 			combinedStream = counts;
 		} else if (COMBINER_STATIC.equalsIgnoreCase(combiner)) {
-			// static combiner
-			combinedStream = counts.combine(wordCountCombinerFunction, keyCombinerSelector, 10);
+			combinedStream = counts.combine(wordCountCombinerFunction, 10); // STATIC COMBINER
 		} else if (COMBINER_DYNAMIC.equalsIgnoreCase(combiner)) {
-			// Dynamic combiner
-			combinedStream = counts.combine(wordCountCombinerFunction, keyCombinerSelector);
+			combinedStream = counts.combine(wordCountCombinerFunction); // DYNAMIC COMBINER
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -154,7 +149,7 @@ public class WordCountCombiner {
 	// *************************************************************************
 	// GENERIC merge function to Static and Dynamic COMBINER's
 	// *************************************************************************
-	public static final class CombinerWordCountImpl extends CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
+	private static class CombinerWordCountImpl extends CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
 
 		private static final Logger logger = LoggerFactory.getLogger(CombinerWordCountImpl.class);
 

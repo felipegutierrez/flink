@@ -14,9 +14,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT> extends AbstractUdfStreamOperator<OUT, CombinerFunction<K, V, IN, OUT>>
 	implements OneInputStreamOperator<IN, OUT>, CombinerTriggerCallback {
-
-	private static final Logger logger = LoggerFactory.getLogger(AbstractUdfStreamCombinerOperator.class);
 	private static final long serialVersionUID = 1L;
+	private static final Logger logger = LoggerFactory.getLogger(AbstractUdfStreamCombinerOperator.class);
 
 	/**
 	 * The map in heap to store elements.
@@ -35,9 +34,10 @@ public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT> extends A
 
 	private transient int numOfElements = 0;
 
-	public AbstractUdfStreamCombinerOperator(CombinerFunction<K, V, IN, OUT> function, CombinerTrigger<IN> combinerTrigger) {
+	public AbstractUdfStreamCombinerOperator(CombinerFunction<K, V, IN, OUT> function,
+											 CombinerTrigger<IN> combinerTrigger) {
 		super(function);
-		chainingStrategy = ChainingStrategy.ALWAYS;
+		this.chainingStrategy = ChainingStrategy.ALWAYS;
 		this.bundle = new HashMap<>();
 		this.combinerTrigger = checkNotNull(combinerTrigger, "bundleTrigger is null");
 	}
@@ -46,12 +46,12 @@ public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT> extends A
 	public void open() throws Exception {
 		super.open();
 
-		numOfElements = 0;
-		collector = new TimestampedCollector<>(output);
+		this.numOfElements = 0;
+		this.collector = new TimestampedCollector<>(output);
 
-		combinerTrigger.registerCallback(this);
+		this.combinerTrigger.registerCallback(this);
 		// reset trigger
-		combinerTrigger.reset();
+		this.combinerTrigger.reset();
 	}
 
 	@Override
@@ -62,24 +62,24 @@ public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT> extends A
 		final V bundleValue = this.bundle.get(bundleKey);
 
 		// get a new value after adding this element to bundle
-		final V newBundleValue = userFunction.addInput(bundleValue, input);
+		final V newBundleValue = this.userFunction.addInput(bundleValue, input);
 
 		// update to map bundle
-		bundle.put(bundleKey, newBundleValue);
+		this.bundle.put(bundleKey, newBundleValue);
 
-		numOfElements++;
-		combinerTrigger.onElement(input);
+		this.numOfElements++;
+		this.combinerTrigger.onElement(input);
 	}
 
 	protected abstract K getKey(final IN input) throws Exception;
 
 	@Override
 	public void finishMerge() throws Exception {
-		if (!bundle.isEmpty()) {
-			numOfElements = 0;
-			userFunction.finishMerge(bundle, collector);
-			bundle.clear();
+		if (!this.bundle.isEmpty()) {
+			this.numOfElements = 0;
+			this.userFunction.finishMerge(bundle, collector);
+			this.bundle.clear();
 		}
-		combinerTrigger.reset();
+		this.combinerTrigger.reset();
 	}
 }

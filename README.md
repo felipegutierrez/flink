@@ -18,6 +18,16 @@ $ git pull
  - This example aims to solve the issue [FLINK-7561: Add support for pre-aggregation in DataStream API](https://issues.apache.org/jira/browse/FLINK-7561).
  - We implemented a static and a dynamic combiner.
 
+```
+CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
+DataStream<String> text = env.fromElements(WordCountCombinerData.WORDS_SKEW)
+	.flatMap(new Tokenizer())
+	.combine(wordCountCombinerFunction)
+	.keyBy(0)
+	.sum(1)
+	.print();
+```
+
 
 ## Partial partition
 

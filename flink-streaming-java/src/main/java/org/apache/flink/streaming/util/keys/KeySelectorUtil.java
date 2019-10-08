@@ -111,6 +111,20 @@ public final class KeySelectorUtil {
 		return new OneKeySelector<>(comparator);
 	}
 
+	public static <X, K> KeySelector<X, K> getSelectorForFirstKey(
+		TypeInformation<X> typeInfo, ExecutionConfig executionConfig) {
+
+		CompositeType<X> compositeType = (CompositeType<X>) typeInfo;
+		int[] logicalKeyPositions = new int[]{ 0 };
+		if (logicalKeyPositions.length != 1) {
+			throw new IllegalArgumentException("There must be exactly 1 key specified");
+		}
+
+		TypeComparator<X> comparator = compositeType.createComparator(
+			logicalKeyPositions, new boolean[] { true }, 0, executionConfig);
+		return new OneKeySelector<>(comparator);
+	}
+
 	// ------------------------------------------------------------------------
 
 	/**

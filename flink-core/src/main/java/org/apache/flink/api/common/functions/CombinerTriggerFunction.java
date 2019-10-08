@@ -16,13 +16,13 @@ public class CombinerTriggerFunction<T> implements CombinerTrigger<T> {
 	private transient long startTime;
 	private transient long timeout;
 
-	public CombinerTriggerFunction(long maxCount) {
-		this(maxCount, 20);
+	public CombinerTriggerFunction(long maxToCombine) {
+		this(maxToCombine, 20);
 	}
 
-	public CombinerTriggerFunction(long maxCount, long secondsTimeout) {
-		Preconditions.checkArgument(maxCount > 0, "maxCount must be greater than 0");
-		this.maxCount = maxCount;
+	public CombinerTriggerFunction(long maxToCombine, long secondsTimeout) {
+		Preconditions.checkArgument(maxToCombine > 0, "maxCount must be greater than 0");
+		this.maxCount = maxToCombine;
 		this.timeout = secondsTimeout;
 		this.startTime = Calendar.getInstance().getTimeInMillis();
 	}

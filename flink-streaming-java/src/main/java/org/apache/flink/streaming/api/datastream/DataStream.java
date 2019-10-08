@@ -1198,40 +1198,45 @@ public class DataStream<T> {
 	}
 
 	/**
-	 * Static combiner
+	 * This is the static combiner that group tuples until reach @maxToCombine counter.
+	 * If the @maxToCombine is not reach the secondsTimeout ensure to finish the combining.
+	 *
+	 * @param combinerFunction the function to combine tuples
+	 * @param maxToCombine     the max number of tuples to combine
+	 * @param <R>
+	 * @return the data stream constructed.
 	 */
 	@PublicEvolving
-	public <R> SingleOutputStreamOperator<R> combine(
-		CombinerFunction combinerFunction,
-		KeySelector keyCombinerSelector,
-		long maxCount) {
+	public <R> SingleOutputStreamOperator<R> combine(CombinerFunction combinerFunction, long maxToCombine) {
 
 		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
 			clean(combinerFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-
-		CombinerTriggerFunction<R> combinerTriggerFunction = new CombinerTriggerFunction<R>(maxCount, 5);
+		CombinerTriggerFunction<R> combinerTriggerFunction = new CombinerTriggerFunction<R>(maxToCombine, 5);
+		KeySelector<R, T> keyCombinerSelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("combiner-static", outType, SimpleOperatorFactory.of(new StreamCombinerOperator<>(combinerFunction, combinerTriggerFunction, keyCombinerSelector)));
 	}
 
 	/**
-	 * Dynamic combiner
+	 * This is the dynamic combiner. It has a frequency component to infer the max number of tuples to combine.
+	 *
+	 * @param combinerFunction the function to combine tuples
+	 * @param <R>
+	 * @return the data stream constructed.
 	 */
 	@PublicEvolving
-	public <R> SingleOutputStreamOperator<R> combine(
-		CombinerFunction combinerFunction,
-		KeySelector keyCombinerSelector)  {
+	public <R> SingleOutputStreamOperator<R> combine(CombinerFunction combinerFunction)  {
 
 		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
 			clean(combinerFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-
-		CombinerDynamicTriggerFunction<?, R> combinerDynamicTriggerFunction = new CombinerDynamicTriggerFunction<>(5);
+		CombinerDynamicTriggerFunction<T, R> combinerDynamicTriggerFunction = new CombinerDynamicTriggerFunction<T, R>(5);
+		KeySelector<R, T> keyCombinerSelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("combiner-dynamic", outType, SimpleOperatorFactory.of(new StreamCombinerDynamicOperator<>(combinerFunction, combinerDynamicTriggerFunction, keyCombinerSelector)));
 	}
