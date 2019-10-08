@@ -22,20 +22,7 @@ import org.apache.commons.lang3.ClassUtils;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.Public;
 import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.api.common.functions.AggregateFunction;
-import org.apache.flink.api.common.functions.CoGroupFunction;
-import org.apache.flink.api.common.functions.CrossFunction;
-import org.apache.flink.api.common.functions.FlatJoinFunction;
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.FoldFunction;
-import org.apache.flink.api.common.functions.Function;
-import org.apache.flink.api.common.functions.GroupCombineFunction;
-import org.apache.flink.api.common.functions.GroupReduceFunction;
-import org.apache.flink.api.common.functions.InvalidTypesException;
-import org.apache.flink.api.common.functions.JoinFunction;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.MapPartitionFunction;
-import org.apache.flink.api.common.functions.Partitioner;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -198,6 +185,21 @@ public class TypeExtractor {
 			FlatMapFunction.class,
 			0,
 			1,
+			new int[]{1, 0},
+			inType,
+			functionName,
+			allowMissing);
+	}
+
+	@PublicEvolving
+	public static <IN, OUT> TypeInformation<OUT> getCombinerReturnTypes(CombinerFunction<?, ?, IN, OUT> combinerInterface, TypeInformation<IN> inType,
+																	   String functionName, boolean allowMissing)
+	{
+		return getUnaryOperatorReturnType(
+			(Function) combinerInterface,
+			CombinerFunction.class,
+			2,
+			3,
 			new int[]{1, 0},
 			inType,
 			functionName,

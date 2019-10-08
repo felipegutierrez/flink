@@ -1199,16 +1199,22 @@ public class DataStream<T> {
 
 	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> combine(
-		TypeInformation<R> outTypeInfo,
-		CombinerFunction function, CombinerTrigger combinerTriggerFunction, KeySelector keyCombinerSelector) {
-		return doTransform("combiner-static", outTypeInfo, SimpleOperatorFactory.of(new StreamCombinerOperator<>(function, combinerTriggerFunction, keyCombinerSelector)));
+		CombinerFunction combinerFunction, CombinerTrigger combinerTriggerFunction, KeySelector keyCombinerSelector) {
+		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(clean(combinerFunction),
+			getType(), Utils.getCallLocationName(), false);
+
+		// KeySelector<Tuple2<String, Integer>, String> keyCombinerSelector = (KeySelector<Tuple2<String, Integer>, String>) key -> key.f0;
+		// KeySelector<T, K> keySelector = KeySelectorUtil.getSelectorForOneKey(keys, partitioner, getType(), getExecutionConfig());
+
+		return doTransform("combiner-static", outType, SimpleOperatorFactory.of(new StreamCombinerOperator<>(combinerFunction, combinerTriggerFunction, keyCombinerSelector)));
 	}
 
 	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> combine(
-		TypeInformation<R> outTypeInfo,
-		CombinerFunction function, CombinerDynamicTriggerFunction combinerDynamicTriggerFunction, KeySelector keyCombinerSelector) {
-		return doTransform("combiner-dynamic", outTypeInfo, SimpleOperatorFactory.of(new StreamCombinerDynamicOperator<>(function, combinerDynamicTriggerFunction, keyCombinerSelector)));
+		CombinerFunction combinerFunction, CombinerDynamicTriggerFunction combinerDynamicTriggerFunction, KeySelector keyCombinerSelector) {
+		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(clean(combinerFunction),
+			getType(), Utils.getCallLocationName(), false);
+		return doTransform("combiner-dynamic", outType, SimpleOperatorFactory.of(new StreamCombinerDynamicOperator<>(combinerFunction, combinerDynamicTriggerFunction, keyCombinerSelector)));
 	}
 
 	private <R> SingleOutputStreamOperator<R> doTransform(

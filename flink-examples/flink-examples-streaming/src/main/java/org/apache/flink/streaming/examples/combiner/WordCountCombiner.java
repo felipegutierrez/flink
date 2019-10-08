@@ -22,8 +22,6 @@ import org.apache.flink.api.common.functions.CombinerDynamicTriggerFunction;
 import org.apache.flink.api.common.functions.CombinerFunction;
 import org.apache.flink.api.common.functions.CombinerTriggerFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -97,21 +95,19 @@ public class WordCountCombiner {
 
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> combinedStream = null;
-		KeySelector<Tuple2<String, Integer>, String> keyCombinerSelector = (KeySelector<Tuple2<String, Integer>, String>) value -> value.f0;
+		KeySelector<Tuple2<String, Integer>, String> keyCombinerSelector = (KeySelector<Tuple2<String, Integer>, String>) key -> key.f0;
 		CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
-		TypeInformation<Tuple2<String, Integer>> outTypeInfo = TypeInformation.of(new TypeHint<Tuple2<String, Integer>>() {
-		});
 
 		if (Strings.isNullOrEmpty(combiner)) {
 			combinedStream = counts;
 		} else if (COMBINER_STATIC.equalsIgnoreCase(combiner)) {
 			// static combiner
 			CombinerTriggerFunction<Tuple2<String, Integer>> combinerTriggerFunction = new CombinerTriggerFunction<Tuple2<String, Integer>>(10, 5);
-			combinedStream = counts.combine(outTypeInfo, wordCountCombinerFunction, combinerTriggerFunction, keyCombinerSelector);
+			combinedStream = counts.combine(wordCountCombinerFunction, combinerTriggerFunction, keyCombinerSelector);
 		} else if (COMBINER_DYNAMIC.equalsIgnoreCase(combiner)) {
 			// static combiner
 			CombinerDynamicTriggerFunction<String, Tuple2<String, Integer>> combinerDynamicTriggerFunction = new CombinerDynamicTriggerFunction<String, Tuple2<String, Integer>>(5);
-			combinedStream = counts.combine(outTypeInfo, wordCountCombinerFunction, combinerDynamicTriggerFunction, keyCombinerSelector);
+			combinedStream = counts.combine(wordCountCombinerFunction, combinerDynamicTriggerFunction, keyCombinerSelector);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
