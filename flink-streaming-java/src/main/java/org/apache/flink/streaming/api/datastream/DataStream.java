@@ -1200,9 +1200,15 @@ public class DataStream<T> {
 	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> combine(
 		TypeInformation<R> outTypeInfo,
-		OneInputStreamOperator<T, R> operator) {
+		CombinerFunction function, CombinerTrigger combinerTriggerFunction, KeySelector keyCombinerSelector) {
+		return doTransform("combiner-static", outTypeInfo, SimpleOperatorFactory.of(new StreamCombinerOperator<>(function, combinerTriggerFunction, keyCombinerSelector)));
+	}
 
-		return doTransform("combine", outTypeInfo, SimpleOperatorFactory.of(operator));
+	@PublicEvolving
+	public <R> SingleOutputStreamOperator<R> combine(
+		TypeInformation<R> outTypeInfo,
+		CombinerFunction function, CombinerDynamicTriggerFunction combinerDynamicTriggerFunction, KeySelector keyCombinerSelector) {
+		return doTransform("combiner-dynamic", outTypeInfo, SimpleOperatorFactory.of(new StreamCombinerDynamicOperator<>(function, combinerDynamicTriggerFunction, keyCombinerSelector)));
 	}
 
 	private <R> SingleOutputStreamOperator<R> doTransform(
