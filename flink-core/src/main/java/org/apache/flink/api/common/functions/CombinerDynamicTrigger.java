@@ -2,7 +2,7 @@ package org.apache.flink.api.common.functions;
 
 import java.io.Serializable;
 
-public interface CombinerTriggerDynamic<K, T> extends Serializable {
+public interface CombinerDynamicTrigger<K, T> extends Serializable {
 	/**
 	 * Register a callback which will be called once this trigger decides to finish
 	 * this bundle.

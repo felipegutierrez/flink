@@ -2,7 +2,7 @@ package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.api.common.functions.CombinerFunction;
 import org.apache.flink.api.common.functions.CombinerTriggerCallback;
-import org.apache.flink.api.common.functions.CombinerTriggerDynamic;
+import org.apache.flink.api.common.functions.CombinerDynamicTrigger;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +25,7 @@ public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> ex
 	/**
 	 * The trigger that determines how many elements should be put into a bundle.
 	 */
-	private final CombinerTriggerDynamic<K, IN> combinerTrigger;
+	private final CombinerDynamicTrigger<K, IN> combinerTrigger;
 
 	/**
 	 * Output for stream records.
@@ -35,7 +35,7 @@ public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> ex
 	private transient int numOfElements = 0;
 
 	public AbstractUdfStreamCombinerDynamicOperator(CombinerFunction<K, V, IN, OUT> function,
-													CombinerTriggerDynamic<K, IN> bundleTrigger) {
+													CombinerDynamicTrigger<K, IN> bundleTrigger) {
 		super(function);
 		chainingStrategy = ChainingStrategy.ALWAYS;
 		this.bundle = new HashMap<>();
