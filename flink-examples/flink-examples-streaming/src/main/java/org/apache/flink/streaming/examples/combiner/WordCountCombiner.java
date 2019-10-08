@@ -17,11 +17,10 @@
 
 package org.apache.flink.streaming.examples.combiner;
 
+import com.clearspring.analytics.stream.frequency.CountMinSketch;
+import com.clearspring.analytics.stream.frequency.IFrequency;
 import com.google.common.base.Strings;
-import org.apache.flink.api.common.functions.CombinerFunction;
-import org.apache.flink.api.common.functions.CombinerTrigger;
-import org.apache.flink.api.common.functions.CombinerTriggerCallback;
-import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -29,6 +28,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.operators.StreamCombinerDynamicOperator;
 import org.apache.flink.streaming.api.operators.StreamCombinerOperator;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.combiner.util.WordCountCombinerData;
@@ -101,18 +101,21 @@ public class WordCountCombiner {
 
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> combinedStream = null;
+		KeySelector<Tuple2<String, Integer>, String> keyBundleSelector = (KeySelector<Tuple2<String, Integer>, String>) value -> value.f0;
+		CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
+		TypeInformation<Tuple2<String, Integer>> outTypeInfo = TypeInformation.of(new TypeHint<Tuple2<String, Integer>>() {
+		});
+
 		if (Strings.isNullOrEmpty(combiner)) {
 			combinedStream = counts;
 		} else if (COMBINER_STATIC.equalsIgnoreCase(combiner)) {
-			TypeInformation<Tuple2<String, Integer>> outTypeInfo = TypeInformation.of(new TypeHint<Tuple2<String, Integer>>() {
-			});
-			CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> myCombinerFunction = new CombinerWordCountImpl();
-			CountCombinerTrigger<Tuple2<String, Integer>> bundleTrigger = new CountCombinerTrigger<Tuple2<String, Integer>>(10, 5);
-			KeySelector<Tuple2<String, Integer>, String> keyBundleSelector = (KeySelector<Tuple2<String, Integer>, String>) value -> value.f0;
 			// static combiner
-			combinedStream = counts.combine(outTypeInfo, new StreamCombinerOperator<>(myCombinerFunction, bundleTrigger, keyBundleSelector));
+			CountCombinerTrigger<Tuple2<String, Integer>> bundleTrigger = new CountCombinerTrigger<Tuple2<String, Integer>>(10, 5);
+			combinedStream = counts.combine(outTypeInfo, new StreamCombinerOperator<>(wordCountCombinerFunction, bundleTrigger, keyBundleSelector));
 		} else if (COMBINER_DYNAMIC.equalsIgnoreCase(combiner)) {
-			combinedStream = counts;
+			// static combiner
+			CountCombinerTriggerDynamic<String, Tuple2<String, Integer>> bundleTrigger = new CountCombinerTriggerDynamic<String, Tuple2<String, Integer>>(5);
+			combinedStream = counts.combine(outTypeInfo, new StreamCombinerDynamicOperator<>(wordCountCombinerFunction, bundleTrigger, keyBundleSelector));
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -160,6 +163,9 @@ public class WordCountCombiner {
 		}
 	}
 
+	// *************************************************************************
+	// GENERIC merge function to Static and Dynamic COMBINER's
+	// *************************************************************************
 	public static final class CombinerWordCountImpl extends CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
 
 		private static final Logger logger = LoggerFactory.getLogger(CombinerWordCountImpl.class);
@@ -182,6 +188,9 @@ public class WordCountCombiner {
 		}
 	}
 
+	// *************************************************************************
+	// STATIC COMBINER trigger
+	// *************************************************************************
 	public static final class CountCombinerTrigger<T> implements CombinerTrigger<T> {
 		private static final Logger logger = LoggerFactory.getLogger(CountCombinerTrigger.class);
 
@@ -222,6 +231,105 @@ public class WordCountCombiner {
 		@Override
 		public String explain() {
 			return "CountBundleTrigger with size " + maxCount;
+		}
+	}
+
+	// *************************************************************************
+	// DYNAMIC COMBINER trigger
+	// *************************************************************************
+	public static final class CountCombinerTriggerDynamic<K, T> implements CombinerTriggerDynamic<K, T> {
+		private static final Logger logger = LoggerFactory.getLogger(CountCombinerTriggerDynamic.class);
+
+		private final long LIMIT_MIN_COUNT = 1;
+		private final long INCREMENT = 10;
+
+		private long maxCount;
+		private transient long count = 0;
+		private transient long timeout;
+		private transient CombinerTriggerCallback callback;
+		private transient IFrequency frequency;
+		private transient long maxFrequencyCMS = 0;
+		private transient long startTime;
+
+		public CountCombinerTriggerDynamic() throws Exception {
+			this(20);
+		}
+
+		public CountCombinerTriggerDynamic(long timeout) throws Exception {
+			initFrequencySketch();
+			this.maxCount = LIMIT_MIN_COUNT;
+			this.startTime = Calendar.getInstance().getTimeInMillis();
+			this.timeout = timeout;
+			Preconditions.checkArgument(this.maxCount > 0, "maxCount must be greater than 0");
+		}
+
+		@Override
+		public void registerCallback(CombinerTriggerCallback callback) {
+			this.callback = Preconditions.checkNotNull(callback, "callback is null");
+			this.startTime = Calendar.getInstance().getTimeInMillis();
+			initFrequencySketch();
+		}
+
+		/**
+		 * The Combiner is triggered when the count reaches the maxCount or by a timeout
+		 */
+		@Override
+		public void onElement(K key, T element) throws Exception {
+			// add key element on the HyperLogLog to infer the data-stream cardinality
+			this.frequency.add(key.toString(), 1);
+			long itemCMS = this.frequency.estimateCount(key.toString());
+			if (itemCMS > this.maxFrequencyCMS) {
+				this.maxFrequencyCMS = itemCMS;
+			}
+			count++;
+			long beforeTime = Calendar.getInstance().getTimeInMillis() - Time.seconds(timeout).toMilliseconds();
+			if (count >= maxCount || beforeTime >= startTime) {
+				callback.finishBundle();
+			}
+		}
+
+		@Override
+		public void reset() throws Exception {
+			if (count != 0) {
+				String msg = "Thread[" + Thread.currentThread().getId() + "] frequencyCMS[" + maxFrequencyCMS + "] maxCount[" + maxCount + "]";
+				if (maxFrequencyCMS > maxCount + INCREMENT) {
+					// It is necessary to increase the combiner
+					long diff = maxFrequencyCMS - maxCount;
+					maxCount = maxCount + diff;
+					msg = msg + " - INCREASING >>>";
+					resetFrequencySketch();
+				} else if (maxFrequencyCMS < maxCount - INCREMENT) {
+					// It is necessary to reduce the combiner
+					maxCount = maxFrequencyCMS + INCREMENT;
+					msg = msg + " - DECREASING <<<";
+					resetFrequencySketch();
+				} else {
+					msg = msg + " - HOLDING";
+					this.startTime = Calendar.getInstance().getTimeInMillis();
+				}
+				System.out.println(msg);
+				// logger.info(msg);
+			}
+			count = 0;
+		}
+
+		private void initFrequencySketch() {
+			if (this.frequency == null) {
+				this.frequency = new CountMinSketch(10, 5, 0);
+			}
+			this.maxFrequencyCMS = 0;
+			this.startTime = Calendar.getInstance().getTimeInMillis();
+		}
+
+		private void resetFrequencySketch() {
+			this.frequency = new CountMinSketch(10, 5, 0);
+			this.maxFrequencyCMS = 0;
+			this.startTime = Calendar.getInstance().getTimeInMillis();
+		}
+
+		@Override
+		public String explain() {
+			return "CountCombinerTriggerDynamic with size " + maxCount;
 		}
 	}
 }

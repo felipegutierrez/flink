@@ -13,6 +13,14 @@ $ git remote fetch
 $ git pull
 ```
 
+## Combiner
+ - The example is implemented on the file [WordCountCombiner](felipegutierrez/flink/blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/combiner/WordCountCombiner.java).
+ - This example aims to solve the issue [FLINK-7561: Add support for pre-aggregation in DataStream API](https://issues.apache.org/jira/browse/FLINK-7561).
+ - We implemented a static and a dynamic combiner.
+
+
+## Partial partition
+
  - The example is implemented on the file [WordCountPartitioning](felipegutierrez/flink/blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/partitioning/WordCountPartitioning.java).
  - Sometimes the caniuse-lite is outdated and you will have to run the command `npm update` in another terminal.
  - Use `mvn clean package -DskipTests -Dcheckstyle.skip` to compile this project on the terminal or import it into the Intellij IDEA.
