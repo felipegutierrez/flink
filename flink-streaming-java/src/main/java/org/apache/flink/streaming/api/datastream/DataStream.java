@@ -263,7 +263,7 @@ public class DataStream<T> {
 	 */
 	public <K> KeyedStream<T, K> keyBy(KeySelector<T, K> key) {
 		Preconditions.checkNotNull(key);
-		return new KeyedStream<>(this, clean(key), false);
+		return new KeyedStream<>(this, clean(key), KeyedStreamType.ORIGINAL);
 	}
 
 	/**
@@ -277,7 +277,7 @@ public class DataStream<T> {
 	public <K> KeyedStream<T, K> keyBy(KeySelector<T, K> key, TypeInformation<K> keyType) {
 		Preconditions.checkNotNull(key);
 		Preconditions.checkNotNull(keyType);
-		return new KeyedStream<>(this, clean(key), keyType, false);
+		return new KeyedStream<>(this, clean(key), keyType, KeyedStreamType.ORIGINAL);
 	}
 
 	/**
@@ -311,21 +311,53 @@ public class DataStream<T> {
 
 	private KeyedStream<T, Tuple> keyBy(Keys<T> keys) {
 		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
-			getType(), getExecutionConfig())), false);
+			getType(), getExecutionConfig())), KeyedStreamType.ORIGINAL);
 	}
+
+	// ------------------------------------------------------------------------
+	//  combine then keyed stream
+	// ------------------------------------------------------------------------
+	public <K> KeyedStream<T, K> keyByCombiner(KeySelector<T, K> key) {
+		Preconditions.checkNotNull(key);
+		return new KeyedStream<>(this, clean(key), KeyedStreamType.COMBINER);
+	}
+
+	public <K> KeyedStream<T, K> keyByCombiner(KeySelector<T, K> key, TypeInformation<K> keyType) {
+		Preconditions.checkNotNull(key);
+		Preconditions.checkNotNull(keyType);
+		return new KeyedStream<>(this, clean(key), keyType, KeyedStreamType.COMBINER);
+	}
+
+	public KeyedStream<T, Tuple> keyByCombiner(int... fields) {
+		if (getType() instanceof BasicArrayTypeInfo || getType() instanceof PrimitiveArrayTypeInfo) {
+			return keyByCombiner(KeySelectorUtil.getSelectorForArray(fields, getType()));
+		} else {
+			return keyByCombiner(new Keys.ExpressionKeys<>(fields, getType()));
+		}
+	}
+
+	public KeyedStream<T, Tuple> keyByCombiner(String... fields) {
+		return keyByCombiner(new Keys.ExpressionKeys<>(fields, getType()));
+	}
+
+	private KeyedStream<T, Tuple> keyByCombiner(Keys<T> keys) {
+		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
+			getType(), getExecutionConfig())), KeyedStreamType.COMBINER);
+	}
+
 
 	// ------------------------------------------------------------------------
 	//  partial keyed stream
 	// ------------------------------------------------------------------------
 	public <K> KeyedStream<T, K> keyByPartial(KeySelector<T, K> key) {
 		Preconditions.checkNotNull(key);
-		return new KeyedStream<>(this, clean(key), true);
+		return new KeyedStream<>(this, clean(key), KeyedStreamType.PARTIAL);
 	}
 
 	public <K> KeyedStream<T, K> keyByPartial(KeySelector<T, K> key, TypeInformation<K> keyType) {
 		Preconditions.checkNotNull(key);
 		Preconditions.checkNotNull(keyType);
-		return new KeyedStream<>(this, clean(key), keyType, true);
+		return new KeyedStream<>(this, clean(key), keyType, KeyedStreamType.PARTIAL);
 	}
 
 	public KeyedStream<T, Tuple> keyByPartial(int... fields) {
@@ -342,7 +374,7 @@ public class DataStream<T> {
 
 	private KeyedStream<T, Tuple> keyByPartial(Keys<T> keys) {
 		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
-			getType(), getExecutionConfig())), true);
+			getType(), getExecutionConfig())), KeyedStreamType.PARTIAL);
 	}
 
 	/**
@@ -1163,6 +1195,14 @@ public class DataStream<T> {
 		TypeInformation<R> outTypeInfo,
 		OneInputStreamOperatorFactory<T, R> operatorFactory) {
 		return doTransform(operatorName, outTypeInfo, operatorFactory);
+	}
+
+	@PublicEvolving
+	public <R> SingleOutputStreamOperator<R> combine(
+		TypeInformation<R> outTypeInfo,
+		OneInputStreamOperator<T, R> operator) {
+
+		return doTransform("combine", outTypeInfo, SimpleOperatorFactory.of(operator));
 	}
 
 	private <R> SingleOutputStreamOperator<R> doTransform(

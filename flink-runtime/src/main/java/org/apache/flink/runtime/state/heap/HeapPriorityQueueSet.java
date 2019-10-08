@@ -23,6 +23,7 @@ import org.apache.flink.runtime.state.KeyGroupRange;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.KeyGroupedInternalPriorityQueue;
 import org.apache.flink.runtime.state.PriorityComparator;
+import org.apache.flink.runtime.state.approximation.ChannelKeyFrequency;
 
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
@@ -70,6 +71,8 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement>
 	 */
 	private final int totalNumberOfKeyGroups;
 
+	private ChannelKeyFrequency channelKeyFrequency;
+
 	/**
 	 * Creates an empty {@link HeapPriorityQueueSet} with the requested initial capacity.
 	 *
@@ -100,6 +103,7 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement>
 		for (int i = 0; i < keyGroupsInLocalRange; ++i) {
 			deduplicationMapsByKeyGroup[i] = new HashMap<>(deduplicationSetSize);
 		}
+		this.channelKeyFrequency = new ChannelKeyFrequency(4, 2);
 	}
 
 	@Override
@@ -148,9 +152,17 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement>
 	}
 
 	private HashMap<T, T> getDedupMapForElement(T element) {
+		Object key = keyExtractor.extractKeyFromElement(element);
+
+		long hops = 0;
+		int channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, totalNumberOfKeyGroups, 4, hops);
+		channelKeyFrequency.add(key, channel);
+		// if (channelKeyFrequency.estimateCount(key) > 5) { hops = 1; }
+		// hops = channelKeyFrequency.getNumberOfHops();
+
 		int keyGroup = KeyGroupRangeAssignment.assignToKeyGroup(
-			keyExtractor.extractKeyFromElement(element),
-			totalNumberOfKeyGroups);
+			key,
+			totalNumberOfKeyGroups, hops);
 		return getDedupMapForKeyGroup(keyGroup);
 	}
 

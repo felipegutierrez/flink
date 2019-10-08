@@ -40,7 +40,7 @@ public abstract class StreamPartitioner<T> implements
 	@Override
 	public void setup(int numberOfChannels) {
 		this.numberOfChannels = numberOfChannels;
-		this.channelKeyFrequency = new ChannelKeyFrequency(numberOfChannels, 10);
+		this.channelKeyFrequency = new ChannelKeyFrequency(numberOfChannels, 2);
 	}
 
 	@Override

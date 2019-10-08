@@ -5,11 +5,8 @@ import com.clearspring.analytics.stream.frequency.IFrequency;
 
 public class ChannelKeyFrequency {
 
-	private final int INDEX_CHANNEL = 0;
-	private final int INDEX_KEY_HIGHEST_FREQUENCY = 1;
-
 	private IFrequency frequency;
-	private long[][] channelState;
+	private long[] channelState;
 	private long factor;
 
 	public ChannelKeyFrequency(int parallelism, long factor) {
@@ -18,12 +15,12 @@ public class ChannelKeyFrequency {
 
 	public ChannelKeyFrequency(int parallelism, long factor, int depth, int width, int seed) {
 		this.frequency = new CountMinSketch(depth, width, seed);
-		this.channelState = new long[parallelism][2];
+		this.channelState = new long[parallelism];
 		this.factor = factor;
 	}
 
 	public long getChannelFrequencyState(int position) {
-		return this.channelState[position][INDEX_KEY_HIGHEST_FREQUENCY];
+		return this.channelState[position];
 	}
 
 	public void add(Object key, int channel) {
@@ -47,16 +44,16 @@ public class ChannelKeyFrequency {
 	}
 
 	private void addKeyChannelState(int channel, long keyFrequencyEstimation) {
-		if (keyFrequencyEstimation > channelState[channel][INDEX_KEY_HIGHEST_FREQUENCY]) {
-			channelState[channel][INDEX_KEY_HIGHEST_FREQUENCY] = keyFrequencyEstimation;
+		if (keyFrequencyEstimation > channelState[channel]) {
+			channelState[channel] = keyFrequencyEstimation;
 		}
 	}
 
 	public long getHighestFrequency() {
 		long firstHighestFrequency = 0;
 		for (int i = 0; i < channelState.length; i++) {
-			if (channelState[i][INDEX_KEY_HIGHEST_FREQUENCY] > firstHighestFrequency) {
-				firstHighestFrequency = channelState[i][INDEX_KEY_HIGHEST_FREQUENCY];
+			if (channelState[i] > firstHighestFrequency) {
+				firstHighestFrequency = channelState[i];
 			}
 		}
 		return firstHighestFrequency;
@@ -66,11 +63,11 @@ public class ChannelKeyFrequency {
 		long firstHighestFrequency = 0;
 		long secondHighestFrequency = 0;
 		for (int i = 0; i < channelState.length; i++) {
-			if (channelState[i][INDEX_KEY_HIGHEST_FREQUENCY] > firstHighestFrequency) {
+			if (channelState[i] > firstHighestFrequency) {
 				secondHighestFrequency = firstHighestFrequency;
-				firstHighestFrequency = channelState[i][INDEX_KEY_HIGHEST_FREQUENCY];
-			} else if (channelState[i][INDEX_KEY_HIGHEST_FREQUENCY] > secondHighestFrequency) {
-				secondHighestFrequency = channelState[i][INDEX_KEY_HIGHEST_FREQUENCY];
+				firstHighestFrequency = channelState[i];
+			} else if (channelState[i] > secondHighestFrequency) {
+				secondHighestFrequency = channelState[i];
 			}
 		}
 		if (firstHighestFrequency == 0 || secondHighestFrequency == 0) {
@@ -80,6 +77,8 @@ public class ChannelKeyFrequency {
 	}
 
 	public long getNumberOfHops() {
-		return getFactorBetweenHighestFrequencies() / factor;
+		long factorBetweenFreq = getFactorBetweenHighestFrequencies();
+		// System.err.println("factorBetweenFreq[" + factorBetweenFreq + "]");
+		return factorBetweenFreq / factor;
 	}
 }

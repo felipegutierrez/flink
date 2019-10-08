@@ -145,7 +145,7 @@ public abstract class AbstractKeyedStateBackend<K> implements
 		this.keyGroupCompressionDecorator = keyGroupCompressionDecorator;
 		this.ttlTimeProvider = Preconditions.checkNotNull(ttlTimeProvider);
 		this.keySelectionListeners = new ArrayList<>(1);
-		this.channelKeyFrequency = new ChannelKeyFrequency(executionConfig.getParallelism(), 10);
+		this.channelKeyFrequency = new ChannelKeyFrequency(executionConfig.getParallelism(), 2);
 	}
 
 	private static StreamCompressionDecorator determineStreamCompression(ExecutionConfig executionConfig) {
@@ -214,10 +214,11 @@ public abstract class AbstractKeyedStateBackend<K> implements
 	public void setCurrentKey(K newKey) {
 		notifyKeySelected(newKey);
 
-		int channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(newKey, numberOfKeyGroups, executionConfig.getParallelism());
+		int channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(newKey, numberOfKeyGroups, executionConfig.getParallelism(), 0);
 		long hops = 0;
 		this.channelKeyFrequency.add(newKey, channel);
-		hops = channelKeyFrequency.getNumberOfHops();
+		// hops = channelKeyFrequency.getNumberOfHops();
+		if (channelKeyFrequency.estimateCount(newKey) > 5) { hops = 1; }
 
 		this.keyContext.setCurrentKey(newKey);
 		this.keyContext.setCurrentKeyGroupIndex(KeyGroupRangeAssignment.assignToKeyGroup(newKey, numberOfKeyGroups, hops));

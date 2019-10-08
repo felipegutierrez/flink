@@ -89,13 +89,15 @@ public final class KeyGroupRangeAssignment {
 	public static int computeKeyGroupForKeyHashPartial(int keyHash, int maxParallelism, long hops) {
 		int keyGroup = MathUtils.murmurHash(keyHash) % maxParallelism;
 		int newKeyGroup = 0;
-		if (hops > 0 && (keyGroup + 32 < maxParallelism)) {
+		if (hops == 0) {
+			newKeyGroup = keyGroup;
+		} else if (hops > 0 && (keyGroup + 32 < maxParallelism)) {
 			newKeyGroup = keyGroup + 32;
 		} else if (hops > 0 && (keyGroup + 32 > maxParallelism)) {
 			newKeyGroup = keyGroup - 32;
 		}
 		// System.err.println("key[" + keyHash + "] hops[" + hops + "] keyGroup[" + keyGroup + "] newKeyGroup[" + newKeyGroup + "]");
-		return keyGroup;
+		return newKeyGroup;
 	}
 
 	/**

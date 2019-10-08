@@ -54,6 +54,7 @@ import org.apache.flink.util.Collector;
 public class WordCountKeyPartitioning {
 	private static final String PARTITION = "partition";
 	private static final String PARTITION_TYPE_PARTIAL = "partial";
+	private static final String PARTITION_TYPE_COMBINER = "combiner";
 	private static final String PARTITION_TYPE_ORIGINAL = "original";
 	private static final String INPUT = "input";
 	private static final String OUTPUT = "output";
@@ -106,6 +107,8 @@ public class WordCountKeyPartitioning {
 			keyedStream = tokens.keyBy(0);
 		} else if (PARTITION_TYPE_PARTIAL.equalsIgnoreCase(partitionStrategy)) {
 			keyedStream = tokens.keyByPartial(0);
+		} else if (PARTITION_TYPE_COMBINER.equalsIgnoreCase(partitionStrategy)) {
+			keyedStream = tokens.keyByCombiner(0);
 		}
 
 		// Apply window or not -> sum -> print

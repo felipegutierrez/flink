@@ -69,6 +69,7 @@ import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.partitioner.KeyGroupStreamPartitioner;
+import org.apache.flink.streaming.runtime.partitioner.KeyedStreamType;
 import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
 import org.apache.flink.util.Preconditions;
 
@@ -114,11 +115,11 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
 	 *            Function for determining state partitions
 	 */
 	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector) {
-		this(dataStream, keySelector, TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()), false);
+		this(dataStream, keySelector, TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()), KeyedStreamType.ORIGINAL);
 	}
 
-	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector, boolean partial) {
-		this(dataStream, keySelector, TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()), partial);
+	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector, KeyedStreamType keyedStreamType) {
+		this(dataStream, keySelector, TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()), keyedStreamType);
 	}
 
 	/**
@@ -135,18 +136,17 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
 			dataStream,
 			new PartitionTransformation<>(
 				dataStream.getTransformation(),
-				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM, false)),
+				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM, KeyedStreamType.ORIGINAL)),
 			keySelector,
 			keyType);
 	}
 
-	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector, TypeInformation<KEY> keyType, boolean partial) {
+	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector, TypeInformation<KEY> keyType, KeyedStreamType keyedStreamType) {
 		this(
 			dataStream,
 			new PartitionTransformation<>(
 				dataStream.getTransformation(),
-				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM, partial)),
-				// new KeyGroupPartialStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM)),
+				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM, keyedStreamType)),
 			keySelector,
 			keyType);
 	}

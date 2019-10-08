@@ -296,6 +296,30 @@ under the License.
 						</configuration>
 					</execution>
 
+					<!-- WordCountCombiner -->
+					<execution>
+						<id>WordCountCombiner</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>WordCountCombiner</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.combiner.WordCountCombiner</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>org/apache/flink/streaming/examples/combiner/WordCountCombiner.class</include>
+								<include>org/apache/flink/streaming/examples/combiner/WordCountCombiner$*.class</include>
+								<include>org/apache/flink/streaming/examples/combiner/util/WordCountCombinerData.class</include>
+							</includes>
+						</configuration>
+					</execution>
+
 					<!-- WordCountPartitioning -->
 					<execution>
 						<id>WordCountPartitioning</id>
@@ -530,6 +554,7 @@ under the License.
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TopSpeedWindowing.jar" tofile="${project.basedir}/target/TopSpeedWindowing.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WindowJoin.jar" tofile="${project.basedir}/target/WindowJoin.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCount.jar" tofile="${project.basedir}/target/WordCount.jar" />
+								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountCombiner.jar" tofile="${project.basedir}/target/WordCountCombiner.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountPartitioning.jar" tofile="${project.basedir}/target/WordCountPartitioning.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountKeyPartitioning.jar" tofile="${project.basedir}/target/WordCountKeyPartitioning.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-SocketWindowWordCount.jar" tofile="${project.basedir}/target/SocketWindowWordCount.jar" />
