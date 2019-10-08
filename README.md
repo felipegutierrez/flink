@@ -14,7 +14,7 @@ $ git pull
 ```
 
 ## Combiner
- - The example is implemented on the file [WordCountCombiner](felipegutierrez/flink/blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/combiner/WordCountCombiner.java).
+ - The example is implemented on the file [WordCountCombiner](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/combiner/WordCountCombiner.java).
  - This example aims to solve the issue [FLINK-7561: Add support for pre-aggregation in DataStream API](https://issues.apache.org/jira/browse/FLINK-7561).
  - We implemented a static and a dynamic combiner.
 
