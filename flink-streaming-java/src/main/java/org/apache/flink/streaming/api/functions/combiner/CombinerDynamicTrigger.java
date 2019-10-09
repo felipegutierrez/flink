@@ -1,4 +1,4 @@
-package org.apache.flink.api.common.functions;
+package org.apache.flink.streaming.api.functions.combiner;
 
 import java.io.Serializable;
 
@@ -12,7 +12,7 @@ public interface CombinerDynamicTrigger<K, T> extends Serializable {
 	/**
 	 * Called for every element that gets added to the bundle. If the trigger
 	 * decides to start evaluate the input,
-	 * {@link CombinerTriggerCallback#finishBundle()} should be invoked.
+	 * {@link CombinerTriggerCallback#finishMerge()} should be invoked.
 	 *
 	 * @param element The element that arrived.
 	 */

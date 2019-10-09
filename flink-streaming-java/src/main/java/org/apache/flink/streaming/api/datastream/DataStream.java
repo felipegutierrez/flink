@@ -43,17 +43,15 @@ import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;
-import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.TimestampExtractor;
+import org.apache.flink.streaming.api.functions.*;
+import org.apache.flink.streaming.api.functions.combiner.CombinerDynamicTriggerFunction;
+import org.apache.flink.streaming.api.functions.combiner.CombinerTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SocketClientSink;
 import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
-import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
@@ -1207,7 +1205,7 @@ public class DataStream<T> {
 	 * @return the data stream constructed.
 	 */
 	@PublicEvolving
-	public <R> SingleOutputStreamOperator<R> combine(CombinerFunction combinerFunction, long maxToCombine) {
+	public <R> SingleOutputStreamOperator<R> combine(CombineAdjustableFunction combinerFunction, long maxToCombine) {
 
 		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
 			clean(combinerFunction),
@@ -1228,7 +1226,7 @@ public class DataStream<T> {
 	 * @return the data stream constructed.
 	 */
 	@PublicEvolving
-	public <R> SingleOutputStreamOperator<R> combine(CombinerFunction combinerFunction)  {
+	public <R> SingleOutputStreamOperator<R> combine(CombineAdjustableFunction combinerFunction)  {
 
 		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
 			clean(combinerFunction),

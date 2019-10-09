@@ -68,7 +68,7 @@ public class WordCountCombinerData {
 	};
 
 	// 122 words 'be' and 1 word 'to'
-	public static final String[] WORDS_SKEW = new String[]{
+	public static final String[] SKEW_WORDS = new String[]{
 		"To be be be be be be be be",
 		"be be be be be be be be be be",
 		"be be be be be be be be be be",

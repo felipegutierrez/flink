@@ -1,4 +1,4 @@
-package org.apache.flink.api.common.functions;
+package org.apache.flink.streaming.api.functions.combiner;
 
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
 import com.clearspring.analytics.stream.frequency.IFrequency;

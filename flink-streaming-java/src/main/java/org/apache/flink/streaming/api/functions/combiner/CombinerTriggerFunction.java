@@ -1,4 +1,4 @@
-package org.apache.flink.api.common.functions;
+package org.apache.flink.streaming.api.functions.combiner;
 
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.util.Preconditions;

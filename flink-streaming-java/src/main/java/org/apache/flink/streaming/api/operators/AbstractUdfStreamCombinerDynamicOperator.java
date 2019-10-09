@@ -1,8 +1,8 @@
 package org.apache.flink.streaming.api.operators;
 
-import org.apache.flink.api.common.functions.CombinerDynamicTrigger;
-import org.apache.flink.api.common.functions.CombinerFunction;
-import org.apache.flink.api.common.functions.CombinerTriggerCallback;
+import org.apache.flink.api.common.functions.CombineAdjustableFunction;
+import org.apache.flink.streaming.api.functions.combiner.CombinerDynamicTrigger;
+import org.apache.flink.streaming.api.functions.combiner.CombinerTriggerCallback;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +12,8 @@ import java.util.Map;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> extends AbstractUdfStreamOperator<OUT, CombinerFunction<K, V, IN, OUT>>
+public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT>
+	extends AbstractUdfStreamOperator<OUT, CombineAdjustableFunction<K, V, IN, OUT>>
 	implements OneInputStreamOperator<IN, OUT>, CombinerTriggerCallback {
 
 	private static final Logger logger = LoggerFactory.getLogger(AbstractUdfStreamCombinerDynamicOperator.class);
@@ -34,7 +35,7 @@ public abstract class AbstractUdfStreamCombinerDynamicOperator<K, V, IN, OUT> ex
 
 	private transient int numOfElements = 0;
 
-	public AbstractUdfStreamCombinerDynamicOperator(CombinerFunction<K, V, IN, OUT> function,
+	public AbstractUdfStreamCombinerDynamicOperator(CombineAdjustableFunction<K, V, IN, OUT> function,
 													CombinerDynamicTrigger<K, IN> bundleTrigger) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;

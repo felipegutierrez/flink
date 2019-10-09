@@ -1,8 +1,8 @@
 package org.apache.flink.streaming.api.operators;
 
-import org.apache.flink.api.common.functions.CombinerFunction;
-import org.apache.flink.api.common.functions.CombinerTrigger;
+import org.apache.flink.api.common.functions.CombineAdjustableFunction;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.streaming.api.functions.combiner.CombinerTrigger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +15,7 @@ public class StreamCombinerOperator<K, V, IN, OUT> extends AbstractUdfStreamComb
 	 */
 	private final KeySelector<IN, K> keySelector;
 
-	public StreamCombinerOperator(CombinerFunction<K, V, IN, OUT> function,
+	public StreamCombinerOperator(CombineAdjustableFunction<K, V, IN, OUT> function,
 								  CombinerTrigger<IN> combinerTrigger,
 								  KeySelector<IN, K> keySelector) {
 		super(function, combinerTrigger);

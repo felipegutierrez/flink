@@ -18,7 +18,7 @@
 package org.apache.flink.streaming.examples.combiner;
 
 import com.google.common.base.Strings;
-import org.apache.flink.api.common.functions.CombinerFunction;
+import org.apache.flink.api.common.functions.CombineAdjustableFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -33,27 +33,17 @@ import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
- * Implements the "WordCount" program that computes a simple word occurrence
- * histogram over text files in a streaming fashion.
- *
- * <p>The input is a plain text file with lines separated by newline characters.
- *
- * <p>Usage: <code>WordCount --input &lt;path&gt; --output &lt;path&gt;</code><br>
- * If no parameters are provided, the program is run with default data from
- * {@link WordCountCombinerData}.
- *
- * <p>This example shows how to:
- * <ul>
- * <li>write a simple Flink Streaming program,
- * <li>use tuple data types,
- * <li>write and use user-defined functions.
- * </ul>
+ * usage: java WordCountCombiner -combiner dynamic -input skew
  */
 public class WordCountCombiner {
 
 	private static final String COMBINER = "combiner";
 	private static final String COMBINER_STATIC = "static";
 	private static final String COMBINER_DYNAMIC = "dynamic";
+	private static final String SOURCE = "input";
+	private static final String SOURCE_WORDS = "words";
+	private static final String SOURCE_SKEW_WORDS = "skew";
+	private static final String SOURCE_FEW_WORDS = "few";
 
 	// *************************************************************************
 	// PROGRAM
@@ -71,30 +61,33 @@ public class WordCountCombiner {
 		env.getConfig().setGlobalJobParameters(params);
 
 		String combiner = params.get(COMBINER, "");
+		String input = params.get(SOURCE, "");
 
 		// get input data
 		DataStream<String> text;
-		if (params.has("input")) {
+
+		if (Strings.isNullOrEmpty(input)) {
+			text = env.fromElements(WordCountCombinerData.WORDS);
+		} else if (SOURCE_WORDS.equalsIgnoreCase(input)) {
+			text = env.fromElements(WordCountCombinerData.WORDS);
+		} else if (SOURCE_SKEW_WORDS.equalsIgnoreCase(input)) {
+			text = env.fromElements(WordCountCombinerData.SKEW_WORDS);
+		} else if (SOURCE_FEW_WORDS.equalsIgnoreCase(input)) {
+			text = env.fromElements(WordCountCombinerData.FEW_WORDS);
+		} else {
 			// read the text file from given input path
 			text = env.readTextFile(params.get("input"));
-		} else {
-			System.out.println("Executing WordCount example with default input data set.");
-			System.out.println("Use --input to specify file input.");
-			// get default test text data
-			// text = env.fromElements(WordCountCombinerData.WORDS);
-			text = env.fromElements(WordCountCombinerData.WORDS_SKEW);
 		}
 
-		DataStream<Tuple2<String, Integer>> counts =
-			// split up the lines in pairs (2-tuples) containing: (word,1)
-			text.flatMap(new Tokenizer());
+		// split up the lines in pairs (2-tuples) containing: (word,1)
+		DataStream<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer());
 
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> combinedStream = null;
-		CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
+		CombineAdjustableFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
 
 		if (Strings.isNullOrEmpty(combiner)) {
-			combinedStream = counts;
+			combinedStream = counts; // no COMBINER
 		} else if (COMBINER_STATIC.equalsIgnoreCase(combiner)) {
 			combinedStream = counts.combine(wordCountCombinerFunction, 10); // STATIC COMBINER
 		} else if (COMBINER_DYNAMIC.equalsIgnoreCase(combiner)) {
@@ -114,7 +107,7 @@ public class WordCountCombiner {
 			resultStream.print();
 		}
 
-		System.out.println("Execution plan:");
+		System.out.println("Execution plan >>>");
 		System.err.println(env.getExecutionPlan());
 		// execute program
 		env.execute("Streaming WordCount");
@@ -149,7 +142,8 @@ public class WordCountCombiner {
 	// *************************************************************************
 	// GENERIC merge function to Static and Dynamic COMBINER's
 	// *************************************************************************
-	private static class CombinerWordCountImpl extends CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
+	private static class CombinerWordCountImpl
+		extends CombineAdjustableFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
 
 		private static final Logger logger = LoggerFactory.getLogger(CombinerWordCountImpl.class);
 
