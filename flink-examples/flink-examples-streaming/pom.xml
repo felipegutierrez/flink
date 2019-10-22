@@ -315,6 +315,7 @@ under the License.
 							<includes>
 								<include>org/apache/flink/streaming/examples/combiner/WordCountCombiner.class</include>
 								<include>org/apache/flink/streaming/examples/combiner/WordCountCombiner$*.class</include>
+								<include>org/apache/flink/streaming/examples/combiner/util/DataRateVariationSource.class</include>
 								<include>org/apache/flink/streaming/examples/combiner/util/WordCountCombinerData.class</include>
 							</includes>
 						</configuration>

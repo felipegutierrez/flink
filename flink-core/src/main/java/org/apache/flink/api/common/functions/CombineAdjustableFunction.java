@@ -6,8 +6,15 @@ import org.apache.flink.util.Collector;
 import javax.annotation.Nullable;
 import java.util.Map;
 
+/**
+ *
+ * @param <K>
+ * @param <V>
+ * @param <T> Type of the input elements.
+ * @param <O> Type of the output elements.
+ */
 @Public
-public abstract class CombineAdjustableFunction<K, V, IN, OUT> implements Function {
+public abstract class CombineAdjustableFunction<K, V, T, O> implements Function {
 	private static final long serialVersionUID = 1L;
 
 	/**
@@ -17,11 +24,11 @@ public abstract class CombineAdjustableFunction<K, V, IN, OUT> implements Functi
 	 * @param input the given input, not null
 	 * @throws Exception
 	 */
-	public abstract V addInput(@Nullable V value, IN input) throws Exception;
+	public abstract V addInput(@Nullable V value, T input) throws Exception;
 
 	/**
 	 * Called when a merge is finished. Transform a bundle to zero, one, or more
 	 * output elements.
 	 */
-	public abstract void finishMerge(Map<K, V> buffer, Collector<OUT> out) throws Exception;
+	public abstract void finishMerge(Map<K, V> buffer, Collector<O> out) throws Exception;
 }

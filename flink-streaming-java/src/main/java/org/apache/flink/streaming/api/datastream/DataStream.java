@@ -1202,9 +1202,8 @@ public class DataStream<T> {
 	 * @param combinerFunction the function to combine tuples
 	 * @param maxToCombine     the max number of tuples to combine
 	 * @param <R>
-	 * @return the data stream constructed.
+	 * @return The transformed {@link DataStream} constructed.
 	 */
-	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> combine(CombineAdjustableFunction combinerFunction, long maxToCombine) {
 
 		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
@@ -1223,9 +1222,8 @@ public class DataStream<T> {
 	 *
 	 * @param combinerFunction the function to combine tuples
 	 * @param <R>
-	 * @return the data stream constructed.
+	 * @return The transformed {@link DataStream} constructed.
 	 */
-	@PublicEvolving
 	public <R> SingleOutputStreamOperator<R> combine(CombineAdjustableFunction combinerFunction)  {
 
 		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
