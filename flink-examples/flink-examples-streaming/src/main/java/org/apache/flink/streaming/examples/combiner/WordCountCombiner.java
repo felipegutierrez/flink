@@ -20,9 +20,11 @@ package org.apache.flink.streaming.examples.combiner;
 import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.CombineAdjustableFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
@@ -37,7 +39,7 @@ import java.util.Map;
 
 /**
  * <pre>
- * usage: java WordCountCombiner -combiner dynamic -input skew
+ * usage: java WordCountCombiner -combiner dynamic -input skew -window 30
  * usage: java WordCountCombiner -combiner dynamic -input variation
  * usage: ./bin/flink run WordCountCombiner.jar -combiner dynamic -input variation
  * </pre>
@@ -53,6 +55,7 @@ public class WordCountCombiner {
 	private static final String COMBINER = "combiner";
 	private static final String COMBINER_STATIC = "static";
 	private static final String COMBINER_DYNAMIC = "dynamic";
+	private static final String WINDOW = "window";
 	private static final String SOURCE = "input";
 	private static final String SOURCE_WORDS = "words";
 	private static final String SOURCE_SKEW_WORDS = "skew";
@@ -76,6 +79,7 @@ public class WordCountCombiner {
 
 		String combiner = params.get(COMBINER, "");
 		String input = params.get(SOURCE, "");
+		int window = params.getInt(WINDOW, 0);
 
 		// get input data
 		DataStream<String> text;
@@ -108,17 +112,25 @@ public class WordCountCombiner {
 			combinedStream = counts;
 		} else if (COMBINER_STATIC.equalsIgnoreCase(combiner)) {
 			// STATIC COMBINER combines every 10 words or on the timeout
-			combinedStream = counts.combine(wordCountCombinerFunction, 10);
+			combinedStream = counts.combine(wordCountCombinerFunction, 100);
 		} else if (COMBINER_DYNAMIC.equalsIgnoreCase(combiner)) {
 			// DYNAMIC COMBINER combines according the frequency of words or on the timeout
 			combinedStream = counts.combine(wordCountCombinerFunction);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
-		DataStream<Tuple2<String, Integer>> resultStream = combinedStream
-			.keyBy(0)
-			.window(TumblingProcessingTimeWindows.of(Time.seconds(5)))
-			.sum(1).name(OPERATOR_SUM);
+		KeyedStream<Tuple2<String, Integer>, Tuple> keyedStream = combinedStream
+			.keyBy(0);
+
+		DataStream<Tuple2<String, Integer>> resultStream = null;
+		if (window != 0) {
+			resultStream = keyedStream
+				.window(TumblingProcessingTimeWindows.of(Time.seconds(window)))
+				.sum(1).name(OPERATOR_SUM);
+		} else {
+			resultStream = keyedStream
+				.sum(1).name(OPERATOR_SUM);
+		}
 
 		// emit result
 		if (params.has("output")) {
