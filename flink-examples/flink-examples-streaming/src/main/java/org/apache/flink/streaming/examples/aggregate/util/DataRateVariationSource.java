@@ -1,4 +1,4 @@
-package org.apache.flink.streaming.examples.combiner.util;
+package org.apache.flink.streaming.examples.aggregate.util;
 
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
@@ -49,13 +49,13 @@ public class DataRateVariationSource extends RichSourceFunction<String> {
 			System.out.println(msg);
 		}
 		if (currentDataSourceId == 0 || currentDataSourceId == 4) {
-			currentDataSource = Arrays.asList(WordCountCombinerData.WORDS_SKEW_01);
+			currentDataSource = Arrays.asList(WordCountPreAggregateData.WORDS_SKEW_01);
 		} else if (currentDataSourceId == 1) {
-			currentDataSource = Arrays.asList(WordCountCombinerData.WORDS_SKEW_02);
+			currentDataSource = Arrays.asList(WordCountPreAggregateData.WORDS_SKEW_02);
 		} else if (currentDataSourceId == 2) {
-			currentDataSource = Arrays.asList(WordCountCombinerData.WORDS_SKEW_03);
+			currentDataSource = Arrays.asList(WordCountPreAggregateData.WORDS_SKEW_03);
 		} else if (currentDataSourceId == 3) {
-			currentDataSource = Arrays.asList(WordCountCombinerData.WORDS_SKEW_04);
+			currentDataSource = Arrays.asList(WordCountPreAggregateData.WORDS_SKEW_04);
 		}
 		return currentDataSource;
 	}

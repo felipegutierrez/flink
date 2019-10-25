@@ -1,17 +1,17 @@
-package org.apache.flink.streaming.api.functions.combiner;
+package org.apache.flink.streaming.api.functions.aggregation;
 
 import java.io.Serializable;
 
-public interface CombinerTrigger<T> extends Serializable {
+public interface PreAggregateTrigger<T> extends Serializable {
 
 	/**
 	 * Register a callback which will be called once this trigger decides to finish this bundle.
 	 */
-	void registerCallback(CombinerTriggerCallback callback);
+	void registerCallback(PreAggregateTriggerCallback callback);
 
 	/**
 	 * Called for every element that gets added to the merge. If the trigger decides to start
-	 * evaluate the input, {@link CombinerTriggerCallback#finishMerge()} should be invoked.
+	 * evaluate the input, {@link PreAggregateTriggerCallback#finishMerge()} should be invoked.
 	 *
 	 * @param element The element that arrived.
 	 */

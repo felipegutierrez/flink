@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.examples.combiner.util;
+package org.apache.flink.streaming.examples.aggregate.util;
 
 /**
  * Provides the default data sets used for the WordCount example program.
  * The default data sets are used, if no parameters are given to the program.
  */
-public class WordCountCombinerData {
+public class WordCountPreAggregateData {
 
 	public static final String[] WORDS = new String[]{
 		"To be, or not to be,--that is the question:--",

@@ -15,11 +15,11 @@
  * limitations under the License.
  */
 
-package org.apache.flink.streaming.examples.combiner;
+package org.apache.flink.streaming.examples.aggregate;
 
 import com.google.common.base.Strings;
-import org.apache.flink.api.common.functions.CombineAdjustableFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -28,8 +28,8 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.streaming.examples.combiner.util.DataRateVariationSource;
-import org.apache.flink.streaming.examples.combiner.util.WordCountCombinerData;
+import org.apache.flink.streaming.examples.aggregate.util.DataRateVariationSource;
+import org.apache.flink.streaming.examples.aggregate.util.WordCountPreAggregateData;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,22 +39,21 @@ import java.util.Map;
 
 /**
  * <pre>
- * usage: java WordCountCombiner -combiner dynamic -input skew -window 30
- * usage: java WordCountCombiner -combiner dynamic -input variation
+ * usage: java WordCountCombiner -pre-aggregate static -input skew -window 30
+ * usage: java WordCountCombiner -pre-aggregate static -input variation
  * usage: ./bin/flink run WordCountCombiner.jar -combiner dynamic -input variation
  * </pre>
  */
-public class WordCountCombiner {
+public class WordCountPreAggregate {
 
 	private static final String OPERATOR_SOURCE = "source";
 	private static final String OPERATOR_SINK = "sink";
 	private static final String OPERATOR_TOKENIZER = "tokenizer";
-	private static final String OPERATOR_COMBINER = "combiner";
 	private static final String OPERATOR_SUM = "sum";
 
-	private static final String COMBINER = "combiner";
-	private static final String COMBINER_STATIC = "static";
-	private static final String COMBINER_DYNAMIC = "dynamic";
+	private static final String PRE_AGGREGATE = "pre-aggregate";
+	private static final String PRE_AGGREGATE_STATIC = "static";
+	private static final String PRE_AGGREGATE_DYNAMIC = "dynamic";
 	private static final String WINDOW = "window";
 	private static final String SOURCE = "input";
 	private static final String SOURCE_WORDS = "words";
@@ -77,7 +76,7 @@ public class WordCountCombiner {
 		// make parameters available in the web interface
 		env.getConfig().setGlobalJobParameters(params);
 
-		String combiner = params.get(COMBINER, "");
+		String preAggregate = params.get(PRE_AGGREGATE, "");
 		String input = params.get(SOURCE, "");
 		int window = params.getInt(WINDOW, 0);
 
@@ -85,13 +84,13 @@ public class WordCountCombiner {
 		DataStream<String> text;
 
 		if (Strings.isNullOrEmpty(input)) {
-			text = env.fromElements(WordCountCombinerData.WORDS).name(OPERATOR_SOURCE);
+			text = env.fromElements(WordCountPreAggregateData.WORDS).name(OPERATOR_SOURCE);
 		} else if (SOURCE_WORDS.equalsIgnoreCase(input)) {
-			text = env.fromElements(WordCountCombinerData.WORDS).name(OPERATOR_SOURCE);
+			text = env.fromElements(WordCountPreAggregateData.WORDS).name(OPERATOR_SOURCE);
 		} else if (SOURCE_SKEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.fromElements(WordCountCombinerData.SKEW_WORDS).name(OPERATOR_SOURCE);
+			text = env.fromElements(WordCountPreAggregateData.SKEW_WORDS).name(OPERATOR_SOURCE);
 		} else if (SOURCE_FEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.fromElements(WordCountCombinerData.FEW_WORDS).name(OPERATOR_SOURCE);
+			text = env.fromElements(WordCountPreAggregateData.FEW_WORDS).name(OPERATOR_SOURCE);
 		} else if (SOURCE_DATA_RATE_VARIATION_WORDS.equalsIgnoreCase(input)) {
 			// creates a data rate variation to test how long takes to the dynamic combiner adapt
 			text = env.addSource(new DataRateVariationSource()).name(OPERATOR_SOURCE);
@@ -104,22 +103,22 @@ public class WordCountCombiner {
 		DataStream<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer()).name(OPERATOR_TOKENIZER);
 
 		// Combine the stream
-		DataStream<Tuple2<String, Integer>> combinedStream = null;
-		CombineAdjustableFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
+		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
+		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction();
 
-		if (Strings.isNullOrEmpty(combiner)) {
-			// NO COMBINER
-			combinedStream = counts;
-		} else if (COMBINER_STATIC.equalsIgnoreCase(combiner)) {
-			// STATIC COMBINER combines every 10 words or on the timeout
-			combinedStream = counts.combine(wordCountCombinerFunction, 100);
-		} else if (COMBINER_DYNAMIC.equalsIgnoreCase(combiner)) {
-			// DYNAMIC COMBINER combines according the frequency of words or on the timeout
-			combinedStream = counts.combine(wordCountCombinerFunction);
+		if (Strings.isNullOrEmpty(preAggregate)) {
+			// NO PRE_AGGREGATE
+			preAggregatedStream = counts;
+		} else if (PRE_AGGREGATE_STATIC.equalsIgnoreCase(preAggregate)) {
+			// STATIC PRE_AGGREGATE combines every 10 words or on the timeout
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 10, 5);
+		} else if (PRE_AGGREGATE_DYNAMIC.equalsIgnoreCase(preAggregate)) {
+			// DYNAMIC PRE_AGGREGATE combines according the frequency of words or on the timeout
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 5);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
-		KeyedStream<Tuple2<String, Integer>, Tuple> keyedStream = combinedStream
+		KeyedStream<Tuple2<String, Integer>, Tuple> keyedStream = preAggregatedStream
 			.keyBy(0);
 
 		DataStream<Tuple2<String, Integer>> resultStream = null;
@@ -143,7 +142,7 @@ public class WordCountCombiner {
 		System.out.println("Execution plan >>>");
 		System.err.println(env.getExecutionPlan());
 		// execute program
-		env.execute(WordCountCombiner.class.getSimpleName());
+		env.execute(WordCountPreAggregate.class.getSimpleName());
 	}
 
 	// *************************************************************************
@@ -173,12 +172,12 @@ public class WordCountCombiner {
 	}
 
 	// *************************************************************************
-	// GENERIC merge function to Static and Dynamic COMBINER's
+	// GENERIC merge function
 	// *************************************************************************
-	private static class CombinerWordCountImpl
-		extends CombineAdjustableFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
+	private static class WordCountPreAggregateFunction
+		extends PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
 
-		private static final Logger logger = LoggerFactory.getLogger(CombinerWordCountImpl.class);
+		private static final Logger logger = LoggerFactory.getLogger(WordCountPreAggregateFunction.class);
 
 
 		@Override

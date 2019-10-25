@@ -44,8 +44,8 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.*;
-import org.apache.flink.streaming.api.functions.combiner.CombinerDynamicTriggerFunction;
-import org.apache.flink.streaming.api.functions.combiner.CombinerTriggerFunction;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateDynamicTriggerFunction;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
@@ -342,7 +342,6 @@ public class DataStream<T> {
 		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
 			getType(), getExecutionConfig())), KeyedStreamType.COMBINER);
 	}
-
 
 	// ------------------------------------------------------------------------
 	//  partial keyed stream
@@ -1196,45 +1195,46 @@ public class DataStream<T> {
 	}
 
 	/**
-	 * This is the static combiner that group tuples until reach @maxToCombine counter.
+	 * This is the static PreAggregate that group tuples until reach @maxToCombine counter.
 	 * If the @maxToCombine is not reach the secondsTimeout ensure to finish the combining.
 	 *
-	 * @param combinerFunction the function to combine tuples
-	 * @param maxToCombine     the max number of tuples to combine
+	 * @param preAggregateFunction the function to PreAggregate tuples
+	 * @param maxToCombine     the max number of tuples to PreAggregate
+	 * @param processingTime   time to trigger the window in seconds
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> combine(CombineAdjustableFunction combinerFunction, long maxToCombine) {
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long maxToCombine, long processingTime) {
 
-		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
-			clean(combinerFunction),
+		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		CombinerTriggerFunction<R> combinerTriggerFunction = new CombinerTriggerFunction<R>(maxToCombine, 5);
-		KeySelector<R, T> keyCombinerSelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(maxToCombine, processingTime);
+		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
-		return doTransform("combiner-static", outType, SimpleOperatorFactory.of(new StreamCombinerOperator<>(combinerFunction, combinerTriggerFunction, keyCombinerSelector)));
+		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator<>(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
 	}
 
 	/**
-	 * This is the dynamic combiner. It has a frequency component to infer the max number of tuples to combine.
+	 * This is the dynamic PreAggregate. It has a frequency component to infer the max number of tuples to PreAggregate.
 	 *
-	 * @param combinerFunction the function to combine tuples
+	 * @param preAggregateFunction the function to PreAggregate tuples
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> combine(CombineAdjustableFunction combinerFunction)  {
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long processingTime)  {
 
-		TypeInformation<R> outType = TypeExtractor.getCombinerReturnTypes(
-			clean(combinerFunction),
+		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		CombinerDynamicTriggerFunction<T, R> combinerDynamicTriggerFunction = new CombinerDynamicTriggerFunction<T, R>(5);
-		KeySelector<R, T> keyCombinerSelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+		PreAggregateDynamicTriggerFunction<T, R> preAggregateDynamicTriggerFunction = new PreAggregateDynamicTriggerFunction<T, R>(processingTime);
+		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
-		return doTransform("combiner-dynamic", outType, SimpleOperatorFactory.of(new StreamCombinerDynamicOperator<>(combinerFunction, combinerDynamicTriggerFunction, keyCombinerSelector)));
+		return doTransform("PreAggregate-dynamic", outType, SimpleOperatorFactory.of(new StreamPreAggregateDynamicOperator<>(preAggregateFunction, preAggregateDynamicTriggerFunction, keySelector)));
 	}
 
 	private <R> SingleOutputStreamOperator<R> doTransform(

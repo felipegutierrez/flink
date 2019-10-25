@@ -192,12 +192,12 @@ public class TypeExtractor {
 	}
 
 	@PublicEvolving
-	public static <IN, OUT> TypeInformation<OUT> getCombinerReturnTypes(CombineAdjustableFunction<?, ?, IN, OUT> combinerInterface, TypeInformation<IN> inType,
-																	   String functionName, boolean allowMissing)
+	public static <IN, OUT> TypeInformation<OUT> getPreAggregateReturnTypes(PreAggregateFunction<?, ?, IN, OUT> preAggregateInterface, TypeInformation<IN> inType,
+																		String functionName, boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
-			(Function) combinerInterface,
-			CombineAdjustableFunction.class,
+			(Function) preAggregateInterface,
+			PreAggregateFunction.class,
 			2,
 			3,
 			new int[]{1, 0},

@@ -1,8 +1,8 @@
 package org.apache.flink.streaming.api.operators;
 
-import org.apache.flink.api.common.functions.CombineAdjustableFunction;
-import org.apache.flink.streaming.api.functions.combiner.CombinerTrigger;
-import org.apache.flink.streaming.api.functions.combiner.CombinerTriggerCallback;
+import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateDynamicTrigger;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,12 +12,11 @@ import java.util.Map;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT>
-	extends AbstractUdfStreamOperator<OUT, CombineAdjustableFunction<K, V, IN, OUT>>
-	implements OneInputStreamOperator<IN, OUT>, CombinerTriggerCallback {
+public abstract class AbstractUdfStreamPreAggregateDynamicOperator<K, V, IN, OUT>
+	extends AbstractUdfStreamOperator<OUT, PreAggregateFunction<K, V, IN, OUT>>
+	implements OneInputStreamOperator<IN, OUT>, PreAggregateTriggerCallback {
 
-	private static final long serialVersionUID = 1L;
-	private static final Logger logger = LoggerFactory.getLogger(AbstractUdfStreamCombinerOperator.class);
+	private static final Logger logger = LoggerFactory.getLogger(AbstractUdfStreamPreAggregateDynamicOperator.class);
 
 	/**
 	 * The map in heap to store elements.
@@ -27,7 +26,7 @@ public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT>
 	/**
 	 * The trigger that determines how many elements should be put into a bundle.
 	 */
-	private final CombinerTrigger<IN> combinerTrigger;
+	private final PreAggregateDynamicTrigger<K, IN> combinerTrigger;
 
 	/**
 	 * Output for stream records.
@@ -36,12 +35,12 @@ public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT>
 
 	private transient int numOfElements = 0;
 
-	public AbstractUdfStreamCombinerOperator(CombineAdjustableFunction<K, V, IN, OUT> function,
-											 CombinerTrigger<IN> combinerTrigger) {
+	public AbstractUdfStreamPreAggregateDynamicOperator(PreAggregateFunction<K, V, IN, OUT> function,
+														PreAggregateDynamicTrigger<K, IN> bundleTrigger) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;
 		this.bundle = new HashMap<>();
-		this.combinerTrigger = checkNotNull(combinerTrigger, "bundleTrigger is null");
+		this.combinerTrigger = checkNotNull(bundleTrigger, "bundleTrigger is null");
 	}
 
 	@Override
@@ -70,7 +69,7 @@ public abstract class AbstractUdfStreamCombinerOperator<K, V, IN, OUT>
 		this.bundle.put(bundleKey, newBundleValue);
 
 		this.numOfElements++;
-		this.combinerTrigger.onElement(input);
+		this.combinerTrigger.onElement(bundleKey, input);
 	}
 
 	protected abstract K getKey(final IN input) throws Exception;

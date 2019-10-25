@@ -1,6 +1,6 @@
-package org.apache.flink.streaming.api.functions.combiner;
+package org.apache.flink.streaming.api.functions.aggregation;
 
-public interface CombinerTriggerCallback {
+public interface PreAggregateTriggerCallback {
 	/**
 	 * This method is invoked to finish current merge and start a new one when the
 	 * trigger was fired.

@@ -1,4 +1,4 @@
-package org.apache.flink.streaming.api.functions.combiner;
+package org.apache.flink.streaming.api.functions.aggregation;
 
 import com.clearspring.analytics.stream.frequency.CountMinSketch;
 import com.clearspring.analytics.stream.frequency.IFrequency;
@@ -9,8 +9,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Calendar;
 
-public class CombinerDynamicTriggerFunction<K, T> implements CombinerDynamicTrigger<K, T> {
-	private static final Logger logger = LoggerFactory.getLogger(CombinerDynamicTriggerFunction.class);
+public class PreAggregateDynamicTriggerFunction<K, T> implements PreAggregateDynamicTrigger<K, T> {
+	private static final Logger logger = LoggerFactory.getLogger(PreAggregateDynamicTriggerFunction.class);
 
 	private final long LIMIT_MIN_COUNT = 1;
 	private final long INCREMENT = 10;
@@ -18,16 +18,12 @@ public class CombinerDynamicTriggerFunction<K, T> implements CombinerDynamicTrig
 	private long maxCount;
 	private transient long count = 0;
 	private transient long timeout;
-	private transient CombinerTriggerCallback callback;
+	private transient PreAggregateTriggerCallback callback;
 	private transient IFrequency frequency;
 	private transient long maxFrequencyCMS = 0;
 	private transient long startTime;
 
-	public CombinerDynamicTriggerFunction() {
-		this(20);
-	}
-
-	public CombinerDynamicTriggerFunction(long secondsTimeout) {
+	public PreAggregateDynamicTriggerFunction(long secondsTimeout) {
 		initFrequencySketch();
 		this.maxCount = LIMIT_MIN_COUNT;
 		this.startTime = Calendar.getInstance().getTimeInMillis();
@@ -36,7 +32,7 @@ public class CombinerDynamicTriggerFunction<K, T> implements CombinerDynamicTrig
 	}
 
 	@Override
-	public void registerCallback(CombinerTriggerCallback callback) {
+	public void registerCallback(PreAggregateTriggerCallback callback) {
 		this.callback = Preconditions.checkNotNull(callback, "callback is null");
 		this.startTime = Calendar.getInstance().getTimeInMillis();
 		initFrequencySketch();

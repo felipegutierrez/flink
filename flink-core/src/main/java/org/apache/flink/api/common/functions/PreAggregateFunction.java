@@ -7,14 +7,13 @@ import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
- *
  * @param <K>
  * @param <V>
  * @param <T> Type of the input elements.
  * @param <O> Type of the output elements.
  */
 @Public
-public abstract class CombineAdjustableFunction<K, V, T, O> implements Function {
+public abstract class PreAggregateFunction<K, V, T, O> implements Function {
 	private static final long serialVersionUID = 1L;
 
 	/**
