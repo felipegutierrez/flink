@@ -28,6 +28,7 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.examples.aggregate.util.DataRateSource;
 import org.apache.flink.streaming.examples.aggregate.util.DataRateVariationSource;
 import org.apache.flink.streaming.examples.aggregate.util.WordCountPreAggregateData;
 import org.apache.flink.util.Collector;
@@ -84,13 +85,13 @@ public class WordCountPreAggregate {
 		DataStream<String> text;
 
 		if (Strings.isNullOrEmpty(input)) {
-			text = env.fromElements(WordCountPreAggregateData.WORDS).name(OPERATOR_SOURCE);
+			text = env.addSource(new DataRateSource(WordCountPreAggregateData.WORDS)).name(OPERATOR_SOURCE);
 		} else if (SOURCE_WORDS.equalsIgnoreCase(input)) {
-			text = env.fromElements(WordCountPreAggregateData.WORDS).name(OPERATOR_SOURCE);
+			text = env.addSource(new DataRateSource(WordCountPreAggregateData.WORDS)).name(OPERATOR_SOURCE);
 		} else if (SOURCE_SKEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.fromElements(WordCountPreAggregateData.SKEW_WORDS).name(OPERATOR_SOURCE);
+			text = env.addSource(new DataRateSource(WordCountPreAggregateData.SKEW_WORDS)).name(OPERATOR_SOURCE);
 		} else if (SOURCE_FEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.fromElements(WordCountPreAggregateData.FEW_WORDS).name(OPERATOR_SOURCE);
+			text = env.addSource(new DataRateSource(WordCountPreAggregateData.FEW_WORDS)).name(OPERATOR_SOURCE);
 		} else if (SOURCE_DATA_RATE_VARIATION_WORDS.equalsIgnoreCase(input)) {
 			// creates a data rate variation to test how long takes to the dynamic combiner adapt
 			text = env.addSource(new DataRateVariationSource()).name(OPERATOR_SOURCE);

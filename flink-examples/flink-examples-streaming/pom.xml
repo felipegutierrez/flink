@@ -315,6 +315,7 @@ under the License.
 							<includes>
 								<include>org/apache/flink/streaming/examples/aggregate/WordCountPreAggregate.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/WordCountPreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateVariationSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/WordCountPreAggregateData.class</include>
 							</includes>
