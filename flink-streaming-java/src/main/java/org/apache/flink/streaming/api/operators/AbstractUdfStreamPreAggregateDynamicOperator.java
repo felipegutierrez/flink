@@ -4,8 +4,6 @@ import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateDynamicTrigger;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,8 +14,6 @@ public abstract class AbstractUdfStreamPreAggregateDynamicOperator<K, V, IN, OUT
 	extends AbstractUdfStreamOperator<OUT, PreAggregateFunction<K, V, IN, OUT>>
 	implements OneInputStreamOperator<IN, OUT>, PreAggregateTriggerCallback {
 
-	private static final Logger logger = LoggerFactory.getLogger(AbstractUdfStreamPreAggregateDynamicOperator.class);
-
 	/**
 	 * The map in heap to store elements.
 	 */
@@ -26,7 +22,7 @@ public abstract class AbstractUdfStreamPreAggregateDynamicOperator<K, V, IN, OUT
 	/**
 	 * The trigger that determines how many elements should be put into a bundle.
 	 */
-	private final PreAggregateDynamicTrigger<K, IN> combinerTrigger;
+	private final PreAggregateDynamicTrigger<K, IN> preAggregateTrigger;
 
 	/**
 	 * Output for stream records.
@@ -36,11 +32,11 @@ public abstract class AbstractUdfStreamPreAggregateDynamicOperator<K, V, IN, OUT
 	private transient int numOfElements = 0;
 
 	public AbstractUdfStreamPreAggregateDynamicOperator(PreAggregateFunction<K, V, IN, OUT> function,
-														PreAggregateDynamicTrigger<K, IN> bundleTrigger) {
+														PreAggregateDynamicTrigger<K, IN> preAggregateTrigger) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;
 		this.bundle = new HashMap<>();
-		this.combinerTrigger = checkNotNull(bundleTrigger, "bundleTrigger is null");
+		this.preAggregateTrigger = checkNotNull(preAggregateTrigger, "bundleTrigger is null");
 	}
 
 	@Override
@@ -50,9 +46,9 @@ public abstract class AbstractUdfStreamPreAggregateDynamicOperator<K, V, IN, OUT
 		this.numOfElements = 0;
 		this.collector = new TimestampedCollector<>(output);
 
-		this.combinerTrigger.registerCallback(this);
+		this.preAggregateTrigger.registerCallback(this);
 		// reset trigger
-		this.combinerTrigger.reset();
+		this.preAggregateTrigger.reset();
 	}
 
 	@Override
@@ -69,18 +65,18 @@ public abstract class AbstractUdfStreamPreAggregateDynamicOperator<K, V, IN, OUT
 		this.bundle.put(bundleKey, newBundleValue);
 
 		this.numOfElements++;
-		this.combinerTrigger.onElement(bundleKey, input);
+		this.preAggregateTrigger.onElement(bundleKey, input);
 	}
 
 	protected abstract K getKey(final IN input) throws Exception;
 
 	@Override
-	public void finishMerge() throws Exception {
+	public void collect() throws Exception {
 		if (!this.bundle.isEmpty()) {
 			this.numOfElements = 0;
-			this.userFunction.finishMerge(bundle, collector);
+			this.userFunction.collect(bundle, collector);
 			this.bundle.clear();
 		}
-		this.combinerTrigger.reset();
+		this.preAggregateTrigger.reset();
 	}
 }

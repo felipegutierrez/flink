@@ -8,5 +8,5 @@ public interface PreAggregateTriggerCallback {
 	 * @throws Exception This method may throw exceptions. Throwing an exception
 	 *                   will cause the operation to fail and may trigger recovery.
 	 */
-	void finishMerge() throws Exception;
+	void collect() throws Exception;
 }

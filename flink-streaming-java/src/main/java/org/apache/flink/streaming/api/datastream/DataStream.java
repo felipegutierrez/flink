@@ -43,7 +43,10 @@ import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.*;
+import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;
+import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.TimestampExtractor;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateDynamicTriggerFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
@@ -1199,19 +1202,18 @@ public class DataStream<T> {
 	 * If the @maxToCombine is not reach the secondsTimeout ensure to finish the combining.
 	 *
 	 * @param preAggregateFunction the function to PreAggregate tuples
-	 * @param maxToCombine     the max number of tuples to PreAggregate
-	 * @param processingTime   time to trigger the window in seconds
+	 * @param windowProcessingTime time to trigger the window in seconds
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long maxToCombine, long processingTime) {
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long windowProcessingTime) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(maxToCombine, processingTime);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingTime);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator<>(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
@@ -1221,20 +1223,21 @@ public class DataStream<T> {
 	 * This is the dynamic PreAggregate. It has a frequency component to infer the max number of tuples to PreAggregate.
 	 *
 	 * @param preAggregateFunction the function to PreAggregate tuples
+	 * @param windowProcessingTime time to trigger the window in seconds
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long processingTime)  {
+	public <R> SingleOutputStreamOperator<R> preAggregateDynamic(PreAggregateFunction preAggregateFunction, long windowProcessingTime) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateDynamicTriggerFunction<T, R> preAggregateDynamicTriggerFunction = new PreAggregateDynamicTriggerFunction<T, R>(processingTime);
+		PreAggregateDynamicTriggerFunction<T, R> preAggregateDynamicTriggerFunction = new PreAggregateDynamicTriggerFunction<T, R>(windowProcessingTime);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
-		return doTransform("PreAggregate-dynamic", outType, SimpleOperatorFactory.of(new StreamPreAggregateDynamicOperator<>(preAggregateFunction, preAggregateDynamicTriggerFunction, keySelector)));
+		return doTransform("PreAggregateDynamic", outType, SimpleOperatorFactory.of(new StreamPreAggregateDynamicOperator<>(preAggregateFunction, preAggregateDynamicTriggerFunction, keySelector)));
 	}
 
 	private <R> SingleOutputStreamOperator<R> doTransform(

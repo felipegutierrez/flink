@@ -12,7 +12,7 @@ public interface PreAggregateDynamicTrigger<K, T> extends Serializable {
 	/**
 	 * Called for every element that gets added to the bundle. If the trigger
 	 * decides to start evaluate the input,
-	 * {@link PreAggregateTriggerCallback#finishMerge()} should be invoked.
+	 * {@link PreAggregateTriggerCallback#collect()} should be invoked.
 	 *
 	 * @param element The element that arrived.
 	 */

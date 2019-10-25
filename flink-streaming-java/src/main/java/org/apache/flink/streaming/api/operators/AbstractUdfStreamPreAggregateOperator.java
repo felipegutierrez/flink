@@ -4,8 +4,6 @@ import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTrigger;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,7 +15,6 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	implements OneInputStreamOperator<IN, OUT>, PreAggregateTriggerCallback {
 
 	private static final long serialVersionUID = 1L;
-	private static final Logger logger = LoggerFactory.getLogger(AbstractUdfStreamPreAggregateOperator.class);
 
 	/**
 	 * The map in heap to store elements.
@@ -76,10 +73,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	protected abstract K getKey(final IN input) throws Exception;
 
 	@Override
-	public void finishMerge() throws Exception {
+	public void collect() throws Exception {
 		if (!this.bundle.isEmpty()) {
 			this.numOfElements = 0;
-			this.userFunction.finishMerge(bundle, collector);
+			this.userFunction.collect(bundle, collector);
 			this.bundle.clear();
 		}
 		this.preAggregateTrigger.reset();

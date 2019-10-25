@@ -112,10 +112,10 @@ public class WordCountPreAggregate {
 			preAggregatedStream = counts;
 		} else if (PRE_AGGREGATE_STATIC.equalsIgnoreCase(preAggregate)) {
 			// STATIC PRE_AGGREGATE combines every 10 words or on the timeout
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 10, 5);
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 10);
 		} else if (PRE_AGGREGATE_DYNAMIC.equalsIgnoreCase(preAggregate)) {
 			// DYNAMIC PRE_AGGREGATE combines according the frequency of words or on the timeout
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 5);
+			preAggregatedStream = counts.preAggregateDynamic(wordCountPreAggregateFunction, 10);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -191,7 +191,7 @@ public class WordCountPreAggregate {
 		}
 
 		@Override
-		public void finishMerge(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) throws Exception {
+		public void collect(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) throws Exception {
 			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}

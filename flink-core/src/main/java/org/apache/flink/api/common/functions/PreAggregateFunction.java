@@ -29,5 +29,5 @@ public abstract class PreAggregateFunction<K, V, T, O> implements Function {
 	 * Called when a merge is finished. Transform a bundle to zero, one, or more
 	 * output elements.
 	 */
-	public abstract void finishMerge(Map<K, V> buffer, Collector<O> out) throws Exception;
+	public abstract void collect(Map<K, V> buffer, Collector<O> out) throws Exception;
 }

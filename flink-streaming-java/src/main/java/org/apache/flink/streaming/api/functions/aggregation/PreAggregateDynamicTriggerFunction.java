@@ -4,13 +4,10 @@ import com.clearspring.analytics.stream.frequency.CountMinSketch;
 import com.clearspring.analytics.stream.frequency.IFrequency;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.util.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.Calendar;
 
 public class PreAggregateDynamicTriggerFunction<K, T> implements PreAggregateDynamicTrigger<K, T> {
-	private static final Logger logger = LoggerFactory.getLogger(PreAggregateDynamicTriggerFunction.class);
 
 	private final long LIMIT_MIN_COUNT = 1;
 	private final long INCREMENT = 10;
@@ -21,12 +18,12 @@ public class PreAggregateDynamicTriggerFunction<K, T> implements PreAggregateDyn
 	private transient PreAggregateTriggerCallback callback;
 	private transient IFrequency frequency;
 	private transient long maxFrequencyCMS = 0;
-	private transient long startTime;
+	private transient long offsetTime;
 
 	public PreAggregateDynamicTriggerFunction(long secondsTimeout) {
 		initFrequencySketch();
 		this.maxCount = LIMIT_MIN_COUNT;
-		this.startTime = Calendar.getInstance().getTimeInMillis();
+		this.offsetTime = Calendar.getInstance().getTimeInMillis();
 		this.timeout = secondsTimeout;
 		Preconditions.checkArgument(this.maxCount > 0, "maxCount must be greater than 0");
 	}
@@ -34,7 +31,7 @@ public class PreAggregateDynamicTriggerFunction<K, T> implements PreAggregateDyn
 	@Override
 	public void registerCallback(PreAggregateTriggerCallback callback) {
 		this.callback = Preconditions.checkNotNull(callback, "callback is null");
-		this.startTime = Calendar.getInstance().getTimeInMillis();
+		this.offsetTime = Calendar.getInstance().getTimeInMillis();
 		initFrequencySketch();
 	}
 
@@ -50,9 +47,10 @@ public class PreAggregateDynamicTriggerFunction<K, T> implements PreAggregateDyn
 			this.maxFrequencyCMS = itemCMS;
 		}
 		count++;
-		long beforeTime = Calendar.getInstance().getTimeInMillis() - Time.seconds(timeout).toMilliseconds();
-		if (count >= maxCount || beforeTime >= startTime) {
-			callback.finishMerge();
+		long elapsedTime = Calendar.getInstance().getTimeInMillis() - Time.seconds(timeout).toMilliseconds();
+		// if (count >= maxCount || beforeTime >= offsetTime) {
+		if (elapsedTime >= offsetTime) {
+			callback.collect();
 		}
 	}
 
@@ -73,7 +71,7 @@ public class PreAggregateDynamicTriggerFunction<K, T> implements PreAggregateDyn
 				resetFrequencySketch();
 			} else {
 				msg = msg + " - HOLDING";
-				this.startTime = Calendar.getInstance().getTimeInMillis();
+				this.offsetTime = Calendar.getInstance().getTimeInMillis();
 			}
 			System.out.println(msg);
 			// logger.info(msg);
@@ -86,13 +84,13 @@ public class PreAggregateDynamicTriggerFunction<K, T> implements PreAggregateDyn
 			this.frequency = new CountMinSketch(10, 5, 0);
 		}
 		this.maxFrequencyCMS = 0;
-		this.startTime = Calendar.getInstance().getTimeInMillis();
+		this.offsetTime = Calendar.getInstance().getTimeInMillis();
 	}
 
 	private void resetFrequencySketch() {
 		this.frequency = new CountMinSketch(10, 5, 0);
 		this.maxFrequencyCMS = 0;
-		this.startTime = Calendar.getInstance().getTimeInMillis();
+		this.offsetTime = Calendar.getInstance().getTimeInMillis();
 	}
 
 	@Override
