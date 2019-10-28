@@ -7,15 +7,21 @@ import java.util.Calendar;
 
 public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
-	// private final long maxCount;
+	private final long maxCount;
 	private transient PreAggregateTriggerCallback callback;
-	// private transient long count = 0;
+	private transient long count = 0;
 	private transient long offsetTime;
 	private transient long timeout;
 
 	public PreAggregateTriggerFunction(long secondsTimeout) {
-		// Preconditions.checkArgument(maxToCombine > 0, "maxCount must be greater than 0");
-		// this.maxCount = maxToCombine;
+		this.maxCount = -1;
+		this.timeout = secondsTimeout;
+		this.offsetTime = Calendar.getInstance().getTimeInMillis();
+	}
+
+	public PreAggregateTriggerFunction(long secondsTimeout, long maxToAggregate) {
+		Preconditions.checkArgument(maxToAggregate > 0, "maxCount must be greater than 0");
+		this.maxCount = maxToAggregate;
 		this.timeout = secondsTimeout;
 		this.offsetTime = Calendar.getInstance().getTimeInMillis();
 	}
@@ -28,10 +34,9 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
 	@Override
 	public void onElement(T element) throws Exception {
-		// count++;
+		count++;
 		long elapsedTime = Calendar.getInstance().getTimeInMillis() - Time.seconds(timeout).toMilliseconds();
-		// if (count >= maxCount || beforeTime >= startTime) {
-		if (elapsedTime >= offsetTime) {
+		if ((maxCount != -1 && count >= maxCount) || elapsedTime >= offsetTime) {
 			callback.collect();
 			reset();
 		}
@@ -39,12 +44,12 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
 	@Override
 	public void reset() {
-		// count = 0;
+		this.count = 0;
+		this.offsetTime = Calendar.getInstance().getTimeInMillis();
 	}
 
 	@Override
 	public String explain() {
-		return "PreAggregateTrigger with size ";
-		// + maxCount;
+		return "PreAggregateTrigger with size " + maxCount;
 	}
 }

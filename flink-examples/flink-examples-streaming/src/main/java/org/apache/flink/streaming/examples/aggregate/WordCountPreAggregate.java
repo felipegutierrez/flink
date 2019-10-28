@@ -41,7 +41,8 @@ import java.util.Map;
 /**
  * <pre>
  * usage: java WordCountCombiner -pre-aggregate static -input skew -window 30
- * usage: java WordCountCombiner -pre-aggregate static -input variation
+ * usage: java WordCountCombiner -pre-aggregate dynamic -input variation
+ * 
  * usage: ./bin/flink run WordCountCombiner.jar -combiner dynamic -input variation
  * </pre>
  */
@@ -111,11 +112,11 @@ public class WordCountPreAggregate {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = counts;
 		} else if (PRE_AGGREGATE_STATIC.equalsIgnoreCase(preAggregate)) {
-			// STATIC PRE_AGGREGATE combines every 10 words or on the timeout
+			// STATIC PRE_AGGREGATE pre-aggregates every 10 seconds
 			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 10);
 		} else if (PRE_AGGREGATE_DYNAMIC.equalsIgnoreCase(preAggregate)) {
-			// DYNAMIC PRE_AGGREGATE combines according the frequency of words or on the timeout
-			preAggregatedStream = counts.preAggregateDynamic(wordCountPreAggregateFunction, 10);
+			// DYNAMIC PRE_AGGREGATE pre-aggregates every 10 seconds or every 1000 items
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 10, 1000);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
