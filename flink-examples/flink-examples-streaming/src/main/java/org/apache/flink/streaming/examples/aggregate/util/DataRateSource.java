@@ -1,5 +1,7 @@
 package org.apache.flink.streaming.examples.aggregate.util;
 
+import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.distribution.ZipfDistribution;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 
 import java.util.Arrays;
@@ -11,6 +13,20 @@ public class DataRateSource extends RichSourceFunction<String> {
 
 	public DataRateSource(String[] dataSource) {
 		this.currentDataSource = Arrays.asList(dataSource);
+	}
+
+	public static void main(String[] args) throws Exception {
+		System.out.println("Normal Distribution");
+		NormalDistribution normalDistribution = new NormalDistribution(10, 3);
+		for (int i = 0; i < 10; i++) {
+			System.out.println(normalDistribution.sample());
+		}
+
+		System.out.println("Zipf Distribution");
+		ZipfDistribution zipfDistribution = new ZipfDistribution(10, 3);
+		for (int i = 0; i < 10; i++) {
+			System.out.println(zipfDistribution.sample());
+		}
 	}
 
 	@Override

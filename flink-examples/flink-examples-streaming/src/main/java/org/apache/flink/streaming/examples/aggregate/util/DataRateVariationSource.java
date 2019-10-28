@@ -13,10 +13,16 @@ public class DataRateVariationSource extends RichSourceFunction<String> {
 	private int currentDataSourceId;
 	private volatile boolean running = true;
 	private long startTime;
+	private long milliseconds;
 
 	public DataRateVariationSource() {
+		this(1);
+	}
+
+	public DataRateVariationSource(long milliseconds) {
 		this.startTime = Calendar.getInstance().getTimeInMillis();
 		this.currentDataSourceId = 0;
+		this.milliseconds = milliseconds;
 	}
 
 	@Override
@@ -26,7 +32,7 @@ public class DataRateVariationSource extends RichSourceFunction<String> {
 			for (String line : sourceList) {
 				ctx.collect(line);
 			}
-			Thread.sleep(100);
+			Thread.sleep(this.milliseconds);
 		}
 	}
 

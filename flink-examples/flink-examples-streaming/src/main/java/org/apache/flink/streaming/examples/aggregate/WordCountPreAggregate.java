@@ -28,9 +28,7 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.streaming.examples.aggregate.util.DataRateSource;
-import org.apache.flink.streaming.examples.aggregate.util.DataRateVariationSource;
-import org.apache.flink.streaming.examples.aggregate.util.WordCountPreAggregateData;
+import org.apache.flink.streaming.examples.aggregate.util.*;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,10 +38,45 @@ import java.util.Map;
 
 /**
  * <pre>
- * usage: java WordCountCombiner -pre-aggregate static -input skew -window 30
- * usage: java WordCountCombiner -pre-aggregate dynamic -input variation
- * 
- * usage: ./bin/flink run WordCountCombiner.jar -combiner dynamic -input variation
+ * usage: java WordCountCombiner -pre-aggregate [static|dynamic] -pre-aggregate-window [>0 seconds] -max-pre-aggregate [>=1 items] -input [hamlet|mobydick|dictionary|words|skew|few|variation] -window [>=0 seconds]
+ *
+ * Running on the IDE:
+ * Running without a pre-aggregation
+ * usage: java WordCountCombiner -input dictionary -window 30
+ * usage: java WordCountCombiner -input hamlet -window 30
+ * usage: java WordCountCombiner -input hamlet -window 30
+ * usage: java WordCountCombiner -input variation -window 30
+ *
+ * Running with a static pre-aggregation every 10 seconds
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input dictionary -window 30
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input hamlet -window 30
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input mobydick -window 30
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input variation -window 30
+ *
+ * Running with a static pre-aggregation every 10 seconds or 10 items
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input dictionary -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input hamlet -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input mobydick -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input variation -window 30
+ *
+ * Running on Standalone Flink cluster:
+ * Running without a pre-aggregation
+ * usage: ./bin/flink run WordCountPreAggregate.jar -input dictionary -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -input hamlet -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -input hamlet -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -input variation -window 30
+ *
+ * Running with a static pre-aggregation every 10 seconds
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input dictionary -window 30
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input hamlet -window 30
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input mobydick -window 30
+ * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input variation -window 30
+ *
+ * Running with a static pre-aggregation every 10 seconds or 10 items
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input dictionary -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input hamlet -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input mobydick -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input variation -window 30
  * </pre>
  */
 public class WordCountPreAggregate {
@@ -57,11 +90,16 @@ public class WordCountPreAggregate {
 	private static final String PRE_AGGREGATE_STATIC = "static";
 	private static final String PRE_AGGREGATE_DYNAMIC = "dynamic";
 	private static final String WINDOW = "window";
+	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
+	private static final String MAX_PRE_AGGREGATE = "max-pre-aggregate";
 	private static final String SOURCE = "input";
 	private static final String SOURCE_WORDS = "words";
 	private static final String SOURCE_SKEW_WORDS = "skew";
 	private static final String SOURCE_FEW_WORDS = "few";
 	private static final String SOURCE_DATA_RATE_VARIATION_WORDS = "variation";
+	private static final String SOURCE_DATA_HAMLET = "hamlet";
+	private static final String SOURCE_DATA_MOBY_DICK = "mobydick";
+	private static final String SOURCE_DATA_DICTIONARY = "dictionary";
 
 	// *************************************************************************
 	// PROGRAM
@@ -81,6 +119,8 @@ public class WordCountPreAggregate {
 		String preAggregate = params.get(PRE_AGGREGATE, "");
 		String input = params.get(SOURCE, "");
 		int window = params.getInt(WINDOW, 0);
+		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, 1);
+		int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, 1);
 
 		// get input data
 		DataStream<String> text;
@@ -96,6 +136,12 @@ public class WordCountPreAggregate {
 		} else if (SOURCE_DATA_RATE_VARIATION_WORDS.equalsIgnoreCase(input)) {
 			// creates a data rate variation to test how long takes to the dynamic combiner adapt
 			text = env.addSource(new DataRateVariationSource()).name(OPERATOR_SOURCE);
+		} else if (SOURCE_DATA_HAMLET.equalsIgnoreCase(input)) {
+			text = env.addSource(new OnlineDataSource(UrlSource.HAMLET)).name(OPERATOR_SOURCE);
+		} else if (SOURCE_DATA_MOBY_DICK.equalsIgnoreCase(input)) {
+			text = env.addSource(new OnlineDataSource(UrlSource.MOBY_DICK)).name(OPERATOR_SOURCE);
+		} else if (SOURCE_DATA_DICTIONARY.equalsIgnoreCase(input)) {
+			text = env.addSource(new OnlineDataSource(UrlSource.ENGLISH_DICTIONARY)).name(OPERATOR_SOURCE);
 		} else {
 			// read the text file from given input path
 			text = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE);
@@ -113,10 +159,10 @@ public class WordCountPreAggregate {
 			preAggregatedStream = counts;
 		} else if (PRE_AGGREGATE_STATIC.equalsIgnoreCase(preAggregate)) {
 			// STATIC PRE_AGGREGATE pre-aggregates every 10 seconds
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 10);
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
 		} else if (PRE_AGGREGATE_DYNAMIC.equalsIgnoreCase(preAggregate)) {
 			// DYNAMIC PRE_AGGREGATE pre-aggregates every 10 seconds or every 1000 items
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, 10, 1000);
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime, maxToPreAggregate);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"

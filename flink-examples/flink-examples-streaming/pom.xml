@@ -318,6 +318,8 @@ under the License.
 								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateVariationSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/WordCountPreAggregateData.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/OnlineDataSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/UrlSource.class</include>
 							</includes>
 						</configuration>
 					</execution>
