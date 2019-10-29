@@ -23,4 +23,6 @@ public interface PreAggregateTrigger<T> extends Serializable {
 	void reset();
 
 	String explain();
+
+	long getPeriodSeconds();
 }

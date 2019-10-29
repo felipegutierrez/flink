@@ -1,12 +1,16 @@
 package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTrigger;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
+import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Timer;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -24,7 +28,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	/**
 	 * The trigger that determines how many elements should be put into a bundle.
 	 */
-	private final PreAggregateTrigger<IN> preAggregateTrigger;
+	private final PreAggregateTriggerFunction<IN> preAggregateTrigger;
 
 	/**
 	 * Output for stream records.
@@ -34,10 +38,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	private transient int numOfElements = 0;
 
 	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
-												 PreAggregateTrigger<IN> preAggregateTrigger) {
+												 PreAggregateTriggerFunction<IN> preAggregateTrigger) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;
-		this.bundle = new HashMap<>();
+		this.bundle = new ConcurrentHashMap<>();
 		this.preAggregateTrigger = checkNotNull(preAggregateTrigger, "bundleTrigger is null");
 	}
 
@@ -51,6 +55,9 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.preAggregateTrigger.registerCallback(this);
 		// reset trigger
 		this.preAggregateTrigger.reset();
+
+		Timer timer = new Timer();
+		timer.schedule(preAggregateTrigger, new Date(), Time.seconds(preAggregateTrigger.getPeriodSeconds()).toMilliseconds());
 	}
 
 	@Override

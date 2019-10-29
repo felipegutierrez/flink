@@ -20,25 +20,28 @@ package org.apache.flink.streaming.examples.aggregate;
 import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.aggregate.util.*;
 import org.apache.flink.util.Collector;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
  * <pre>
- * usage: java WordCountCombiner -pre-aggregate [static|dynamic] -pre-aggregate-window [>0 seconds] -max-pre-aggregate [>=1 items] -input [hamlet|mobydick|dictionary|words|skew|few|variation] -window [>=0 seconds]
+ * usage: java WordCountCombiner -pre-aggregate [static|dynamic|window-static|window-dynamic] -pre-aggregate-window [>0 seconds] -max-pre-aggregate [>=1 items] -input [hamlet|mobydick|dictionary|words|skew|few|variation] -window [>=0 seconds]
  *
  * Running on the IDE:
  * Running without a pre-aggregation
@@ -58,6 +61,12 @@ import java.util.Map;
  * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input hamlet -window 30
  * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input mobydick -window 30
  * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input variation -window 30
+ *
+ * Running with a static window pre-aggregation every 10 seconds or 10 items
+ * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input dictionary -window 30
+ * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input hamlet -window 30
+ * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input mobydick -window 30
+ * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input variation -window 30
  *
  * Running on Standalone Flink cluster:
  * Running without a pre-aggregation
@@ -89,6 +98,8 @@ public class WordCountPreAggregate {
 	private static final String PRE_AGGREGATE = "pre-aggregate";
 	private static final String PRE_AGGREGATE_STATIC = "static";
 	private static final String PRE_AGGREGATE_DYNAMIC = "dynamic";
+	private static final String PRE_AGGREGATE_WINDOW_STATIC = "window-static";
+	private static final String PRE_AGGREGATE_WINDOW_DYNAMIC = "window-dynamic";
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
 	private static final String MAX_PRE_AGGREGATE = "max-pre-aggregate";
@@ -112,6 +123,7 @@ public class WordCountPreAggregate {
 
 		// set up the execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		env.setStreamTimeCharacteristic(TimeCharacteristic.ProcessingTime);
 
 		// make parameters available in the web interface
 		env.getConfig().setGlobalJobParameters(params);
@@ -126,7 +138,7 @@ public class WordCountPreAggregate {
 		DataStream<String> text;
 
 		if (Strings.isNullOrEmpty(input)) {
-			text = env.addSource(new DataRateSource(WordCountPreAggregateData.WORDS)).name(OPERATOR_SOURCE);
+			text = env.addSource(new DataRateSource(new String[0])).name(OPERATOR_SOURCE);
 		} else if (SOURCE_WORDS.equalsIgnoreCase(input)) {
 			text = env.addSource(new DataRateSource(WordCountPreAggregateData.WORDS)).name(OPERATOR_SOURCE);
 		} else if (SOURCE_SKEW_WORDS.equalsIgnoreCase(input)) {
@@ -163,6 +175,10 @@ public class WordCountPreAggregate {
 		} else if (PRE_AGGREGATE_DYNAMIC.equalsIgnoreCase(preAggregate)) {
 			// DYNAMIC PRE_AGGREGATE pre-aggregates every 10 seconds or every 1000 items
 			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime, maxToPreAggregate);
+		} else if (PRE_AGGREGATE_WINDOW_STATIC.equalsIgnoreCase(preAggregate)) {
+			// TODO: this is in test process
+			preAggregatedStream = counts.preAggregate(new PreAggregateProcessFunction(Time.seconds(preAggregationWindowTime).toMilliseconds()), TypeInformation.of(new TypeHint<Tuple2<String, Integer>>() {
+			}));
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -225,9 +241,6 @@ public class WordCountPreAggregate {
 	private static class WordCountPreAggregateFunction
 		extends PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
 
-		private static final Logger logger = LoggerFactory.getLogger(WordCountPreAggregateFunction.class);
-
-
 		@Override
 		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) throws Exception {
 			if (value == null) {
@@ -242,6 +255,31 @@ public class WordCountPreAggregate {
 			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}
+		}
+	}
+
+	private static class PreAggregateProcessFunction extends ProcessFunction<Tuple2<String, Integer>, Tuple2<String, Integer>> {
+
+		private final long timeOut;
+
+		public PreAggregateProcessFunction(long timeOut) {
+			this.timeOut = timeOut;
+		}
+
+		@Override
+		public void open(Configuration config) {
+			System.err.println("PreAggregateProcessFunction.open");
+		}
+
+		@Override
+		public void processElement(Tuple2<String, Integer> value, Context ctx, Collector<Tuple2<String, Integer>> out) throws Exception {
+			long currentTime = ctx.timerService().currentProcessingTime();
+			long timeoutTime = currentTime + timeOut;
+			ctx.timerService().registerProcessingTimeTimer(timeoutTime);
+		}
+
+		public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple2<String, Integer>> out) throws Exception {
+			System.err.println(timestamp);
 		}
 	}
 }

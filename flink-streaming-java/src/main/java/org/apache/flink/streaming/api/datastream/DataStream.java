@@ -43,11 +43,9 @@ import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;
-import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.TimestampExtractor;
+import org.apache.flink.streaming.api.functions.*;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateDynamicTriggerFunction;
+import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
@@ -1216,7 +1214,7 @@ public class DataStream<T> {
 		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingTime);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
-		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator<>(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
+		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
 	}
 
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long windowProcessingTime, long maxToAggregate) {
@@ -1230,6 +1228,13 @@ public class DataStream<T> {
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator<>(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
+	}
+
+	public <R> SingleOutputStreamOperator<R> preAggregate(ProcessFunction<T, R> processFunction, TypeInformation<R> outputType) {
+
+		PreAggregateOperator<?, T, R> operator = new PreAggregateOperator<>(clean(processFunction));
+
+		return transform("PreAggregate", outputType, operator);
 	}
 
 	/**
