@@ -106,9 +106,11 @@ public class WordCountKeyPartitioning {
 		if (PARTITION_TYPE_ORIGINAL.equalsIgnoreCase(partitionStrategy)) {
 			keyedStream = tokens.keyBy(0);
 		} else if (PARTITION_TYPE_PARTIAL.equalsIgnoreCase(partitionStrategy)) {
-			keyedStream = tokens.keyByPartial(0);
+			// keyedStream = tokens.keyByPartial(0);
+			keyedStream = tokens.keyBy(0);
 		} else if (PARTITION_TYPE_COMBINER.equalsIgnoreCase(partitionStrategy)) {
-			keyedStream = tokens.keyByCombiner(0);
+			// keyedStream = tokens.keyByCombiner(0);
+			keyedStream = tokens.keyBy(0);
 		}
 
 		// Apply window or not -> sum -> print

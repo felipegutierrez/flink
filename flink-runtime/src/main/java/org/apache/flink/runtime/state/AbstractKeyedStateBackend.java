@@ -26,7 +26,6 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.query.TaskKvStateRegistry;
-import org.apache.flink.runtime.state.approximation.ChannelKeyFrequency;
 import org.apache.flink.runtime.state.heap.InternalKeyContext;
 import org.apache.flink.runtime.state.internal.InternalKvState;
 import org.apache.flink.runtime.state.ttl.TtlStateFactory;
@@ -93,7 +92,7 @@ public abstract class AbstractKeyedStateBackend<K> implements
 	 * Registry for all opened streams, so they can be closed if the task using this backend is closed.
 	 */
 	protected CloseableRegistry cancelStreamRegistry;
-	protected ChannelKeyFrequency channelKeyFrequency;
+	// protected ChannelKeyFrequency channelKeyFrequency;
 	/**
 	 * For caching the last accessed partitioned state.
 	 */
@@ -145,7 +144,7 @@ public abstract class AbstractKeyedStateBackend<K> implements
 		this.keyGroupCompressionDecorator = keyGroupCompressionDecorator;
 		this.ttlTimeProvider = Preconditions.checkNotNull(ttlTimeProvider);
 		this.keySelectionListeners = new ArrayList<>(1);
-		this.channelKeyFrequency = new ChannelKeyFrequency(executionConfig.getParallelism(), 2);
+		// this.channelKeyFrequency = new ChannelKeyFrequency(executionConfig.getParallelism(), 2);
 	}
 
 	private static StreamCompressionDecorator determineStreamCompression(ExecutionConfig executionConfig) {
@@ -213,15 +212,16 @@ public abstract class AbstractKeyedStateBackend<K> implements
 	@Override
 	public void setCurrentKey(K newKey) {
 		notifyKeySelected(newKey);
-
-		int channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(newKey, numberOfKeyGroups, executionConfig.getParallelism(), 0);
-		long hops = 0;
-		this.channelKeyFrequency.add(newKey, channel);
-		// hops = channelKeyFrequency.getNumberOfHops();
-		if (channelKeyFrequency.estimateCount(newKey) > 5) { hops = 1; }
-
 		this.keyContext.setCurrentKey(newKey);
-		this.keyContext.setCurrentKeyGroupIndex(KeyGroupRangeAssignment.assignToKeyGroup(newKey, numberOfKeyGroups, hops));
+		this.keyContext.setCurrentKeyGroupIndex(KeyGroupRangeAssignment.assignToKeyGroup(newKey, numberOfKeyGroups));
+
+		// int channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(newKey, numberOfKeyGroups, executionConfig.getParallelism(), 0);
+		// long hops = 0;
+		// this.channelKeyFrequency.add(newKey, channel);
+		// hops = channelKeyFrequency.getNumberOfHops();
+		// if (channelKeyFrequency.estimateCount(newKey) > 5) { hops = 1; }
+		// this.keyContext.setCurrentKey(newKey);
+		// this.keyContext.setCurrentKeyGroupIndex(KeyGroupRangeAssignment.assignToKeyGroup(newKey, numberOfKeyGroups, hops));
 	}
 
 	/**

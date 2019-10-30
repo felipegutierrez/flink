@@ -20,7 +20,6 @@ package org.apache.flink.streaming.runtime.partitioner;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.io.network.api.writer.ChannelSelector;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
-import org.apache.flink.runtime.state.approximation.ChannelKeyFrequency;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import java.io.Serializable;
@@ -35,12 +34,12 @@ public abstract class StreamPartitioner<T> implements
 
 	protected int numberOfChannels;
 
-	protected ChannelKeyFrequency channelKeyFrequency;
+	// protected ChannelKeyFrequency channelKeyFrequency;
 
 	@Override
 	public void setup(int numberOfChannels) {
 		this.numberOfChannels = numberOfChannels;
-		this.channelKeyFrequency = new ChannelKeyFrequency(numberOfChannels, 2);
+		// this.channelKeyFrequency = new ChannelKeyFrequency(numberOfChannels, 2);
 	}
 
 	@Override

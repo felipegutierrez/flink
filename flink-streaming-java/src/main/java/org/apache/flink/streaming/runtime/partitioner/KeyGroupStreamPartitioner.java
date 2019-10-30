@@ -37,18 +37,22 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 
 	private int maxParallelism;
 
-	private KeyedStreamType keyedStreamType;
+	// private KeyedStreamType keyedStreamType;
 
 	public KeyGroupStreamPartitioner(KeySelector<T, K> keySelector, int maxParallelism) {
-		this(keySelector, maxParallelism, KeyedStreamType.ORIGINAL);
+		Preconditions.checkArgument(maxParallelism > 0, "Number of key-groups must be > 0!");
+		this.keySelector = Preconditions.checkNotNull(keySelector);
+		this.maxParallelism = maxParallelism;
 	}
 
+	/*
 	public KeyGroupStreamPartitioner(KeySelector<T, K> keySelector, int maxParallelism, KeyedStreamType keyedStreamType) {
 		Preconditions.checkArgument(maxParallelism > 0, "Number of key-groups must be > 0!");
 		this.keySelector = Preconditions.checkNotNull(keySelector);
 		this.maxParallelism = maxParallelism;
 		this.keyedStreamType = keyedStreamType;
 	}
+	*/
 
 	public int getMaxParallelism() {
 		return maxParallelism;
@@ -57,27 +61,30 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 	@Override
 	public int selectChannel(SerializationDelegate<StreamRecord<T>> record) {
 		K key;
-		long hops = 0;
-		int channel = 0;
+		// long hops = 0;
+		// int channel = 0;
 		try {
 			key = keySelector.getKey(record.getInstance().getValue());
 		} catch (Exception e) {
 			throw new RuntimeException("Could not extract key from " + record.getInstance().getValue(), e);
 		}
-
+		return KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+		/*
 		if (keyedStreamType == KeyedStreamType.ORIGINAL) {
 			channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
 		} else if (keyedStreamType == KeyedStreamType.COMBINER) {
 			channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
 		} else if (keyedStreamType == KeyedStreamType.PARTIAL) {
-			channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, hops);
-			channelKeyFrequency.add(key, channel);
-			if (channelKeyFrequency.estimateCount(key) > 5) { hops = 1; }
+			channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels);
+			// channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, hops);
+			// channelKeyFrequency.add(key, channel);
+			// if (channelKeyFrequency.estimateCount(key) > 5) { hops = 1; }
 			// hops = channelKeyFrequency.getNumberOfHops();
-			channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, hops);
-			System.err.println("key[" + key + "] hops[" + hops + "] channel[" + channel + "]");
+			// channel = KeyGroupRangeAssignment.assignKeyToParallelOperator(key, maxParallelism, numberOfChannels, hops);
+			// System.err.println("key[" + key + "] hops[" + hops + "] channel[" + channel + "]");
 		}
 		return channel;
+		*/
 	}
 
 	@Override
@@ -87,6 +94,7 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 
 	@Override
 	public String toString() {
+		/*
 		if (keyedStreamType == KeyedStreamType.PARTIAL) {
 			return "PARTIAL-HASH";
 		} else if (keyedStreamType == KeyedStreamType.COMBINER) {
@@ -94,6 +102,8 @@ public class KeyGroupStreamPartitioner<T, K> extends StreamPartitioner<T> implem
 		} else {
 			return "HASH";
 		}
+		*/
+		return "HASH";
 	}
 
 	@Override

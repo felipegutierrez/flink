@@ -261,7 +261,8 @@ public class DataStream<T> {
 	 */
 	public <K> KeyedStream<T, K> keyBy(KeySelector<T, K> key) {
 		Preconditions.checkNotNull(key);
-		return new KeyedStream<>(this, clean(key), KeyedStreamType.ORIGINAL);
+		// return new KeyedStream<>(this, clean(key), KeyedStreamType.ORIGINAL);
+		return new KeyedStream<>(this, clean(key));
 	}
 
 	/**
@@ -275,7 +276,8 @@ public class DataStream<T> {
 	public <K> KeyedStream<T, K> keyBy(KeySelector<T, K> key, TypeInformation<K> keyType) {
 		Preconditions.checkNotNull(key);
 		Preconditions.checkNotNull(keyType);
-		return new KeyedStream<>(this, clean(key), keyType, KeyedStreamType.ORIGINAL);
+		// return new KeyedStream<>(this, clean(key), keyType, KeyedStreamType.ORIGINAL);
+		return new KeyedStream<>(this, clean(key), keyType);
 	}
 
 	/**
@@ -308,13 +310,14 @@ public class DataStream<T> {
 	}
 
 	private KeyedStream<T, Tuple> keyBy(Keys<T> keys) {
-		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
-			getType(), getExecutionConfig())), KeyedStreamType.ORIGINAL);
+		// return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys, getType(), getExecutionConfig())), KeyedStreamType.ORIGINAL);
+		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys, getType(), getExecutionConfig())));
 	}
 
 	// ------------------------------------------------------------------------
 	//  combine then keyed stream
 	// ------------------------------------------------------------------------
+	/*
 	public <K> KeyedStream<T, K> keyByCombiner(KeySelector<T, K> key) {
 		Preconditions.checkNotNull(key);
 		return new KeyedStream<>(this, clean(key), KeyedStreamType.COMBINER);
@@ -342,10 +345,12 @@ public class DataStream<T> {
 		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
 			getType(), getExecutionConfig())), KeyedStreamType.COMBINER);
 	}
+	*/
 
 	// ------------------------------------------------------------------------
 	//  partial keyed stream
 	// ------------------------------------------------------------------------
+	/*
 	public <K> KeyedStream<T, K> keyByPartial(KeySelector<T, K> key) {
 		Preconditions.checkNotNull(key);
 		return new KeyedStream<>(this, clean(key), KeyedStreamType.PARTIAL);
@@ -373,6 +378,7 @@ public class DataStream<T> {
 		return new KeyedStream<>(this, clean(KeySelectorUtil.getSelectorForKeys(keys,
 			getType(), getExecutionConfig())), KeyedStreamType.PARTIAL);
 	}
+	*/
 
 	/**
 	 * Partitions a tuple DataStream on the specified key fields using a custom partitioner.

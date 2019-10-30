@@ -56,9 +56,11 @@ public final class KeyGroupRangeAssignment {
 		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism));
 	}
 
+	/*
 	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism, long hops) {
 		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism, hops));
 	}
+	*/
 
 	/**
 	 * Assigns the given key to a key-group index.
@@ -71,9 +73,7 @@ public final class KeyGroupRangeAssignment {
 		return computeKeyGroupForKeyHash(key.hashCode(), maxParallelism);
 	}
 
-	public static int assignToKeyGroup(Object key, int maxParallelism, long hops) {
-		return computeKeyGroupForKeyHashPartial(key.hashCode(), maxParallelism, hops);
-	}
+	// public static int assignToKeyGroup(Object key, int maxParallelism, long hops) { return computeKeyGroupForKeyHashPartial(key.hashCode(), maxParallelism, hops); }
 
 	/**
 	 * Assigns the given key to a key-group index.
@@ -86,9 +86,9 @@ public final class KeyGroupRangeAssignment {
 		return MathUtils.murmurHash(keyHash) % maxParallelism;
 	}
 
+	/*
 	public static int computeKeyGroupForKeyHashPartial(int keyHash, int maxParallelism, long hops) {
 		int keyGroup = MathUtils.murmurHash(keyHash) % maxParallelism;
-		/*
 		int newKeyGroup = 0;
 		if (hops == 0) {
 			newKeyGroup = keyGroup;
@@ -97,10 +97,10 @@ public final class KeyGroupRangeAssignment {
 		} else if (hops > 0 && (keyGroup + 32 > maxParallelism)) {
 			newKeyGroup = keyGroup - 32;
 		}
-		// System.err.println("key[" + keyHash + "] hops[" + hops + "] keyGroup[" + keyGroup + "] newKeyGroup[" + newKeyGroup + "]");
-		*/
+		System.err.println("key[" + keyHash + "] hops[" + hops + "] keyGroup[" + keyGroup + "] newKeyGroup[" + newKeyGroup + "]");
 		return keyGroup;
 	}
+	*/
 
 	/**
 	 * Computes the range of key-groups that are assigned to a given operator under the given parallelism and maximum
