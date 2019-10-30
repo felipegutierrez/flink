@@ -44,7 +44,6 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.*;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateDynamicTriggerFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
@@ -1228,34 +1227,6 @@ public class DataStream<T> {
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator<>(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
-	}
-
-	public <R> SingleOutputStreamOperator<R> preAggregate(ProcessFunction<T, R> processFunction, TypeInformation<R> outputType) {
-
-		PreAggregateOperator<?, T, R> operator = new PreAggregateOperator<>(clean(processFunction));
-
-		return transform("PreAggregate", outputType, operator);
-	}
-
-	/**
-	 * This is the dynamic PreAggregate. It has a frequency component to infer the max number of tuples to PreAggregate.
-	 *
-	 * @param preAggregateFunction the function to PreAggregate tuples
-	 * @param windowProcessingTime time to trigger the window in seconds
-	 * @param <R>
-	 * @return The transformed {@link DataStream} constructed.
-	 */
-	public <R> SingleOutputStreamOperator<R> preAggregateDynamic(PreAggregateFunction preAggregateFunction, long windowProcessingTime) {
-
-		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
-			clean(preAggregateFunction),
-			getType(),
-			Utils.getCallLocationName(),
-			false);
-		PreAggregateDynamicTriggerFunction<T, R> preAggregateDynamicTriggerFunction = new PreAggregateDynamicTriggerFunction<T, R>(windowProcessingTime);
-		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
-
-		return doTransform("PreAggregateDynamic", outType, SimpleOperatorFactory.of(new StreamPreAggregateDynamicOperator<>(preAggregateFunction, preAggregateDynamicTriggerFunction, keySelector)));
 	}
 
 	private <R> SingleOutputStreamOperator<R> doTransform(

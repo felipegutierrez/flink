@@ -20,17 +20,12 @@ package org.apache.flink.streaming.examples.aggregate;
 import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.aggregate.util.*;
@@ -40,6 +35,13 @@ import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
+ * This is a dynamic pre-aggregator of items to be placed before the shuffle phase in a DAG. There are three types of use
+ * case to test in this class.
+ * First we test the DAG (word count example) without any pre-aggregator. Second, we test the pre-aggregator based only by
+ * a time threshold. This is similar to a tumbling window. Finally, we test the pre-aggregator based on a time threshold
+ * and on a max of items to aggregate. If the frequency of items is very high it is reasonable to shuffle data before the
+ * time threshold to have timely results.
+ *
  * <pre>
  * usage: java WordCountCombiner -pre-aggregate [static|dynamic|window-static|window-dynamic] -pre-aggregate-window [>0 seconds] -max-pre-aggregate [>=1 items] -input [hamlet|mobydick|dictionary|words|skew|few|variation] -window [>=0 seconds]
  *
@@ -57,35 +59,29 @@ import java.util.Map;
  * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input variation -window 30
  *
  * Running with a static pre-aggregation every 10 seconds or 10 items
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input dictionary -window 30
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input hamlet -window 30
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input mobydick -window 30
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input variation -window 30
- *
- * Running with a static window pre-aggregation every 10 seconds or 10 items
- * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input dictionary -window 30
- * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input hamlet -window 30
- * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input mobydick -window 30
- * usage: java WordCountCombiner -pre-aggregate window-static -pre-aggregate-window 10 -max-pre-aggregate 10 -input variation -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input dictionary -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input hamlet -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input mobydick -window 30
+ * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input variation -window 30
  *
  * Running on Standalone Flink cluster:
  * Running without a pre-aggregation
  * usage: ./bin/flink run WordCountPreAggregate.jar -input dictionary -window 30
  * usage: ./bin/flink run WordCountPreAggregate.jar -input hamlet -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -input hamlet -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -input mobydick -window 30
  * usage: ./bin/flink run WordCountPreAggregate.jar -input variation -window 30
  *
  * Running with a static pre-aggregation every 10 seconds
- * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input dictionary -window 30
- * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input hamlet -window 30
- * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input mobydick -window 30
- * usage: java WordCountCombiner -pre-aggregate static -pre-aggregate-window 10 -input variation -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate static -pre-aggregate-window 10 -input dictionary -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate static -pre-aggregate-window 10 -input hamlet -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate static -pre-aggregate-window 10 -input mobydick -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate static -pre-aggregate-window 10 -input variation -window 30
  *
  * Running with a static pre-aggregation every 10 seconds or 10 items
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input dictionary -window 30
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input hamlet -window 30
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input mobydick -window 30
- * usage: java WordCountCombiner -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 10 -input variation -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input dictionary -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input hamlet -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input mobydick -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate dynamic -pre-aggregate-window 10 -max-pre-aggregate 1000 -input variation -window 30
  * </pre>
  */
 public class WordCountPreAggregate {
@@ -123,7 +119,8 @@ public class WordCountPreAggregate {
 
 		// set up the execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		env.setStreamTimeCharacteristic(TimeCharacteristic.ProcessingTime);
+		// env.setStreamTimeCharacteristic(TimeCharacteristic.ProcessingTime);
+		env.disableOperatorChaining();
 
 		// make parameters available in the web interface
 		env.getConfig().setGlobalJobParameters(params);
@@ -176,9 +173,7 @@ public class WordCountPreAggregate {
 			// DYNAMIC PRE_AGGREGATE pre-aggregates every 10 seconds or every 1000 items
 			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime, maxToPreAggregate);
 		} else if (PRE_AGGREGATE_WINDOW_STATIC.equalsIgnoreCase(preAggregate)) {
-			// TODO: this is in test process
-			preAggregatedStream = counts.preAggregate(new PreAggregateProcessFunction(Time.seconds(preAggregationWindowTime).toMilliseconds()), TypeInformation.of(new TypeHint<Tuple2<String, Integer>>() {
-			}));
+			// TODO: instead of using java.util.Timer we want to use a window in the pre-aggregate
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -255,31 +250,6 @@ public class WordCountPreAggregate {
 			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}
-		}
-	}
-
-	private static class PreAggregateProcessFunction extends ProcessFunction<Tuple2<String, Integer>, Tuple2<String, Integer>> {
-
-		private final long timeOut;
-
-		public PreAggregateProcessFunction(long timeOut) {
-			this.timeOut = timeOut;
-		}
-
-		@Override
-		public void open(Configuration config) {
-			System.err.println("PreAggregateProcessFunction.open");
-		}
-
-		@Override
-		public void processElement(Tuple2<String, Integer> value, Context ctx, Collector<Tuple2<String, Integer>> out) throws Exception {
-			long currentTime = ctx.timerService().currentProcessingTime();
-			long timeoutTime = currentTime + timeOut;
-			ctx.timerService().registerProcessingTimeTimer(timeoutTime);
-		}
-
-		public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple2<String, Integer>> out) throws Exception {
-			System.err.println(timestamp);
 		}
 	}
 }
