@@ -221,8 +221,7 @@ public class YARNSessionCapacitySchedulerITCase extends YarnTestBase {
 					"-yjm", "768m",
 					"-ytm", taskManagerMemoryMB + "m",
 					"-yD", "taskmanager.memory.off-heap=true",
-					"-yD", "taskmanager.memory.size=" + offHeapMemory + "m",
-					"-yD", "taskmanager.memory.preallocate=true", exampleJarLocation.getAbsolutePath()},
+					"-yD", "taskmanager.memory.size=" + offHeapMemory + "m", exampleJarLocation.getAbsolutePath()},
 				/* test succeeded after this string */
 				"Program execution finished",
 				/* prohibited strings: (to verify the parallelism) */
@@ -395,7 +394,7 @@ public class YARNSessionCapacitySchedulerITCase extends YarnTestBase {
 	public void testNonexistingQueueWARNmessage() throws Exception {
 		runTest(() -> {
 			LOG.info("Starting testNonexistingQueueWARNmessage()");
-			addTestAppender(AbstractYarnClusterDescriptor.class, Level.WARN);
+			addTestAppender(YarnClusterDescriptor.class, Level.WARN);
 			try {
 				runWithArgs(new String[]{"-j", flinkUberjar.getAbsolutePath(),
 					"-t", flinkLibFolder.getAbsolutePath(),

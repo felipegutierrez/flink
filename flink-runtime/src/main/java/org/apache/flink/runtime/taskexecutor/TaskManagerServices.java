@@ -326,10 +326,9 @@ public class TaskManagerServices {
 	 *
 	 * @param taskManagerServicesConfiguration to create the memory manager from
 	 * @return Memory manager
-	 * @throws Exception
 	 */
 	private static MemoryManager createMemoryManager(
-			TaskManagerServicesConfiguration taskManagerServicesConfiguration) throws Exception {
+			TaskManagerServicesConfiguration taskManagerServicesConfiguration) {
 		// computing the amount of memory to use depends on how much memory is available
 		// it strictly needs to happen AFTER the network stack has been initialized
 
@@ -340,14 +339,8 @@ public class TaskManagerServices {
 
 		final long memorySize;
 
-		boolean preAllocateMemory = taskManagerServicesConfiguration.isPreAllocateMemory();
-
 		if (configuredMemory > 0) {
-			if (preAllocateMemory) {
-				LOG.info("Using {} MB for managed memory." , configuredMemory);
-			} else {
-				LOG.info("Limiting managed memory to {} MB, memory will be allocated lazily." , configuredMemory);
-			}
+			LOG.info("Limiting managed memory to {} MB." , configuredMemory);
 			memorySize = configuredMemory << 20; // megabytes to bytes
 		} else {
 			// similar to #calculateNetworkBufferMemory(TaskManagerServicesConfiguration tmConfig)
@@ -357,13 +350,7 @@ public class TaskManagerServices {
 				long freeHeapMemoryWithDefrag = taskManagerServicesConfiguration.getFreeHeapMemoryWithDefrag();
 				// network buffers allocated off-heap -> use memoryFraction of the available heap:
 				long relativeMemSize = (long) (freeHeapMemoryWithDefrag * memoryFraction);
-				if (preAllocateMemory) {
-					LOG.info("Using {} of the currently free heap space for managed heap memory ({} MB)." ,
-						memoryFraction , relativeMemSize >> 20);
-				} else {
-					LOG.info("Limiting managed memory to {} of the currently free heap space ({} MB), " +
-						"memory will be allocated lazily." , memoryFraction , relativeMemSize >> 20);
-				}
+				LOG.info("Limiting managed memory to {} of the currently free heap space ({} MB)." , memoryFraction , relativeMemSize >> 20);
 				memorySize = relativeMemSize;
 			} else if (memType == MemoryType.OFF_HEAP) {
 				long maxJvmHeapMemory = taskManagerServicesConfiguration.getMaxJvmHeapMemory();
@@ -372,13 +359,7 @@ public class TaskManagerServices {
 				// maxJvmHeap = jvmTotalNoNet - jvmTotalNoNet * memoryFraction = jvmTotalNoNet * (1 - memoryFraction)
 				// directMemorySize = jvmTotalNoNet * memoryFraction
 				long directMemorySize = (long) (maxJvmHeapMemory / (1.0 - memoryFraction) * memoryFraction);
-				if (preAllocateMemory) {
-					LOG.info("Using {} of the maximum memory size for managed off-heap memory ({} MB)." ,
-						memoryFraction, directMemorySize >> 20);
-				} else {
-					LOG.info("Limiting managed memory to {} of the maximum memory size ({} MB)," +
-						" memory will be allocated lazily.", memoryFraction, directMemorySize >> 20);
-				}
+				LOG.info("Limiting managed memory to {} of the maximum memory size ({} MB).", memoryFraction, directMemorySize >> 20);
 				memorySize = directMemorySize;
 			} else {
 				throw new RuntimeException("No supported memory type detected.");
@@ -386,27 +367,10 @@ public class TaskManagerServices {
 		}
 
 		// now start the memory manager
-		final MemoryManager memoryManager;
-		try {
-			memoryManager = new MemoryManager(
-				memorySize,
-				taskManagerServicesConfiguration.getNumberOfSlots(),
-				taskManagerServicesConfiguration.getPageSize(),
-				memType,
-				preAllocateMemory);
-		} catch (OutOfMemoryError e) {
-			if (memType == MemoryType.HEAP) {
-				throw new Exception("OutOfMemory error (" + e.getMessage() +
-					") while allocating the TaskManager heap memory (" + memorySize + " bytes).", e);
-			} else if (memType == MemoryType.OFF_HEAP) {
-				throw new Exception("OutOfMemory error (" + e.getMessage() +
-					") while allocating the TaskManager off-heap memory (" + memorySize +
-					" bytes).Try increasing the maximum direct memory (-XX:MaxDirectMemorySize)", e);
-			} else {
-				throw e;
-			}
-		}
-		return memoryManager;
+		return new MemoryManager(
+			Collections.singletonMap(memType, memorySize),
+			taskManagerServicesConfiguration.getNumberOfSlots(),
+			taskManagerServicesConfiguration.getPageSize());
 	}
 
 	/**
@@ -433,7 +397,7 @@ public class TaskManagerServices {
 			final long managedMemorySize = getManagedMemoryFromHeapAndManaged(config, heapAndManagedMemory);
 
 			ConfigurationParserUtils.checkConfigParameter(managedMemorySize < heapAndManagedMemory, managedMemorySize,
-				TaskManagerOptions.MANAGED_MEMORY_SIZE.key(),
+				TaskManagerOptions.LEGACY_MANAGED_MEMORY_SIZE.key(),
 					"Managed memory size too large for " + (networkReservedMemory >> 20) +
 						" MB network buffer memory and a total of " + totalJavaMemorySizeMB +
 						" MB JVM memory");
@@ -460,20 +424,20 @@ public class TaskManagerServices {
 	 * All values are in bytes.
 	 */
 	public static long getManagedMemoryFromHeapAndManaged(Configuration config, long heapAndManagedMemory) {
-		if (config.contains(TaskManagerOptions.MANAGED_MEMORY_SIZE)) {
+		if (config.contains(TaskManagerOptions.LEGACY_MANAGED_MEMORY_SIZE)) {
 			// take the configured absolute value
-			final String sizeValue = config.getString(TaskManagerOptions.MANAGED_MEMORY_SIZE);
+			final String sizeValue = config.getString(TaskManagerOptions.LEGACY_MANAGED_MEMORY_SIZE);
 			try {
 				return MemorySize.parse(sizeValue, MEGA_BYTES).getBytes();
 			}
 			catch (IllegalArgumentException e) {
 				throw new IllegalConfigurationException(
-					"Could not read " + TaskManagerOptions.MANAGED_MEMORY_SIZE.key(), e);
+					"Could not read " + TaskManagerOptions.LEGACY_MANAGED_MEMORY_SIZE.key(), e);
 			}
 		}
 		else {
 			// calculate managed memory size via fraction
-			final float fraction = config.getFloat(TaskManagerOptions.MANAGED_MEMORY_FRACTION);
+			final float fraction = config.getFloat(TaskManagerOptions.LEGACY_MANAGED_MEMORY_FRACTION);
 			return (long) (fraction * heapAndManagedMemory);
 		}
 	}

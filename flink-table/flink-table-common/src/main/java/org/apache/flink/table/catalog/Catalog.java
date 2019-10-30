@@ -34,6 +34,7 @@ import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.exceptions.TablePartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
+import org.apache.flink.table.factories.FunctionDefinitionFactory;
 import org.apache.flink.table.factories.TableFactory;
 
 import java.util.List;
@@ -48,11 +49,20 @@ public interface Catalog {
 
 	/**
 	 * Get an optional {@link TableFactory} instance that's responsible for generating table-related
-	 * instances stored in this catalog, instances such as source/sink and function definitions.
+	 * instances stored in this catalog, instances such as source/sink.
 	 *
 	 * @return an optional TableFactory instance
 	 */
 	default Optional<TableFactory> getTableFactory() {
+		return Optional.empty();
+	}
+
+	/**
+	 * Get an optional {@link FunctionDefinitionFactory} instance that's responsible for instantiating function definitions.
+	 *
+	 * @return an optional FunctionDefinitionFactory instance
+	 */
+	default Optional<FunctionDefinitionFactory> getFunctionDefinitionFactory() {
 		return Optional.empty();
 	}
 
@@ -365,6 +375,7 @@ public interface Catalog {
 
 	/**
 	 * Get the function.
+	 * Function name should be handled in a case insensitive way.
 	 *
 	 * @param functionPath path of the function
 	 * @return the requested function
@@ -375,6 +386,7 @@ public interface Catalog {
 
 	/**
 	 * Check whether a function exists or not.
+	 * Function name should be handled in a case insensitive way.
 	 *
 	 * @param functionPath path of the function
 	 * @return true if the function exists in the catalog
@@ -385,6 +397,7 @@ public interface Catalog {
 
 	/**
 	 * Create a function.
+	 * Function name should be handled in a case insensitive way.
 	 *
 	 * @param functionPath      path of the function
 	 * @param function          the function to be created
@@ -400,6 +413,7 @@ public interface Catalog {
 
 	/**
 	 * Modify an existing function.
+	 * Function name should be handled in a case insensitive way.
 	 *
 	 * @param functionPath       path of the function
 	 * @param newFunction        the function to be modified
@@ -414,6 +428,7 @@ public interface Catalog {
 
 	/**
 	 * Drop a function.
+	 * Function name should be handled in a case insensitive way.
 	 *
 	 * @param functionPath       path of the function to be dropped
 	 * @param ignoreIfNotExists  plag to specify behavior if the function does not exist:
@@ -424,8 +439,6 @@ public interface Catalog {
 	 */
 	void dropFunction(ObjectPath functionPath, boolean ignoreIfNotExists)
 		throws FunctionNotExistException, CatalogException;
-
-	// ------ statistics ------
 
 	// ------ statistics ------
 

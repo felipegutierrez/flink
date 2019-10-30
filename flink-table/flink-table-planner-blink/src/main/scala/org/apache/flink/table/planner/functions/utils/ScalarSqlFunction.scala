@@ -47,7 +47,7 @@ import scala.collection.JavaConverters._
 class ScalarSqlFunction(
     name: String,
     displayName: String,
-    scalarFunction: ScalarFunction,
+    val scalarFunction: ScalarFunction,
     typeFactory: FlinkTypeFactory,
     returnTypeInfer: Option[SqlReturnTypeInference] = None)
   extends SqlFunction(
@@ -58,6 +58,10 @@ class ScalarSqlFunction(
     null,
     SqlFunctionCategory.USER_DEFINED_FUNCTION) {
 
+  /**
+    * This is temporary solution for hive udf and should be removed once FLIP-65 is finished,
+    * please pass the non-null input arguments.
+    */
   def makeFunction(constants: Array[AnyRef], argTypes: Array[LogicalType]): ScalarFunction =
     scalarFunction
 

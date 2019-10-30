@@ -659,6 +659,8 @@ Parameters:
 - `username` - (optional) InfluxDB username used for authentication
 - `password` - (optional) InfluxDB username's password used for authentication
 - `retentionPolicy` - (optional) InfluxDB retention policy, defaults to retention policy defined on the server for the db
+- `connectTimeout` - (optional) the InfluxDB client connect timeout in milliseconds, default is 10000 ms
+- `writeTimeout` - (optional) the InfluxDB client write timeout in milliseconds, default is 10000 ms
 
 Example configuration:
 
@@ -671,6 +673,8 @@ metrics.reporter.influxdb.db: flink
 metrics.reporter.influxdb.username: flink-metrics
 metrics.reporter.influxdb.password: qwerty
 metrics.reporter.influxdb.retentionPolicy: one_hour
+metrics.reporter.influxdb.connectTimeout: 60000
+metrics.reporter.influxdb.writeTimeout: 60000
 
 {% endhighlight %}
 
@@ -1029,8 +1033,8 @@ Thus, in order to infer the metric identifier:
       <td>Gauge</td>
     </tr>
     <tr>
-      <th rowspan="8">Task</th>
-      <td rowspan="4">buffers</td>
+      <th rowspan="10">Task</th>
+      <td rowspan="6">buffers</td>
       <td>inputQueueLength</td>
       <td>The number of queued input buffers. (ignores LocalInputChannels which are using blocking subpartitions)</td>
       <td>Gauge</td>
@@ -1042,17 +1046,17 @@ Thus, in order to infer the metric identifier:
     </tr>
     <tr>
       <td>inPoolUsage</td>
-      <td>An estimate of the input buffers usage.</td>
+      <td>An estimate of the input buffers usage. (ignores LocalInputChannels)</td>
       <td>Gauge</td>
     </tr>
     <tr>
       <td>inputFloatingBuffersUsage</td>
-      <td>An estimate of the floating input buffers usage, dediciated for credit-based mode.</td>
+      <td>An estimate of the floating input buffers usage, dedicated for credit-based mode. (ignores LocalInputChannels)</td>
       <td>Gauge</td>
     </tr>
     <tr>
       <td>inputExclusiveBuffersUsage</td>
-      <td>An estimate of the exclusive input buffers usage, dediciated for credit-based mode.</td>
+      <td>An estimate of the exclusive input buffers usage, dedicated for credit-based mode. (ignores LocalInputChannels)</td>
       <td>Gauge</td>
     </tr>
     <tr>

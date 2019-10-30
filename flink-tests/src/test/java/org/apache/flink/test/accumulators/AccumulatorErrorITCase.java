@@ -30,12 +30,14 @@ import org.apache.flink.configuration.TaskManagerOptions;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
-import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.testutils.junit.category.AlsoRunWithSchedulerNG;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
+import static org.apache.flink.util.ExceptionUtils.findThrowable;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -44,6 +46,7 @@ import static org.junit.Assert.fail;
  *  a) throw errors during runtime
  *  b) are not compatible with existing accumulator.
  */
+@Category(AlsoRunWithSchedulerNG.class)
 public class AccumulatorErrorITCase extends TestLogger {
 	private static final String FAULTY_CLONE_ACCUMULATOR = "faulty-clone";
 	private static final String FAULTY_MERGE_ACCUMULATOR = "faulty-merge";
@@ -58,7 +61,7 @@ public class AccumulatorErrorITCase extends TestLogger {
 
 	public static Configuration getConfiguration() {
 		Configuration config = new Configuration();
-		config.setString(TaskManagerOptions.MANAGED_MEMORY_SIZE, "12m");
+		config.setString(TaskManagerOptions.LEGACY_MANAGED_MEMORY_SIZE, "12m");
 		return config;
 	}
 
@@ -88,10 +91,7 @@ public class AccumulatorErrorITCase extends TestLogger {
 			env.execute();
 			fail("Should have failed.");
 		} catch (JobExecutionException e) {
-			assertTrue("Root cause should be:",
-					e.getCause() instanceof Exception);
-			assertTrue("Root cause should be:",
-					e.getCause().getCause() instanceof UnsupportedOperationException);
+			assertTrue(findThrowable(e, UnsupportedOperationException.class).isPresent());
 		}
 	}
 
@@ -202,7 +202,7 @@ public class AccumulatorErrorITCase extends TestLogger {
 			fail("Should have failed");
 		}
 		catch (Exception ex) {
-			assertTrue(ExceptionUtils.findThrowable(ex, CustomException.class).isPresent());
+			assertTrue(findThrowable(ex, CustomException.class).isPresent());
 		}
 	}
 }

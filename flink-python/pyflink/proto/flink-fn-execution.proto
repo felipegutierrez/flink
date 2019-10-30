@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+// NOTE: File flink_fn_execution_pb2.py is generated from this file. Please re-generate it by calling
+// gen_protos.py whenever this file is changed.
 syntax = "proto3";
 
 package org.apache.flink.fn_execution.v1;
@@ -30,6 +32,7 @@ message UserDefinedFunction {
     oneof input {
       UserDefinedFunction udf = 1;
       int32 inputOffset = 2;
+      bytes inputConstant = 3;
     }
   }
 
@@ -39,6 +42,7 @@ message UserDefinedFunction {
   // The input arguments of the user-defined function, it could be one of the following:
   // 1. A column from the input row
   // 2. The result of another user-defined function
+  // 3. The constant value of the column
   repeated Input inputs = 2;
 }
 

@@ -19,18 +19,17 @@
 package org.apache.flink.client;
 
 import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.common.Plan;
 import org.apache.flink.api.common.PlanExecutor;
+import org.apache.flink.api.dag.Pipeline;
 import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.client.program.rest.RestClusterClient;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.configuration.RestOptions;
-import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
+import org.apache.flink.runtime.jobgraph.JobGraph;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
-import java.util.Collections;
 import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -47,35 +46,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class RemoteExecutor extends PlanExecutor {
 
-	private final List<URL> jarFiles;
-
-	private final List<URL> globalClasspaths;
-
 	private final Configuration clientConfiguration;
 
 	private int defaultParallelism = 1;
 
 	public RemoteExecutor(String hostname, int port) {
-		this(hostname, port, new Configuration(), Collections.emptyList(), Collections.emptyList());
+		this(hostname, port, new Configuration());
 	}
 
-	public RemoteExecutor(
-		String hostname,
-		int port,
-		Configuration clientConfiguration,
-		List<URL> jarFiles,
-		List<URL> globalClasspaths) {
-		this(new InetSocketAddress(hostname, port), clientConfiguration, jarFiles, globalClasspaths);
+	public RemoteExecutor(String hostname, int port, Configuration clientConfiguration) {
+		this(new InetSocketAddress(hostname, port), clientConfiguration);
 	}
 
-	public RemoteExecutor(
-		InetSocketAddress inet,
-		Configuration clientConfiguration,
-		List<URL> jarFiles,
-		List<URL> globalClasspaths) {
+	public RemoteExecutor(InetSocketAddress inet, Configuration clientConfiguration) {
 		this.clientConfiguration = clientConfiguration;
-		this.jarFiles = jarFiles;
-		this.globalClasspaths = globalClasspaths;
 
 		clientConfiguration.setString(JobManagerOptions.ADDRESS, inet.getHostName());
 		clientConfiguration.setInteger(JobManagerOptions.PORT, inet.getPort());
@@ -87,8 +71,8 @@ public class RemoteExecutor extends PlanExecutor {
 	// ------------------------------------------------------------------------
 
 	/**
-	 * Sets the parallelism that will be used when neither the program does not define
-	 * any parallelism at all.
+	 * Sets the parallelism that will be used when neither the program does not define any
+	 * parallelism at all.
 	 *
 	 * @param defaultParallelism The default parallelism for the executor.
 	 */
@@ -100,8 +84,8 @@ public class RemoteExecutor extends PlanExecutor {
 	}
 
 	/**
-	 * Gets the parallelism that will be used when neither the program does not define
-	 * any parallelism at all.
+	 * Gets the parallelism that will be used when neither the program does not define any
+	 * parallelism at all.
 	 *
 	 * @return The default parallelism for the executor.
 	 */
@@ -114,19 +98,35 @@ public class RemoteExecutor extends PlanExecutor {
 	// ------------------------------------------------------------------------
 
 	@Override
-	public JobExecutionResult executePlan(Plan plan) throws Exception {
+	public JobExecutionResult executePlan(
+			Pipeline plan,
+			List<URL> jarFiles,
+			List<URL> globalClasspaths) throws Exception {
 		checkNotNull(plan);
 
-		try (ClusterClient<?> client = new RestClusterClient<>(clientConfiguration, "RemoteExecutor")) {
-			ClassLoader classLoader = ClientUtils.buildUserCodeClassLoader(jarFiles, globalClasspaths, getClass().getClassLoader());
+		JobGraph jobGraph = FlinkPipelineTranslationUtil.getJobGraph(plan,
+				clientConfiguration,
+				getDefaultParallelism());
 
-			return client.run(
-				plan,
+		ClientUtils.addJarFiles(jobGraph, jarFiles);
+		jobGraph.setClasspaths(globalClasspaths);
+
+		ClassLoader userCodeClassLoader = ClientUtils.buildUserCodeClassLoader(
 				jarFiles,
 				globalClasspaths,
-				classLoader,
-				defaultParallelism,
-				SavepointRestoreSettings.none()).getJobExecutionResult();
+				getClass().getClassLoader());
+
+		return executePlanWithJars(jobGraph, userCodeClassLoader);
+	}
+
+	private JobExecutionResult executePlanWithJars(JobGraph jobGraph, ClassLoader classLoader) throws Exception {
+		checkNotNull(jobGraph);
+		checkNotNull(classLoader);
+
+		try (ClusterClient<?> client = new RestClusterClient<>(
+				clientConfiguration,
+				"RemoteExecutor")) {
+			return client.submitJob(jobGraph, classLoader).getJobExecutionResult();
 		}
 	}
 }

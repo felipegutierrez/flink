@@ -297,7 +297,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 
 		@Override
 		public RelNode visit(CatalogQueryOperation catalogTable) {
-			ObjectIdentifier objectIdentifier = catalogTable.getObjectIdentifier();
+			ObjectIdentifier objectIdentifier = catalogTable.getTableIdentifier();
 			return relBuilder.scan(
 				objectIdentifier.getCatalogName(),
 				objectIdentifier.getDatabaseName(),
@@ -354,7 +354,8 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				names = Collections.singletonList(refId);
 			}
 
-			TableSourceTable<?> tableSourceTable = new TableSourceTable<>(tableSource, !isBatch, statistic);
+			TableSourceTable<?> tableSourceTable = new TableSourceTable<>(
+					tableSource, !isBatch, statistic, null);
 			FlinkRelOptTable table = FlinkRelOptTable.create(
 				relBuilder.getRelOptSchema(),
 				tableSourceTable.getRowType(relBuilder.getTypeFactory()),
@@ -472,7 +473,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 			}).collect(Collectors.toList());
 
 			CallExpression newCall = new CallExpression(
-					callExpression.getObjectIdentifier().get(), callExpression.getFunctionDefinition(), newChildren,
+					callExpression.getFunctionIdentifier().get(), callExpression.getFunctionDefinition(), newChildren,
 					callExpression.getOutputDataType());
 			return convertExprToRexNode(newCall);
 		}

@@ -33,15 +33,14 @@ import org.apache.flink.runtime.checkpoint.StandaloneCheckpointRecoveryFactory;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
-import org.apache.flink.runtime.executiongraph.failover.FailoverRegion;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
 import org.apache.flink.runtime.executiongraph.failover.RestartAllStrategy;
 import org.apache.flink.runtime.executiongraph.restart.NoRestartStrategy;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategy;
 import org.apache.flink.runtime.executiongraph.utils.SimpleAckingTaskManagerGateway;
 import org.apache.flink.runtime.executiongraph.utils.SimpleSlotProvider;
-import org.apache.flink.runtime.io.network.partition.NoOpPartitionTracker;
-import org.apache.flink.runtime.io.network.partition.PartitionTracker;
+import org.apache.flink.runtime.io.network.partition.NoOpJobMasterPartitionTracker;
+import org.apache.flink.runtime.io.network.partition.JobMasterPartitionTracker;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.jobgraph.JobVertex;
@@ -231,26 +230,6 @@ public class ExecutionGraphTestUtils {
 
 	public static Predicate<AccessExecution> isInExecutionState(ExecutionState executionState) {
 		return (AccessExecution execution) -> execution.getState() == executionState;
-	}
-
-	public static void waitUntilFailoverRegionState(FailoverRegion region, JobStatus status, long maxWaitMillis)
-			throws TimeoutException {
-		checkNotNull(region);
-		checkNotNull(status);
-		checkArgument(maxWaitMillis >= 0);
-
-		// this is a poor implementation - we may want to improve it eventually
-		final long deadline = maxWaitMillis == 0 ? Long.MAX_VALUE : System.nanoTime() + (maxWaitMillis * 1_000_000);
-
-		while (region.getState() != status && System.nanoTime() < deadline) {
-			try {
-				Thread.sleep(2);
-			} catch (InterruptedException ignored) {}
-		}
-
-		if (System.nanoTime() >= deadline) {
-			throw new TimeoutException();
-		}
 	}
 
 	/**
@@ -560,7 +539,7 @@ public class ExecutionGraphTestUtils {
 		private ScheduledExecutorService futureExecutor = TestingUtils.defaultExecutor();
 		private Configuration jobMasterConfig = new Configuration();
 		private JobGraph jobGraph;
-		private PartitionTracker partitionTracker = NoOpPartitionTracker.INSTANCE;
+		private JobMasterPartitionTracker partitionTracker = NoOpJobMasterPartitionTracker.INSTANCE;
 		private FailoverStrategy.Factory failoverStrategyFactory = new RestartAllStrategy.Factory();
 
 		public TestingExecutionGraphBuilder(final JobVertex ... jobVertices) {
@@ -643,7 +622,7 @@ public class ExecutionGraphTestUtils {
 			return this;
 		}
 
-		public TestingExecutionGraphBuilder setPartitionTracker(final PartitionTracker partitionTracker) {
+		public TestingExecutionGraphBuilder setPartitionTracker(final JobMasterPartitionTracker partitionTracker) {
 			this.partitionTracker = partitionTracker;
 			return this;
 		}

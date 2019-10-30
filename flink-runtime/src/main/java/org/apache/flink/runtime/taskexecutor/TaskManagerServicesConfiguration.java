@@ -67,13 +67,11 @@ public class TaskManagerServicesConfiguration {
 	/**
 	 * Managed memory (in megabytes).
 	 *
-	 * @see TaskManagerOptions#MANAGED_MEMORY_SIZE
+	 * @see TaskManagerOptions#LEGACY_MANAGED_MEMORY_SIZE
 	 */
 	private final long configuredMemory;
 
 	private final MemoryType memoryType;
-
-	private final boolean preAllocateMemory;
 
 	private final float memoryFraction;
 
@@ -101,7 +99,6 @@ public class TaskManagerServicesConfiguration {
 			int numberOfSlots,
 			long configuredMemory,
 			MemoryType memoryType,
-			boolean preAllocateMemory,
 			float memoryFraction,
 			int pageSize,
 			long timerServiceShutdownTimeout,
@@ -122,7 +119,6 @@ public class TaskManagerServicesConfiguration {
 
 		this.configuredMemory = configuredMemory;
 		this.memoryType = checkNotNull(memoryType);
-		this.preAllocateMemory = preAllocateMemory;
 		this.memoryFraction = memoryFraction;
 		this.pageSize = pageSize;
 
@@ -201,14 +197,10 @@ public class TaskManagerServicesConfiguration {
 	 *
 	 * @return managed memory or a default value (currently <tt>-1</tt>) if not configured
 	 *
-	 * @see TaskManagerOptions#MANAGED_MEMORY_SIZE
+	 * @see TaskManagerOptions#LEGACY_MANAGED_MEMORY_SIZE
 	 */
 	long getConfiguredMemory() {
 		return configuredMemory;
-	}
-
-	boolean isPreAllocateMemory() {
-		return preAllocateMemory;
 	}
 
 	public int getPageSize() {
@@ -263,8 +255,6 @@ public class TaskManagerServicesConfiguration {
 
 		final QueryableStateConfiguration queryableStateConfig = QueryableStateConfiguration.fromConfiguration(configuration);
 
-		boolean preAllocateMemory = configuration.getBoolean(TaskManagerOptions.MANAGED_MEMORY_PRE_ALLOCATE);
-
 		long timerServiceShutdownTimeout = AkkaUtils.getTimeout(configuration).toMillis();
 
 		final RetryingRegistrationConfiguration retryingRegistrationConfiguration = RetryingRegistrationConfiguration.fromConfiguration(configuration);
@@ -283,7 +273,6 @@ public class TaskManagerServicesConfiguration {
 			ConfigurationParserUtils.getSlot(configuration),
 			ConfigurationParserUtils.getManagedMemorySize(configuration),
 			ConfigurationParserUtils.getMemoryType(configuration),
-			preAllocateMemory,
 			ConfigurationParserUtils.getManagedMemoryFraction(configuration),
 			ConfigurationParserUtils.getPageSize(configuration),
 			timerServiceShutdownTimeout,

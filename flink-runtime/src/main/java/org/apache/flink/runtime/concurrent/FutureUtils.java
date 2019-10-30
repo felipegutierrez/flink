@@ -64,6 +64,17 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class FutureUtils {
 
+	private static final CompletableFuture<Void> COMPLETED_VOID_FUTURE = CompletableFuture.completedFuture(null);
+
+	/**
+	 * Returns a completed future of type {@link Void}.
+	 *
+	 * @return a completed future of type {@link Void}
+	 */
+	public static CompletableFuture<Void> completedVoidFuture() {
+		return COMPLETED_VOID_FUTURE;
+	}
+
 	// ------------------------------------------------------------------------
 	//  retrying operations
 	// ------------------------------------------------------------------------
@@ -1065,5 +1076,22 @@ public class FutureUtils {
 		if (suppressedExceptions != null) {
 			throw suppressedExceptions;
 		}
+	}
+
+	/**
+	 * Forwards the value from the source future to the target future.
+	 *
+	 * @param source future to forward the value from
+	 * @param target future to forward the value to
+	 * @param <T> type of the value
+	 */
+	public static <T> void forward(CompletableFuture<T> source, CompletableFuture<T> target) {
+		source.whenComplete((value, throwable) -> {
+			if (throwable != null) {
+				target.completeExceptionally(throwable);
+			} else {
+				target.complete(value);
+			}
+		});
 	}
 }

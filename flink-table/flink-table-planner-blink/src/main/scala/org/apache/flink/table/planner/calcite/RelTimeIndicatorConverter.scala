@@ -184,7 +184,9 @@ class RelTimeIndicatorConverter(rexBuilder: RexBuilder) extends RelShuttle {
         sink.getTraitSet,
         newInput,
         sink.sink,
-        sink.sinkName)
+        sink.sinkName,
+        sink.catalogTable,
+        sink.staticPartitions)
 
     case _ =>
       throw new TableException(s"Unsupported logical operator: ${other.getClass.getSimpleName}")

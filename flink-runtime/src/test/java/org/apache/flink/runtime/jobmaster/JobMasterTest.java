@@ -66,11 +66,11 @@ import org.apache.flink.runtime.heartbeat.TestingHeartbeatServices;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
 import org.apache.flink.runtime.highavailability.TestingHighAvailabilityServices;
 import org.apache.flink.runtime.instance.SimpleSlotContext;
-import org.apache.flink.runtime.io.network.partition.NoOpPartitionTracker;
+import org.apache.flink.runtime.io.network.partition.NoOpJobMasterPartitionTracker;
 import org.apache.flink.runtime.io.network.partition.PartitionTrackerFactory;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
-import org.apache.flink.runtime.io.network.partition.TestingPartitionTracker;
+import org.apache.flink.runtime.io.network.partition.TestingJobMasterPartitionTracker;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.JobGraph;
@@ -316,7 +316,7 @@ public class JobMasterTest extends TestLogger {
 				JobMasterTest.class.getClassLoader(),
 				schedulerNGFactory,
 				NettyShuffleMaster.INSTANCE,
-				NoOpPartitionTracker.FACTORY) {
+				NoOpJobMasterPartitionTracker.FACTORY) {
 				@Override
 				public void declineCheckpoint(DeclineCheckpoint declineCheckpoint) {
 					declineCheckpointMessageFuture.complete(declineCheckpoint.getReason());
@@ -1639,7 +1639,7 @@ public class JobMasterTest extends TestLogger {
 			JobMasterTest.class.getClassLoader(),
 			schedulerNGFactory,
 			NettyShuffleMaster.INSTANCE,
-			NoOpPartitionTracker.FACTORY) {
+			NoOpJobMasterPartitionTracker.FACTORY) {
 
 			@Override
 			public CompletableFuture<String> triggerSavepoint(
@@ -1730,7 +1730,7 @@ public class JobMasterTest extends TestLogger {
 		final LocalTaskManagerLocation taskManagerLocation = new LocalTaskManagerLocation();
 
 		final AtomicBoolean isTrackingPartitions = new AtomicBoolean(true);
-		final TestingPartitionTracker partitionTracker = new TestingPartitionTracker();
+		final TestingJobMasterPartitionTracker partitionTracker = new TestingJobMasterPartitionTracker();
 		partitionTracker.setIsTrackingPartitionsForFunction(ignored -> isTrackingPartitions.get());
 
 		final JobMaster jobMaster = new JobMasterBuilder()
@@ -1865,7 +1865,7 @@ public class JobMasterTest extends TestLogger {
 		final JobGraph jobGraph = createSingleVertexJobGraph();
 
 		final CompletableFuture<ResourceID> partitionCleanupTaskExecutorId = new CompletableFuture<>();
-		final TestingPartitionTracker partitionTracker = new TestingPartitionTracker();
+		final TestingJobMasterPartitionTracker partitionTracker = new TestingJobMasterPartitionTracker();
 		partitionTracker.setStopTrackingAllPartitionsConsumer(partitionCleanupTaskExecutorId::complete);
 
 		final JobMaster jobMaster = new JobMasterBuilder()
@@ -1907,7 +1907,7 @@ public class JobMasterTest extends TestLogger {
 		final JobGraph jobGraph = createSingleVertexJobGraph();
 
 		final CompletableFuture<ResourceID> partitionCleanupTaskExecutorId = new CompletableFuture<>();
-		final TestingPartitionTracker partitionTracker = new TestingPartitionTracker();
+		final TestingJobMasterPartitionTracker partitionTracker = new TestingJobMasterPartitionTracker();
 		partitionTracker.setStopTrackingAndReleaseAllPartitionsConsumer(partitionCleanupTaskExecutorId::complete);
 
 		final JobMaster jobMaster = new JobMasterBuilder()
@@ -1924,7 +1924,7 @@ public class JobMasterTest extends TestLogger {
 		final CompletableFuture<Tuple2<JobID, Collection<ResultPartitionID>>> releasePartitionsFuture = new CompletableFuture<>();
 		final CompletableFuture<JobID> disconnectTaskExecutorFuture = new CompletableFuture<>();
 		final TestingTaskExecutorGateway testingTaskExecutorGateway = new TestingTaskExecutorGatewayBuilder()
-			.setReleasePartitionsConsumer((jobId, partitions) -> releasePartitionsFuture.complete(Tuple2.of(jobId, partitions)))
+			.setReleaseOrPromotePartitionsConsumer((jobId, partitionsToRelease, partitionsToPromote) -> releasePartitionsFuture.complete(Tuple2.of(jobId, partitionsToRelease)))
 			.setDisconnectJobManagerConsumer((jobID, throwable) -> disconnectTaskExecutorFuture.complete(jobID))
 			.setSubmitTaskConsumer((tdd, ignored) -> {
 				taskDeploymentDescriptorFuture.complete(tdd);
@@ -2259,7 +2259,7 @@ public class JobMasterTest extends TestLogger {
 
 		private ShuffleMaster<?> shuffleMaster = NettyShuffleMaster.INSTANCE;
 
-		private PartitionTrackerFactory partitionTrackerFactory = NoOpPartitionTracker.FACTORY;
+		private PartitionTrackerFactory partitionTrackerFactory = NoOpJobMasterPartitionTracker.FACTORY;
 
 		private JobMasterBuilder withConfiguration(Configuration configuration) {
 			this.configuration = configuration;

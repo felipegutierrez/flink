@@ -27,6 +27,8 @@ import org.apache.flink.api.common.accumulators.AccumulatorHelper;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.JobManagerOptions;
+import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.accumulators.AccumulatorSnapshot;
 import org.apache.flink.runtime.accumulators.StringifiedAccumulatorResult;
@@ -43,19 +45,20 @@ import org.apache.flink.runtime.checkpoint.MasterTriggerRestoreHook;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.concurrent.FutureUtils.ConjunctFuture;
+import org.apache.flink.runtime.concurrent.ScheduledExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.execution.SuppressRestartsException;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
 import org.apache.flink.runtime.executiongraph.failover.RestartAllStrategy;
-import org.apache.flink.runtime.executiongraph.failover.adapter.DefaultFailoverTopology;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverTopology;
 import org.apache.flink.runtime.executiongraph.failover.flip1.ResultPartitionAvailabilityChecker;
 import org.apache.flink.runtime.executiongraph.failover.flip1.partitionrelease.NotReleasingPartitionReleaseStrategy;
 import org.apache.flink.runtime.executiongraph.failover.flip1.partitionrelease.PartitionReleaseStrategy;
 import org.apache.flink.runtime.executiongraph.restart.ExecutionGraphRestartCallback;
 import org.apache.flink.runtime.executiongraph.restart.RestartCallback;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategy;
-import org.apache.flink.runtime.io.network.partition.PartitionTracker;
-import org.apache.flink.runtime.io.network.partition.PartitionTrackerImpl;
+import org.apache.flink.runtime.io.network.partition.JobMasterPartitionTracker;
+import org.apache.flink.runtime.io.network.partition.JobMasterPartitionTrackerImpl;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
@@ -67,8 +70,8 @@ import org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguratio
 import org.apache.flink.runtime.jobmanager.scheduler.CoLocationGroup;
 import org.apache.flink.runtime.jobmaster.slotpool.SlotProvider;
 import org.apache.flink.runtime.query.KvStateLocationRegistry;
-import org.apache.flink.runtime.scheduler.InternalTaskFailuresListener;
-import org.apache.flink.runtime.scheduler.adapter.ExecutionGraphToSchedulingTopologyAdapter;
+import org.apache.flink.runtime.scheduler.InternalFailuresListener;
+import org.apache.flink.runtime.scheduler.adapter.DefaultExecutionTopology;
 import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import org.apache.flink.runtime.scheduler.strategy.SchedulingExecutionVertex;
 import org.apache.flink.runtime.scheduler.strategy.SchedulingResultPartition;
@@ -77,6 +80,7 @@ import org.apache.flink.runtime.shuffle.NettyShuffleMaster;
 import org.apache.flink.runtime.shuffle.ShuffleMaster;
 import org.apache.flink.runtime.state.SharedStateRegistry;
 import org.apache.flink.runtime.state.StateBackend;
+import org.apache.flink.runtime.taskmanager.DispatcherThreadFactory;
 import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.ExceptionUtils;
@@ -111,6 +115,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -259,10 +264,13 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 	private PartitionReleaseStrategy partitionReleaseStrategy;
 
-	private SchedulingTopology schedulingTopology;
+	private DefaultExecutionTopology executionTopology;
 
 	@Nullable
-	private InternalTaskFailuresListener internalTaskFailuresListener;
+	private InternalFailuresListener internalTaskFailuresListener;
+
+	/** Counts all restarts. Used by other Gauges/Meters and does not register to metric group. */
+	private final Counter numberOfRestartsCounter = new SimpleCounter();
 
 	// ------ Configuration of the Execution -------
 
@@ -301,7 +309,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	 * strong reference to any user-defined classes.*/
 	private volatile ErrorInfo failureInfo;
 
-	private final PartitionTracker partitionTracker;
+	private final JobMasterPartitionTracker partitionTracker;
 
 	private final ResultPartitionAvailabilityChecker resultPartitionAvailabilityChecker;
 
@@ -314,7 +322,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	// ------ Fields that are relevant to the execution and need to be cleared before archiving  -------
 
 	/** The coordinator for checkpoints, if snapshot checkpoints are enabled. */
+	@Nullable
 	private CheckpointCoordinator checkpointCoordinator;
+
+	/** TODO, replace it with main thread executor. */
+	@Nullable
+	private ScheduledExecutorService checkpointCoordinatorTimer;
 
 	/** Checkpoint stats tracker separate from the coordinator in order to be
 	 * available after archiving. */
@@ -429,7 +442,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			allocationTimeout,
 			new NotReleasingPartitionReleaseStrategy.Factory(),
 			NettyShuffleMaster.INSTANCE,
-			new PartitionTrackerImpl(
+			new JobMasterPartitionTrackerImpl(
 				jobInformation.getJobId(),
 				NettyShuffleMaster.INSTANCE,
 				ignored -> Optional.empty()),
@@ -451,11 +464,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			Time allocationTimeout,
 			PartitionReleaseStrategy.Factory partitionReleaseStrategyFactory,
 			ShuffleMaster<?> shuffleMaster,
-			PartitionTracker partitionTracker,
+			JobMasterPartitionTracker partitionTracker,
 			ScheduleMode scheduleMode,
 			boolean allowQueuedScheduling) throws IOException {
-
-		checkNotNull(futureExecutor);
 
 		this.jobInformation = Preconditions.checkNotNull(jobInformation);
 
@@ -540,6 +551,14 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		return this.allowQueuedScheduling;
 	}
 
+	public SchedulingTopology<?, ?> getSchedulingTopology() {
+		return executionTopology;
+	}
+
+	public FailoverTopology<?, ?> getFailoverTopology() {
+		return executionTopology;
+	}
+
 	public ScheduleMode getScheduleMode() {
 		return scheduleMode;
 	}
@@ -593,6 +612,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			}
 		);
 
+		checkState(checkpointCoordinatorTimer == null);
+
+		checkpointCoordinatorTimer = Executors.newSingleThreadScheduledExecutor(
+			new DispatcherThreadFactory(
+				Thread.currentThread().getThreadGroup(), "Checkpoint Timer"));
+
 		// create the coordinator that triggers and commits checkpoints and holds the state
 		checkpointCoordinator = new CheckpointCoordinator(
 			jobInformation.getJobId(),
@@ -604,6 +629,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			checkpointStore,
 			checkpointStateBackend,
 			ioExecutor,
+			new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer),
 			SharedStateRegistry.DEFAULT_FACTORY,
 			failureManager);
 
@@ -734,15 +760,13 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	/**
-	 * Gets the number of full restarts that the execution graph went through.
-	 * If a full restart recovery is currently pending, this recovery is included in the
-	 * count.
+	 * Gets the number of restarts, including full restarts and fine grained restarts.
+	 * If a recovery is currently pending, this recovery is included in the count.
 	 *
-	 * @return The number of full restarts so far
+	 * @return The number of restarts so far
 	 */
-	public long getNumberOfFullRestarts() {
-		// subtract one, because the version starts at one
-		return globalModVersion - 1;
+	public long getNumberOfRestarts() {
+		return numberOfRestartsCounter.getCount();
 	}
 
 	@Override
@@ -884,7 +908,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		return StringifiedAccumulatorResult.stringifyAccumulatorResults(accumulatorMap);
 	}
 
-	public void enableNgScheduling(final InternalTaskFailuresListener internalTaskFailuresListener) {
+	public void enableNgScheduling(final InternalFailuresListener internalTaskFailuresListener) {
 		checkNotNull(internalTaskFailuresListener);
 		checkState(this.internalTaskFailuresListener == null, "enableNgScheduling can be only called once");
 		this.internalTaskFailuresListener = internalTaskFailuresListener;
@@ -945,12 +969,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			newExecJobVertices.add(ejv);
 		}
 
+		// the topology assigning should happen before notifying new vertices to failoverStrategy
+		executionTopology = new DefaultExecutionTopology(this);
+
 		failoverStrategy.notifyNewVertices(newExecJobVertices);
 
-		schedulingTopology = new ExecutionGraphToSchedulingTopologyAdapter(this);
-		partitionReleaseStrategy = partitionReleaseStrategyFactory.createInstance(
-			schedulingTopology,
-			new DefaultFailoverTopology(this));
+		partitionReleaseStrategy = partitionReleaseStrategyFactory.createInstance(getSchedulingTopology());
 	}
 
 	public boolean isLegacyScheduling() {
@@ -1155,9 +1179,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	 */
 	public void failGlobal(Throwable t) {
 		if (!isLegacyScheduling()) {
-			// Implementation does not work for new generation scheduler.
-			// Will be fixed with FLINK-14232.
-			ExceptionUtils.rethrow(t);
+			internalTaskFailuresListener.notifyGlobalFailure(t);
+			return;
 		}
 
 		assertRunningInJobMasterMainThread();
@@ -1367,7 +1390,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	private long incrementGlobalModVersion() {
+		incrementRestarts();
 		return GLOBAL_VERSION_UPDATER.incrementAndGet(this);
+	}
+
+	public void incrementRestarts() {
+		numberOfRestartsCounter.inc();
 	}
 
 	private void initFailureCause(Throwable t) {
@@ -1546,6 +1574,10 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			if (coord != null) {
 				coord.shutdown(status);
 			}
+			if (checkpointCoordinatorTimer != null) {
+				checkpointCoordinatorTimer.shutdownNow();
+				checkpointCoordinatorTimer = null;
+			}
 		}
 		catch (Exception e) {
 			LOG.error("Error while cleaning up after execution", e);
@@ -1644,8 +1676,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	ResultPartitionID createResultPartitionId(final IntermediateResultPartitionID resultPartitionId) {
-		final SchedulingResultPartition schedulingResultPartition = schedulingTopology.getResultPartitionOrThrow(resultPartitionId);
-		final SchedulingExecutionVertex producer = schedulingResultPartition.getProducer();
+		final SchedulingResultPartition<?, ?> schedulingResultPartition =
+			getSchedulingTopology().getResultPartitionOrThrow(resultPartitionId);
+		final SchedulingExecutionVertex<?, ?> producer = schedulingResultPartition.getProducer();
 		final ExecutionVertexID producerId = producer.getId();
 		final JobVertexID jobVertexId = producerId.getJobVertexId();
 		final ExecutionJobVertex jobVertex = getJobVertex(jobVertexId);
@@ -1817,7 +1850,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 	void notifySchedulerNgAboutInternalTaskFailure(final ExecutionAttemptID attemptId, final Throwable t) {
 		if (internalTaskFailuresListener != null) {
-			internalTaskFailuresListener.notifyFailed(attemptId, t);
+			internalTaskFailuresListener.notifyTaskFailure(attemptId, t);
 		}
 	}
 
@@ -1825,7 +1858,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		return shuffleMaster;
 	}
 
-	public PartitionTracker getPartitionTracker() {
+	public JobMasterPartitionTracker getPartitionTracker() {
 		return partitionTracker;
 	}
 

@@ -18,10 +18,12 @@
 
 package org.apache.flink.runtime.io.network.api.writer;
 
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.IOReadableWritable;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.event.AbstractEvent;
+import org.apache.flink.runtime.io.AvailabilityProvider;
 import org.apache.flink.runtime.io.network.api.serialization.EventSerializer;
 import org.apache.flink.runtime.io.network.api.serialization.RecordSerializer;
 import org.apache.flink.runtime.io.network.api.serialization.SpanningRecordSerializer;
@@ -33,9 +35,11 @@ import org.apache.flink.util.XORShiftRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
+
 import java.io.IOException;
-import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 
 import static org.apache.flink.runtime.io.network.api.serialization.RecordSerializer.SerializationResult;
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -54,7 +58,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * @param <T> the type of the record that can be emitted with this record writer
  */
-public abstract class RecordWriter<T extends IOReadableWritable> {
+public abstract class RecordWriter<T extends IOReadableWritable> implements AvailabilityProvider {
+
+	/** Default name for the output flush thread, if no name with a task reference is given. */
+	@VisibleForTesting
+	public static final String DEFAULT_OUTPUT_FLUSH_THREAD_NAME = "OutputFlusher";
 
 	private static final Logger LOG = LoggerFactory.getLogger(RecordWriter.class);
 
@@ -72,11 +80,9 @@ public abstract class RecordWriter<T extends IOReadableWritable> {
 
 	private final boolean flushAlways;
 
-	/** Default name for teh output flush thread, if no name with a task reference is given. */
-	private static final String DEFAULT_OUTPUT_FLUSH_THREAD_NAME = "OutputFlusher";
-
 	/** The thread that periodically flushes the output, to give an upper latency bound. */
-	private final Optional<OutputFlusher> outputFlusher;
+	@Nullable
+	private final OutputFlusher outputFlusher;
 
 	/** To avoid synchronization overhead on the critical path, best-effort error tracking is enough here.*/
 	private Throwable flusherException;
@@ -90,14 +96,14 @@ public abstract class RecordWriter<T extends IOReadableWritable> {
 		checkArgument(timeout >= -1);
 		this.flushAlways = (timeout == 0);
 		if (timeout == -1 || timeout == 0) {
-			outputFlusher = Optional.empty();
+			outputFlusher = null;
 		} else {
 			String threadName = taskName == null ?
 				DEFAULT_OUTPUT_FLUSH_THREAD_NAME :
 				DEFAULT_OUTPUT_FLUSH_THREAD_NAME + " for " + taskName;
 
-			outputFlusher = Optional.of(new OutputFlusher(threadName, timeout));
-			outputFlusher.get().start();
+			outputFlusher = new OutputFlusher(threadName, timeout);
+			outputFlusher.start();
 		}
 	}
 
@@ -183,6 +189,11 @@ public abstract class RecordWriter<T extends IOReadableWritable> {
 		numBuffersOut.inc();
 	}
 
+	@Override
+	public CompletableFuture<?> isAvailable() {
+		return targetPartition.isAvailable();
+	}
+
 	/**
 	 * This is used to send regular records.
 	 */
@@ -235,10 +246,10 @@ public abstract class RecordWriter<T extends IOReadableWritable> {
 	public void close() {
 		clearBuffers();
 		// make sure we terminate the thread in any case
-		if (outputFlusher.isPresent()) {
-			outputFlusher.get().terminate();
+		if (outputFlusher != null) {
+			outputFlusher.terminate();
 			try {
-				outputFlusher.get().join();
+				outputFlusher.join();
 			} catch (InterruptedException e) {
 				// ignore on close
 				// restore interrupt flag to fast exit further blocking calls

@@ -17,8 +17,6 @@
 ################################################################################
 import os
 
-from py4j.compat import unicode
-
 from pyflink.dataset import ExecutionEnvironment
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import DataTypes, CsvTableSink, StreamTableEnvironment, EnvironmentSettings
@@ -103,7 +101,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
 
         actual = t_env.explain(result)
 
-        assert isinstance(actual, str) or isinstance(actual, unicode)
+        assert isinstance(actual, str)
 
     def test_explain_with_extended(self):
         schema = RowType() \
@@ -116,7 +114,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
 
         actual = t_env.explain(result, True)
 
-        assert isinstance(actual, str) or isinstance(actual, unicode)
+        assert isinstance(actual, str)
 
     def test_explain_with_multi_sinks(self):
         t_env = self.t_env
@@ -135,7 +133,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
 
         actual = t_env.explain(extended=True)
 
-        assert isinstance(actual, str) or isinstance(actual, unicode)
+        assert isinstance(actual, str)
 
     def test_sql_query(self):
         t_env = self.t_env
@@ -210,6 +208,7 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
             "org.apache.flink.table.planner.delegation.StreamPlanner")
 
     def test_table_environment_with_blink_planner(self):
+        self.env.set_parallelism(1)
         t_env = StreamTableEnvironment.create(
             self.env,
             environment_settings=EnvironmentSettings.new_instance().use_blink_planner().build())
@@ -257,7 +256,7 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
 
         actual = t_env.explain(result)
 
-        self.assertIsInstance(actual, (str, unicode))
+        self.assertIsInstance(actual, str)
 
     def test_explain_with_extended(self):
         schema = RowType() \
@@ -270,7 +269,7 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
 
         actual = t_env.explain(result, True)
 
-        assert isinstance(actual, str) or isinstance(actual, unicode)
+        assert isinstance(actual, str)
 
     def test_explain_with_multi_sinks(self):
         t_env = self.t_env

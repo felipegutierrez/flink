@@ -49,10 +49,16 @@ import java.util.concurrent.ExecutionException;
 public class MiniClusterClient extends ClusterClient<MiniClusterClient.MiniClusterId> {
 
 	private final MiniCluster miniCluster;
+	private final Configuration configuration;
 
 	public MiniClusterClient(@Nonnull Configuration configuration, @Nonnull MiniCluster miniCluster) {
-		super(configuration);
+		this.configuration = configuration;
 		this.miniCluster = miniCluster;
+	}
+
+	@Override
+	public Configuration getFlinkConfiguration() {
+		return new Configuration(configuration);
 	}
 
 	@Override
@@ -62,9 +68,7 @@ public class MiniClusterClient extends ClusterClient<MiniClusterClient.MiniClust
 		if (isDetached()) {
 			try {
 				final JobSubmissionResult jobSubmissionResult = jobSubmissionResultFuture.get();
-
-				lastJobExecutionResult = new DetachedJobExecutionResult(jobSubmissionResult.getJobID());
-				return lastJobExecutionResult;
+				return new DetachedJobExecutionResult(jobSubmissionResult.getJobID());
 			} catch (InterruptedException | ExecutionException e) {
 				ExceptionUtils.checkInterrupted(e);
 
@@ -84,8 +88,7 @@ public class MiniClusterClient extends ClusterClient<MiniClusterClient.MiniClust
 			}
 
 			try {
-				lastJobExecutionResult = jobResult.toJobExecutionResult(classLoader);
-				return lastJobExecutionResult;
+				return jobResult.toJobExecutionResult(classLoader);
 			} catch (JobExecutionException | IOException | ClassNotFoundException e) {
 				throw new ProgramInvocationException("Job failed", jobGraph.getJobID(), e);
 			}

@@ -18,41 +18,21 @@
 
 package org.apache.flink.client.program;
 
-import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobSubmissionResult;
-import org.apache.flink.api.common.Plan;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.core.fs.Path;
-import org.apache.flink.optimizer.CompilerException;
-import org.apache.flink.optimizer.DataStatistics;
-import org.apache.flink.optimizer.Optimizer;
-import org.apache.flink.optimizer.costs.DefaultCostEstimator;
-import org.apache.flink.optimizer.plan.FlinkPlan;
-import org.apache.flink.optimizer.plan.OptimizedPlan;
-import org.apache.flink.optimizer.plan.StreamingPlan;
-import org.apache.flink.optimizer.plandump.PlanJSONDumpGenerator;
-import org.apache.flink.optimizer.plantranslate.JobGraphGenerator;
 import org.apache.flink.runtime.client.JobStatusMessage;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobStatus;
-import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
 import org.apache.flink.runtime.jobmaster.JobResult;
 import org.apache.flink.runtime.messages.Acknowledge;
 import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.OptionalFailure;
-import org.apache.flink.util.Preconditions;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -63,39 +43,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public abstract class ClusterClient<T> implements AutoCloseable {
 
-	protected final Logger log = LoggerFactory.getLogger(getClass());
-
-	/** The optimizer used in the optimization of batch programs. */
-	final Optimizer compiler;
-
-	/** Configuration of the client. */
-	private final Configuration flinkConfig;
-
-	/**
-	 * For interactive invocations, the job results are only available after the ContextEnvironment has
-	 * been run inside the user JAR. We pass the Client to every instance of the ContextEnvironment
-	 * which lets us access the execution result here.
-	 */
-	protected JobExecutionResult lastJobExecutionResult;
-
 	/** Switch for blocking/detached job submission of the client. */
 	private boolean detachedJobSubmission = false;
-
-	// ------------------------------------------------------------------------
-	//                            Construction
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Creates a instance that submits the programs to the JobManager defined in the
-	 * configuration. This method will try to resolve the JobManager hostname and throw an exception
-	 * if that is not possible.
-	 *
-	 * @param flinkConfig The config used to obtain the job-manager's address, and used to configure the optimizer.
-	 */
-	public ClusterClient(Configuration flinkConfig) {
-		this.flinkConfig = Preconditions.checkNotNull(flinkConfig);
-		this.compiler = new Optimizer(new DataStatistics(), new DefaultCostEstimator(), flinkConfig);
-	}
 
 	/**
 	 * User overridable hook to close the client, possibly closes internal services.
@@ -108,111 +57,6 @@ public abstract class ClusterClient<T> implements AutoCloseable {
 	@Override
 	public void close() throws Exception {
 
-	}
-
-	// ------------------------------------------------------------------------
-	//  Access to the Program's Plan
-	// ------------------------------------------------------------------------
-
-	public static String getOptimizedPlanAsJson(Optimizer compiler, PackagedProgram prog, int parallelism)
-			throws CompilerException, ProgramInvocationException {
-		PlanJSONDumpGenerator jsonGen = new PlanJSONDumpGenerator();
-		return jsonGen.getOptimizerPlanAsJSON((OptimizedPlan) getOptimizedPlan(compiler, prog, parallelism));
-	}
-
-	public static FlinkPlan getOptimizedPlan(Optimizer compiler, PackagedProgram prog, int parallelism)
-			throws CompilerException, ProgramInvocationException {
-		final ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-		try {
-			Thread.currentThread().setContextClassLoader(prog.getUserCodeClassLoader());
-
-			// temporary hack to support the optimizer plan preview
-			OptimizerPlanEnvironment env = new OptimizerPlanEnvironment(compiler);
-			if (parallelism > 0) {
-				env.setParallelism(parallelism);
-			}
-			return env.getOptimizedPlan(prog);
-		} finally {
-			Thread.currentThread().setContextClassLoader(contextClassLoader);
-		}
-	}
-
-	public static OptimizedPlan getOptimizedPlan(Optimizer compiler, Plan p, int parallelism) throws CompilerException {
-		Logger log = LoggerFactory.getLogger(ClusterClient.class);
-
-		if (parallelism > 0 && p.getDefaultParallelism() <= 0) {
-			log.debug("Changing plan default parallelism from {} to {}", p.getDefaultParallelism(), parallelism);
-			p.setDefaultParallelism(parallelism);
-		}
-		log.debug("Set parallelism {}, plan default parallelism {}", parallelism, p.getDefaultParallelism());
-
-		return compiler.compile(p);
-	}
-
-	// ------------------------------------------------------------------------
-	//  Program submission / execution
-	// ------------------------------------------------------------------------
-
-	/**
-	 * General purpose method to run a user jar from the CliFrontend in either blocking or detached mode, depending
-	 * on whether {@code setDetached(true)} or {@code setDetached(false)}.
-	 * @param prog the packaged program
-	 * @param parallelism the parallelism to execute the contained Flink job
-	 * @return The result of the execution
-	 * @throws ProgramMissingJobException
-	 * @throws ProgramInvocationException
-	 */
-	public JobSubmissionResult run(PackagedProgram prog, int parallelism)
-			throws ProgramInvocationException, ProgramMissingJobException {
-		final ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-		try {
-			Thread.currentThread().setContextClassLoader(prog.getUserCodeClassLoader());
-
-			log.info("Starting program (detached: {})", isDetached());
-
-			final List<URL> libraries = prog.getAllLibraries();
-
-			ContextEnvironmentFactory factory = new ContextEnvironmentFactory(this, libraries,
-					prog.getClasspaths(), prog.getUserCodeClassLoader(), parallelism, isDetached(),
-					prog.getSavepointSettings());
-			ContextEnvironment.setAsContext(factory);
-
-			try {
-				// invoke main method
-				prog.invokeInteractiveModeForExecution();
-				if (lastJobExecutionResult == null) {
-					throw new ProgramMissingJobException("The program didn't contain a Flink job.");
-				}
-				return this.lastJobExecutionResult;
-			} finally {
-				ContextEnvironment.unsetContext();
-			}
-		}
-		finally {
-			Thread.currentThread().setContextClassLoader(contextClassLoader);
-		}
-	}
-
-	public JobSubmissionResult run(
-		Plan plan,
-		List<URL> libraries,
-		List<URL> classpaths,
-		ClassLoader classLoader,
-		int parallelism,
-		SavepointRestoreSettings savepointSettings) throws CompilerException, ProgramInvocationException {
-
-		OptimizedPlan optPlan = getOptimizedPlan(compiler, plan, parallelism);
-		return run(optPlan, libraries, classpaths, classLoader, savepointSettings);
-	}
-
-	public JobSubmissionResult run(
-		FlinkPlan compiledPlan,
-		List<URL> libraries,
-		List<URL> classpaths,
-		ClassLoader classLoader,
-		SavepointRestoreSettings savepointSettings) throws ProgramInvocationException {
-		JobGraph job = getJobGraph(flinkConfig, compiledPlan, libraries, classpaths, savepointSettings);
-		return submitJob(job, classLoader);
 	}
 
 	/**
@@ -294,37 +138,6 @@ public abstract class ClusterClient<T> implements AutoCloseable {
 	public abstract Map<String, OptionalFailure<Object>> getAccumulators(JobID jobID, ClassLoader loader) throws Exception;
 
 	// ------------------------------------------------------------------------
-	//  Internal translation methods
-	// ------------------------------------------------------------------------
-
-	public static JobGraph getJobGraph(Configuration flinkConfig, PackagedProgram prog, FlinkPlan optPlan, SavepointRestoreSettings savepointSettings) throws ProgramInvocationException {
-		return getJobGraph(flinkConfig, optPlan, prog.getAllLibraries(), prog.getClasspaths(), savepointSettings);
-	}
-
-	public static JobGraph getJobGraph(Configuration flinkConfig, FlinkPlan optPlan, List<URL> jarFiles, List<URL> classpaths, SavepointRestoreSettings savepointSettings) {
-		JobGraph job;
-		if (optPlan instanceof StreamingPlan) {
-			job = ((StreamingPlan) optPlan).getJobGraph();
-			job.setSavepointRestoreSettings(savepointSettings);
-		} else {
-			JobGraphGenerator gen = new JobGraphGenerator(flinkConfig);
-			job = gen.compileJobGraph((OptimizedPlan) optPlan);
-		}
-
-		for (URL jar : jarFiles) {
-			try {
-				job.addJar(new Path(jar.toURI()));
-			} catch (URISyntaxException e) {
-				throw new RuntimeException("URL is invalid. This should not happen.", e);
-			}
-		}
-
-		job.setClasspaths(classpaths);
-
-		return job;
-	}
-
-	// ------------------------------------------------------------------------
 	//  Abstract methods to be implemented by the cluster specific Client
 	// ------------------------------------------------------------------------
 
@@ -360,9 +173,7 @@ public abstract class ClusterClient<T> implements AutoCloseable {
 	 * Return the Flink configuration object.
 	 * @return The Flink configuration object
 	 */
-	public Configuration getFlinkConfiguration() {
-		return flinkConfig.clone();
-	}
+	public abstract Configuration getFlinkConfiguration();
 
 	/**
 	 * Calls the subclasses' submitJob method. It may decide to simply call one of the run methods or it may perform

@@ -23,8 +23,10 @@ import java.util
 import org.apache.calcite.plan.RelOptRule.{none, operand}
 import org.apache.calcite.plan.{RelOptRule, RelOptRuleCall}
 import org.apache.calcite.rex.RexProgram
+import org.apache.flink.table.api.TableException
 import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog, GenericInMemoryCatalog}
 import org.apache.flink.table.expressions.{Expression, PlannerExpression}
+import org.apache.flink.table.module.ModuleManager
 import org.apache.flink.table.plan.nodes.logical.{FlinkLogicalCalc, FlinkLogicalTableSourceScan}
 import org.apache.flink.table.plan.util.RexProgramExtractor
 import org.apache.flink.table.sources.FilterableTableSource
@@ -72,7 +74,7 @@ class PushFilterIntoTableSourceScanRule extends RelOptRule(
       RexProgramExtractor.extractConjunctiveConditions(
         program,
         call.builder().getRexBuilder,
-        new FunctionCatalog(catalogManager))
+        new FunctionCatalog(catalogManager, new ModuleManager))
     if (predicates.isEmpty) {
       // no condition can be translated to expression
       return
@@ -82,6 +84,13 @@ class PushFilterIntoTableSourceScanRule extends RelOptRule(
     predicates.foreach(e => remainingPredicates.add(e))
 
     val newTableSource = filterableSource.applyPredicate(remainingPredicates)
+
+    if (newTableSource.asInstanceOf[FilterableTableSource[_]].isFilterPushedDown
+      && newTableSource.explainSource().equals(scan.tableSource.explainSource())) {
+      throw new TableException("Failed to push filter into table source! "
+        + "table source with pushdown capability must override and change "
+        + "explainSource() API to explain the pushdown applied!")
+    }
 
     // check whether framework still need to do a filter
     val relBuilder = call.builder()
