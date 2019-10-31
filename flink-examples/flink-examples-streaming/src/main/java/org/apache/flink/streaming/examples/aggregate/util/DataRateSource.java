@@ -10,9 +10,15 @@ import java.util.List;
 public class DataRateSource extends RichSourceFunction<String> {
 	private volatile boolean running = true;
 	private List<String> currentDataSource = null;
+	private long milliseconds;
 
 	public DataRateSource(String[] dataSource) {
+		this(dataSource, 1);
+	}
+
+	public DataRateSource(String[] dataSource, long milliseconds) {
 		this.currentDataSource = Arrays.asList(dataSource);
+		this.milliseconds = milliseconds;
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -35,7 +41,7 @@ public class DataRateSource extends RichSourceFunction<String> {
 			for (String line : this.currentDataSource) {
 				ctx.collect(line);
 			}
-			Thread.sleep(100);
+			Thread.sleep(this.milliseconds);
 		}
 	}
 
