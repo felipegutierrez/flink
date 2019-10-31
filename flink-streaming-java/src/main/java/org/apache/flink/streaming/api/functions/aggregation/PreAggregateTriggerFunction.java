@@ -7,9 +7,9 @@ import java.util.TimerTask;
 public class PreAggregateTriggerFunction<T> extends TimerTask implements PreAggregateTrigger<T> {
 
 	private final long maxCount;
+	private final long periodSeconds;
 	private transient PreAggregateTriggerCallback callback;
 	private transient long count = 0;
-	private final long periodSeconds;
 
 	public PreAggregateTriggerFunction(long periodSeconds) {
 		Preconditions.checkArgument(periodSeconds > 0, "periodSeconds must be greater than 0");
@@ -31,16 +31,26 @@ public class PreAggregateTriggerFunction<T> extends TimerTask implements PreAggr
 
 	@Override
 	public void onElement(T element) throws Exception {
-		count++;
-		if (maxCount != -1 && count >= maxCount) {
-			callback.collect();
-			reset();
+		if (maxCount != -1) {
+			count++;
+			if (count >= maxCount) {
+				collect();
+			}
 		}
 	}
 
 	@Override
 	public void reset() {
 		this.count = 0;
+	}
+
+	private synchronized void collect() {
+		try {
+			callback.collect();
+			reset();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
@@ -50,13 +60,7 @@ public class PreAggregateTriggerFunction<T> extends TimerTask implements PreAggr
 
 	@Override
 	public void run() {
-		try {
-			callback.collect();
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			reset();
-		}
+		collect();
 	}
 
 	public long getPeriodSeconds() {

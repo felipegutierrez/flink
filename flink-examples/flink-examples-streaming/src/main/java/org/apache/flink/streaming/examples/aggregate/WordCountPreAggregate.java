@@ -129,7 +129,7 @@ public class WordCountPreAggregate {
 		String input = params.get(SOURCE, "");
 		int window = params.getInt(WINDOW, 0);
 		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, 1);
-		int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, 1);
+		int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, -1);
 
 		// get input data
 		DataStream<String> text;
@@ -237,7 +237,7 @@ public class WordCountPreAggregate {
 		extends PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
 
 		@Override
-		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) throws Exception {
+		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) {
 			if (value == null) {
 				return input.f1;
 			} else {
@@ -246,7 +246,7 @@ public class WordCountPreAggregate {
 		}
 
 		@Override
-		public void collect(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) throws Exception {
+		public void collect(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) {
 			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}

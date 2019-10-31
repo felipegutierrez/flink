@@ -16,7 +16,7 @@ public class DataRateVariationSource extends RichSourceFunction<String> {
 	private long milliseconds;
 
 	public DataRateVariationSource() {
-		this(1);
+		this(1000);
 	}
 
 	public DataRateVariationSource(long milliseconds) {
