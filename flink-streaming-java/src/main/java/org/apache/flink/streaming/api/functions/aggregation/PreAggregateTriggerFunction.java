@@ -7,21 +7,21 @@ import java.util.TimerTask;
 public class PreAggregateTriggerFunction<T> extends TimerTask implements PreAggregateTrigger<T> {
 
 	private final long maxCount;
-	private final long periodSeconds;
+	private final long periodMilliseconds;
 	private transient PreAggregateTriggerCallback callback;
 	private transient long count = 0;
 
-	public PreAggregateTriggerFunction(long periodSeconds) {
-		Preconditions.checkArgument(periodSeconds > 0, "periodSeconds must be greater than 0");
+	public PreAggregateTriggerFunction(long periodMilliseconds) {
+		Preconditions.checkArgument(periodMilliseconds > 0, "periodMilliseconds must be greater than 0");
 		this.maxCount = -1;
-		this.periodSeconds = periodSeconds;
+		this.periodMilliseconds = periodMilliseconds;
 	}
 
-	public PreAggregateTriggerFunction(long periodSeconds, long maxToAggregate) {
+	public PreAggregateTriggerFunction(long periodMilliseconds, long maxToAggregate) {
 		Preconditions.checkArgument(maxToAggregate > 0, "maxCount must be greater than 0");
-		Preconditions.checkArgument(periodSeconds > 0, "periodSeconds must be greater than 0");
+		Preconditions.checkArgument(periodMilliseconds > 0, "periodMilliseconds must be greater than 0");
 		this.maxCount = maxToAggregate;
-		this.periodSeconds = periodSeconds;
+		this.periodMilliseconds = periodMilliseconds;
 	}
 
 	@Override
@@ -44,7 +44,8 @@ public class PreAggregateTriggerFunction<T> extends TimerTask implements PreAggr
 		this.count = 0;
 	}
 
-	private synchronized void collect() {
+	// private synchronized void collect() {
+	private void collect() {
 		try {
 			callback.collect();
 			reset();
@@ -63,7 +64,7 @@ public class PreAggregateTriggerFunction<T> extends TimerTask implements PreAggr
 		collect();
 	}
 
-	public long getPeriodSeconds() {
-		return periodSeconds;
+	public long getPeriodMilliseconds() {
+		return periodMilliseconds;
 	}
 }

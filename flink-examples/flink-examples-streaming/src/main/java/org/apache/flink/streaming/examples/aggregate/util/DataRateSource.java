@@ -41,7 +41,9 @@ public class DataRateSource extends RichSourceFunction<String> {
 			for (String line : this.currentDataSource) {
 				ctx.collect(line);
 			}
-			Thread.sleep(this.milliseconds);
+			if (this.milliseconds != 0) {
+				Thread.sleep(this.milliseconds);
+			}
 		}
 	}
 

@@ -24,5 +24,5 @@ public interface PreAggregateTrigger<T> extends Serializable {
 
 	String explain();
 
-	long getPeriodSeconds();
+	long getPeriodMilliseconds();
 }

@@ -3,7 +3,6 @@ package org.apache.flink.streaming.api.operators;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import java.util.HashMap;
@@ -55,7 +54,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.preAggregateTrigger.reset();
 
 		this.timer = new Timer();
-		this.timer.scheduleAtFixedRate(preAggregateTrigger, 2000, Time.seconds(preAggregateTrigger.getPeriodSeconds()).toMilliseconds());
+		this.timer.scheduleAtFixedRate(preAggregateTrigger, 2000, preAggregateTrigger.getPeriodMilliseconds());
 	}
 
 	@Override

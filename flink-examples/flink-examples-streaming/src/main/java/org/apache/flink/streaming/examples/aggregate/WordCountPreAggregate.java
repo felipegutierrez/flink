@@ -20,9 +20,11 @@ package org.apache.flink.streaming.examples.aggregate;
 import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -43,26 +45,26 @@ import java.util.Map;
  * time threshold to have timely results.
  *
  * <pre>
- * usage: java WordCountCombiner -pre-aggregate [static|dynamic|window-static|window-dynamic] -pre-aggregate-window [>0 seconds] -max-pre-aggregate [>=1 items] -input [hamlet|mobydick|dictionary|words|skew|few|variation] -window [>=0 seconds]
+ * usage: java WordCountPreAggregate -pre-aggregate [static|dynamic|window-static|window-dynamic] -pre-aggregate-window [>0 seconds] -max-pre-aggregate [>=1 items] -input [hamlet|mobydick|dictionary|words|skew|few|variation] -window [>=0 seconds]
  *
  * Running on the IDE:
  * Running without a pre-aggregation
- * usage: java WordCountCombiner -pooling 100 -input dictionary -window 120
- * usage: java WordCountCombiner -pooling 100 -input hamlet -window 30
- * usage: java WordCountCombiner -pooling 100 -input hamlet -window 30
- * usage: java WordCountCombiner -pooling 100 -input variation -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -input dictionary -window 120
+ * usage: java WordCountPreAggregate -pooling 100 -input hamlet -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -input hamlet -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -input variation -window 30
  *
  * Running with a static pre-aggregation every 10 seconds
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 10 -input dictionary -window 30
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 10 -input hamlet -window 30
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 10 -input mobydick -window 30
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 10 -input variation -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input dictionary -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input hamlet -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input mobydick -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input variation -window 30
  *
  * Running with a static pre-aggregation every 10 seconds or 10 items
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input dictionary -window 30
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input hamlet -window 30
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input mobydick -window 30
- * usage: java WordCountCombiner -pooling 100 -pre-aggregate-window 60 -max-pre-aggregate 200 -input variation -window 120
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input dictionary -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input hamlet -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input mobydick -window 30
+ * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 60 -max-pre-aggregate 200 -input variation -window 120
  *
  * Running on Standalone Flink cluster:
  * Running without a pre-aggregation
@@ -94,6 +96,8 @@ public class WordCountPreAggregate {
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
 	private static final String MAX_PRE_AGGREGATE = "max-pre-aggregate";
+	private static final String BUFFER_TIMEOUT = "bufferTimeout";
+	private static final String SYNTHETIC_DELAY = "delay";
 	private static final String POOLING_FREQUENCY = "pooling";
 	private static final String SOURCE = "input";
 	private static final String SOURCE_WORDS = "words";
@@ -115,7 +119,7 @@ public class WordCountPreAggregate {
 
 		// set up the execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		// env.setStreamTimeCharacteristic(TimeCharacteristic.ProcessingTime);
+		env.setStreamTimeCharacteristic(TimeCharacteristic.ProcessingTime);
 		env.disableOperatorChaining();
 
 		// make parameters available in the web interface
@@ -126,12 +130,20 @@ public class WordCountPreAggregate {
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 1000);
 		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, 0);
 		int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, -1);
+		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
+		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 
-		System.out.println("data source                     : " + input);
-		System.out.println("pooling frequency [milliseconds]: " + poolingFrequency);
-		System.out.println("pre-aggregate window [seconds]  : " + preAggregationWindowTime);
-		System.out.println("pre-aggregate max items         : " + maxToPreAggregate);
-		System.out.println("window [seconds]                : " + window);
+		System.out.println("data source                         : " + input);
+		System.out.println("pooling frequency [milliseconds]    : " + poolingFrequency);
+		System.out.println("pre-aggregate window [milliseconds] : " + preAggregationWindowTime);
+		System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
+		System.out.println("window [seconds]                    : " + window);
+		System.out.println("BufferTimeout [milliseconds]        : " + bufferTimeout);
+		System.out.println("Synthetic delay [milliseconds]      : " + delay);
+
+		if (bufferTimeout != -999) {
+			env.setBufferTimeout(bufferTimeout);
+		}
 
 		// get input data
 		DataStream<String> text;
@@ -163,13 +175,12 @@ public class WordCountPreAggregate {
 
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
-		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction();
+		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
 
 		if (preAggregationWindowTime == 0) {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = counts;
 		} else if (preAggregationWindowTime > 0 && maxToPreAggregate == -1) {
-			// STATIC PRE_AGGREGATE pre-aggregates every 10 seconds
 			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
 		} else if (preAggregationWindowTime > 0 && maxToPreAggregate > 0) {
 			// DYNAMIC PRE_AGGREGATE pre-aggregates every 10 seconds or every 1000 items
@@ -184,10 +195,12 @@ public class WordCountPreAggregate {
 		if (window != 0) {
 			resultStream = keyedStream
 				.window(TumblingProcessingTimeWindows.of(Time.seconds(window)))
-				.sum(1).name(OPERATOR_SUM);
+				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM);
+			// .sum(1).name(OPERATOR_SUM);
 		} else {
 			resultStream = keyedStream
-				.sum(1).name(OPERATOR_SUM);
+				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM);
+			// .sum(1).name(OPERATOR_SUM);
 		}
 
 		// emit result
@@ -235,9 +248,15 @@ public class WordCountPreAggregate {
 	// *************************************************************************
 	private static class WordCountPreAggregateFunction
 		extends PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
+		private long milliseconds = 0;
+
+		public WordCountPreAggregateFunction(long milliseconds) {
+			this.milliseconds = milliseconds;
+		}
 
 		@Override
-		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) {
+		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) throws InterruptedException {
+			Thread.sleep(milliseconds);
 			if (value == null) {
 				return input.f1;
 			} else {
@@ -250,6 +269,20 @@ public class WordCountPreAggregate {
 			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}
+		}
+	}
+
+	private static class SumReduceFunction implements ReduceFunction<Tuple2<String, Integer>> {
+		private long milliseconds = 0;
+
+		public SumReduceFunction(long milliseconds) {
+			this.milliseconds = milliseconds;
+		}
+
+		@Override
+		public Tuple2<String, Integer> reduce(Tuple2<String, Integer> value1, Tuple2<String, Integer> value2) throws Exception {
+			Thread.sleep(milliseconds);
+			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
 		}
 	}
 }
