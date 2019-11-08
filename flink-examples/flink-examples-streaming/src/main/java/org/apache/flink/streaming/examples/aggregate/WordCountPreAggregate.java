@@ -127,16 +127,16 @@ public class WordCountPreAggregate {
 
 		String input = params.get(SOURCE, "");
 		int window = params.getInt(WINDOW, 0);
-		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 1000);
-		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, 0);
-		int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, -1);
+		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
+		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, -1);
+		// int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, -1);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 
 		System.out.println("data source                         : " + input);
 		System.out.println("pooling frequency [milliseconds]    : " + poolingFrequency);
 		System.out.println("pre-aggregate window [milliseconds] : " + preAggregationWindowTime);
-		System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
+		// System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
 		System.out.println("window [seconds]                    : " + window);
 		System.out.println("BufferTimeout [milliseconds]        : " + bufferTimeout);
 		System.out.println("Synthetic delay [milliseconds]      : " + delay);
@@ -177,14 +177,15 @@ public class WordCountPreAggregate {
 		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
 		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
 
-		if (preAggregationWindowTime == 0) {
+		if (preAggregationWindowTime == -1) {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = counts;
-		} else if (preAggregationWindowTime > 0 && maxToPreAggregate == -1) {
+		} else {
 			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-		} else if (preAggregationWindowTime > 0 && maxToPreAggregate > 0) {
-			// DYNAMIC PRE_AGGREGATE pre-aggregates every 10 seconds or every 1000 items
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime, maxToPreAggregate);
+			// } else if (preAggregationWindowTime >= 0 && maxToPreAggregate == -1) {
+			// 	preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
+			// } else if (preAggregationWindowTime >= 0 && maxToPreAggregate > 0) {
+			// 	preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime, maxToPreAggregate);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"

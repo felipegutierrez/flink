@@ -1,13 +1,13 @@
 package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateMqttListener;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Timer;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -27,11 +27,12 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 */
 	private final PreAggregateTriggerFunction<IN> preAggregateTrigger;
 
+	private PreAggregateMqttListener preAggregateMqttListener;
+
 	/**
 	 * Output for stream records.
 	 */
 	private transient TimestampedCollector<OUT> collector;
-	private transient Timer timer;
 	private transient int numOfElements = 0;
 
 	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
@@ -52,9 +53,17 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.preAggregateTrigger.registerCallback(this);
 		// reset trigger
 		this.preAggregateTrigger.reset();
+		this.preAggregateTrigger.start();
+		// this.preAggregateTrigger.setPeriodMilliseconds(new delay);
+		try {
+			this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger);
+			this.preAggregateMqttListener.connect();
+			this.preAggregateMqttListener.start();
 
-		this.timer = new Timer();
-		this.timer.scheduleAtFixedRate(preAggregateTrigger, 2000, preAggregateTrigger.getPeriodMilliseconds());
+			// this.preAggregateTrigger.setPeriodMilliseconds(20);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override

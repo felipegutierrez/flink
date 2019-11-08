@@ -1222,18 +1222,16 @@ public class DataStream<T> {
 		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
 	}
 
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long windowProcessingTime, long maxToAggregate) {
-
-		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
-			clean(preAggregateFunction),
-			getType(),
-			Utils.getCallLocationName(),
-			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingTime, maxToAggregate);
-		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
-
-		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator<>(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
-	}
+	// public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long windowProcessingTime, long maxToAggregate) {
+	// TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+	// 	clean(preAggregateFunction),
+	// 	getType(),
+	// 	Utils.getCallLocationName(),
+	// 	false);
+	// PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingTime, maxToAggregate);
+	// KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+	// 	return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator<>(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
+	// }
 
 	private <R> SingleOutputStreamOperator<R> doTransform(
 		String operatorName,

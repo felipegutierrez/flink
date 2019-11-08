@@ -67,6 +67,13 @@ under the License.
 			<version>3.5</version>
 		</dependency>
 
+		<dependency>
+			<groupId>org.fusesource.mqtt-client</groupId>
+			<artifactId>mqtt-client</artifactId>
+			<version>1.15</version>
+			<!-- <scope>provided</scope> -->
+		</dependency>
+
 		<!-- test dependencies -->
 
 		<dependency>
