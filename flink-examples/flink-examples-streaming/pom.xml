@@ -320,6 +320,32 @@ under the License.
 								<include>org/apache/flink/streaming/examples/aggregate/util/WordCountPreAggregateData.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/OnlineDataSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/UrlSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
+							</includes>
+						</configuration>
+					</execution>
+
+					<!-- MqttDataProducer -->
+					<execution>
+						<id>MqttDataProducer</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>MqttDataProducer</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.utils.MqttDataProducer</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>org/apache/flink/streaming/examples/utils/MqttDataProducer.class</include>
+								<include>org/apache/flink/streaming/examples/utils/MqttDataProducer$*.class</include>
+								<include>org/apache/flink/streaming/examples/utils/MqttDataType.class</include>
 							</includes>
 						</configuration>
 					</execution>
@@ -587,6 +613,7 @@ under the License.
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WindowJoin.jar" tofile="${project.basedir}/target/WindowJoin.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCount.jar" tofile="${project.basedir}/target/WordCount.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountPreAggregate.jar" tofile="${project.basedir}/target/WordCountPreAggregate.jar" />
+								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-MqttDataProducer.jar" tofile="${project.basedir}/target/MqttDataProducer.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountMultiPreAggregate.jar" tofile="${project.basedir}/target/WordCountMultiPreAggregate.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountPartitioning.jar" tofile="${project.basedir}/target/WordCountPartitioning.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountKeyPartitioning.jar" tofile="${project.basedir}/target/WordCountKeyPartitioning.jar" />

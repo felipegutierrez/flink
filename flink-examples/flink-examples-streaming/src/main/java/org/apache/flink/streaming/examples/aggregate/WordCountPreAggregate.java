@@ -19,6 +19,7 @@ package org.apache.flink.streaming.examples.aggregate;
 
 import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple;
@@ -45,7 +46,20 @@ import java.util.Map;
  * time threshold to have timely results.
  *
  * <pre>
- * usage: java WordCountPreAggregate -pre-aggregate [static|dynamic|window-static|window-dynamic] -pre-aggregate-window [>0 seconds] -max-pre-aggregate [>=1 items] -input [hamlet|mobydick|dictionary|words|skew|few|variation] -window [>=0 seconds]
+ * Changes the frequency that the data source generates data:
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "1000"
+ *
+ * Changes the frequency that the pre-aggregate emits batches of data:
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
+ *
+ * </pre>
+ * <pre>
+ * usage: java WordCountPreAggregate \
+ *        -pre-aggregate-window [>0 seconds] \
+ *        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
+ *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
+ *        -output [mqtt|log|text] \
+ *        -window [>=0 seconds]
  *
  * Running on the IDE:
  * Running without a pre-aggregation
@@ -88,10 +102,13 @@ import java.util.Map;
  */
 public class WordCountPreAggregate {
 
+	private static final String TOPIC_DATA_SOURCE = "topic-data-source";
+	private static final String TOPIC_DATA_SINK = "topic-data-sink";
 	private static final String OPERATOR_SOURCE = "source";
 	private static final String OPERATOR_SINK = "sink";
 	private static final String OPERATOR_TOKENIZER = "tokenizer";
 	private static final String OPERATOR_SUM = "sum";
+	private static final String OPERATOR_FLAT_OUTPUT = "flat-output";
 
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
@@ -107,6 +124,11 @@ public class WordCountPreAggregate {
 	private static final String SOURCE_DATA_HAMLET = "hamlet";
 	private static final String SOURCE_DATA_MOBY_DICK = "mobydick";
 	private static final String SOURCE_DATA_DICTIONARY = "dictionary";
+	private static final String SOURCE_DATA_MQTT = "mqtt";
+	private static final String SINK = "output";
+	private static final String SINK_DATA_MQTT = "mqtt";
+	private static final String SINK_LOG = "log";
+	private static final String SINK_TEXT = "text";
 
 	// *************************************************************************
 	// PROGRAM
@@ -126,20 +148,25 @@ public class WordCountPreAggregate {
 		env.getConfig().setGlobalJobParameters(params);
 
 		String input = params.get(SOURCE, "");
+		String output = params.get(SINK, "");
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, -1);
-		// int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, -1);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 
 		System.out.println("data source                         : " + input);
+		System.out.println("data sink                           : " + output);
 		System.out.println("pooling frequency [milliseconds]    : " + poolingFrequency);
 		System.out.println("pre-aggregate window [milliseconds] : " + preAggregationWindowTime);
 		// System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
 		System.out.println("window [seconds]                    : " + window);
 		System.out.println("BufferTimeout [milliseconds]        : " + bufferTimeout);
 		System.out.println("Synthetic delay [milliseconds]      : " + delay);
+		System.out.println("Changing pooling frequency of the data source:");
+		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
+		System.out.println("Changing pre-aggregation frequency before shuffling:");
+		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m \"100\"");
 
 		if (bufferTimeout != -999) {
 			env.setBufferTimeout(bufferTimeout);
@@ -165,6 +192,8 @@ public class WordCountPreAggregate {
 			text = env.addSource(new OnlineDataSource(UrlSource.MOBY_DICK, poolingFrequency)).name(OPERATOR_SOURCE);
 		} else if (SOURCE_DATA_DICTIONARY.equalsIgnoreCase(input)) {
 			text = env.addSource(new OnlineDataSource(UrlSource.ENGLISH_DICTIONARY, poolingFrequency)).name(OPERATOR_SOURCE);
+		} else if (SOURCE_DATA_MQTT.equalsIgnoreCase(input)) {
+			text = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE)).name(OPERATOR_SOURCE);
 		} else {
 			// read the text file from given input path
 			text = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE);
@@ -205,7 +234,13 @@ public class WordCountPreAggregate {
 		}
 
 		// emit result
-		if (params.has("output")) {
+		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
+			resultStream
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK)).name(OPERATOR_SINK);
+		} else if (output.equalsIgnoreCase(SINK_LOG)) {
+			resultStream.print().name(OPERATOR_SINK);
+		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
 			resultStream.writeAsText(params.get("output")).name(OPERATOR_SINK);
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
@@ -284,6 +319,13 @@ public class WordCountPreAggregate {
 		public Tuple2<String, Integer> reduce(Tuple2<String, Integer> value1, Tuple2<String, Integer> value2) throws Exception {
 			Thread.sleep(milliseconds);
 			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
+		}
+	}
+
+	private static class FlatOutputMap implements MapFunction<Tuple2<String, Integer>, String> {
+		@Override
+		public String map(Tuple2<String, Integer> value) throws Exception {
+			return value.toString();
 		}
 	}
 }

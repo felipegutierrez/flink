@@ -7,9 +7,15 @@ import java.util.concurrent.TimeUnit;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+/**
+ * <pre>
+ *      Changes the frequency that the pre-aggregate emits batches of data:
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
+ * </pre>
+ */
 public class PreAggregateMqttListener extends Thread implements Serializable {
 
-	private static final String TOPIC_REDUCER_OUT_POOL_USAGE = "topic-reducer-out-pool-usage";
+	private static final String TOPIC_REDUCER_OUT_POOL_USAGE = "topic-frequency-pre-aggregate";
 	private BlockingConnection subscriber;
 	private MQTT mqtt;
 	private String host;
