@@ -46,11 +46,6 @@ import java.util.Map;
  * time threshold to have timely results.
  *
  * <pre>
- * Changes the frequency that the data source generates data:
- * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "100"
- * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "10"
- * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "1"
- *
  * Changes the frequency that the pre-aggregate emits batches of data:
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "0"
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "10"
@@ -67,42 +62,11 @@ import java.util.Map;
  *        -window [>=0 seconds]
  *
  * Running on the IDE:
- * Running without a pre-aggregation
- * usage: java WordCountPreAggregate -pooling 100 -input dictionary -window 120
- * usage: java WordCountPreAggregate -pooling 100 -input hamlet -window 30
- * usage: java WordCountPreAggregate -pooling 100 -input hamlet -window 30
- * usage: java WordCountPreAggregate -pooling 100 -input variation -window 30
- *
- * Running with a static pre-aggregation every 10 seconds
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input dictionary -window 30
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input hamlet -window 30
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input mobydick -window 30
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -input variation -window 30
- *
- * Running with a static pre-aggregation every 10 seconds or 10 items
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input dictionary -window 30
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input hamlet -window 30
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 10 -max-pre-aggregate 1000 -input mobydick -window 30
- * usage: java WordCountPreAggregate -pooling 100 -pre-aggregate-window 60 -max-pre-aggregate 200 -input variation -window 120
+ * usage: java WordCountPreAggregate [parameters]
  *
  * Running on Standalone Flink cluster:
  * Running without a pre-aggregation
- * usage: ./bin/flink run WordCountPreAggregate.jar -input dictionary -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -input hamlet -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -input mobydick -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -input variation -window 30
- *
- * Running with a static pre-aggregation every 10 seconds
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -input dictionary -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -input hamlet -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -input mobydick -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -input variation -window 30
- *
- * Running with a static pre-aggregation every 10 seconds or 10 items
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -max-pre-aggregate 1000 -input dictionary -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -max-pre-aggregate 1000 -input hamlet -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -max-pre-aggregate 1000 -input mobydick -window 30
- * usage: ./bin/flink run WordCountPreAggregate.jar -pre-aggregate-window 10 -max-pre-aggregate 1000 -input variation -window 30
+ * usage: ./bin/flink run WordCountPreAggregate.jar [parameters]
  * </pre>
  */
 public class WordCountPreAggregate {

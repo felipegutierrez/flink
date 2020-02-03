@@ -12,43 +12,62 @@ $ git remote fetch
 // From my own github repository
 $ git pull
 ```
+
+## Compiling
+
+```
+$ cd flink-partition-tests/
+$ mvn clean install -e -X -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true
+$ mvn clean install -DskipTests -Dskip.npm -Dfast
+$ ll flink-examples/flink-examples-streaming/target/
+```
+
 ## Quick start
 
 To put the application to run quickly and with pre-configured options we just need to run a producer, the stream application, and a consumer.
 ```
-java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:MqttDataProducer.jar //
+java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:MqttDataProducer.jar \
 	org.apache.flink.streaming.examples.utils.MqttDataProducer -input /home/felipe/Temp/1524-0.txt -output mqtt
-./bin/flink run /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/WordCountPreAggregate.jar //
+./bin/flink run /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/WordCountPreAggregate.jar \
 	-pre-aggregate-window 1000 -input mqtt -output mqtt
 mosquitto_sub -h 127.0.0.1 -t topic-data-sink
 ```
+You just start a producer that emits data every 10 seconds and the pre-aggregate stream application that pre-aggregate every 1000 milliseconds. In norder to chacke that the producer is actually producing data you can verify its mqtt broker topic. Then you can change its interval to produce data for 1 second. Its interval is defined in milliseconds (1000 milliseconds).
+```
+mosquitto_sub -h 127.0.0.1 -p 1883 -t topic-data-source
+mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "1000"
+```
+Checkout the [Flink dashboard](http://127.0.0.1:8081/) and the [Grafana dashboard](http://127.0.0.1:3000/).
 
-## Producer
+
+## Options
 
 You have the option to use which file you want to the stream application or some pre-defined files which follow some specific distribution
 ```
-java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:MqttDataProducer.jar //
-        org.apache.flink.streaming.examples.utils.MqttDataProducer -input [hamlet|mobydick|dictionary|your_file] -output mqtt
+java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file] -output mqtt
+./bin/flink run ...WordCountPreAggregate.jar \
+        -pre-aggregate-window [>0 seconds] \
+        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
+        -pooling 100 \ # pooling frequency from source if not using mqtt data source
+        -output [mqtt|log|text] \
+        -window [>=0 seconds]
 ```
 
-## The pre-aggregate stream application
-
-```
-./bin/flink run /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/WordCountPreAggregate.jar //
-        -pre-aggregate-window 1000 -input mqtt -output mqtt
-```
 
 
-## Combiner
- - The example is implemented on the file [WordCountCombiner](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/combiner/WordCountCombiner.java).
+
+
+
+
+## Pre-aggregate operator
+ - The example is implemented on the file [WordCountPreAggregate](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/WordCountPreAggregate.java).
  - This example aims to solve the issue [FLINK-7561: Add support for pre-aggregation in DataStream API](https://issues.apache.org/jira/browse/FLINK-7561).
- - We implemented a static and a dynamic combiner.
+ - We implemented a static and a dynamic pre-aggregator.
 
 ```
-CombinerFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountCombinerFunction = new CombinerWordCountImpl();
 DataStream<String> text = env.fromElements(WordCountCombinerData.WORDS_SKEW)
 	.flatMap(new Tokenizer())
-	.combine(wordCountCombinerFunction)
+	.preAggregate(new PreAggregateFunction(), preAggregationWindowTime)
 	.keyBy(0)
 	.sum(1)
 	.print();
@@ -65,149 +84,5 @@ DataStream<String> text = env.fromElements(WordCountCombinerData.WORDS_SKEW)
  - Instruction on the [official Flink sodumentation](https://ci.apache.org/projects/flink/flink-docs-stable/flinkDev/ide_setup.html).
  - Implementing the [Power of both choices](https://melmeric.files.wordpress.com/2014/11/the-power-of-both-choices-practical-load-balancing-for-distributed-stream-processing-engines.pdf) in Flink.
  - Compile only the package necessary to deploy:
-```
-$ cd flink-partition-tests/
-$ mvn clean install -e -X -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true
-$ mvn clean install -DskipTests -Dskip.npm -Dfast
-$ ll flink-examples/flink-examples-streaming/target/
-```
 
 
-## Original README.md file
-
-Apache Flink is an open source stream processing framework with powerful stream- and batch-processing capabilities.
-
-Learn more about Flink at [https://flink.apache.org/](https://flink.apache.org/)
-
-
-### Features
-
-* A streaming-first runtime that supports both batch processing and data streaming programs
-
-* Elegant and fluent APIs in Java and Scala
-
-* A runtime that supports very high throughput and low event latency at the same time
-
-* Support for *event time* and *out-of-order* processing in the DataStream API, based on the *Dataflow Model*
-
-* Flexible windowing (time, count, sessions, custom triggers) across different time semantics (event time, processing time)
-
-* Fault-tolerance with *exactly-once* processing guarantees
-
-* Natural back-pressure in streaming programs
-
-* Libraries for Graph processing (batch), Machine Learning (batch), and Complex Event Processing (streaming)
-
-* Built-in support for iterative programs (BSP) in the DataSet (batch) API
-
-* Custom memory management for efficient and robust switching between in-memory and out-of-core data processing algorithms
-
-* Compatibility layers for Apache Hadoop MapReduce
-
-* Integration with YARN, HDFS, HBase, and other components of the Apache Hadoop ecosystem
-
-
-### Streaming Example
-```scala
-case class WordWithCount(word: String, count: Long)
-
-val text = env.socketTextStream(host, port, '\n')
-
-val windowCounts = text.flatMap { w => w.split("\\s") }
-  .map { w => WordWithCount(w, 1) }
-  .keyBy("word")
-  .timeWindow(Time.seconds(5))
-  .sum("count")
-
-windowCounts.print()
-```
-
-### Batch Example
-```scala
-case class WordWithCount(word: String, count: Long)
-
-val text = env.readTextFile(path)
-
-val counts = text.flatMap { w => w.split("\\s") }
-  .map { w => WordWithCount(w, 1) }
-  .groupBy("word")
-  .sum("count")
-
-counts.writeAsCsv(outputPath)
-```
-
-
-
-## Building Apache Flink from Source
-
-Prerequisites for building Flink:
-
-* Unix-like environment (we use Linux, Mac OS X, Cygwin, WSL)
-* Git
-* Maven (we recommend version 3.2.5 and require at least 3.1.1)
-* Java 8 or 11 (Java 9 or 10 may work)
-
-```
-git clone https://github.com/apache/flink.git
-cd flink
-mvn clean package -DskipTests # this will take up to 10 minutes
-```
-
-Flink is now installed in `build-target`.
-
-*NOTE: Maven 3.3.x can build Flink, but will not properly shade away certain dependencies. Maven 3.1.1 creates the libraries properly.
-To build unit tests with Java 8, use Java 8u51 or above to prevent failures in unit tests that use the PowerMock runner.*
-
-## Developing Flink
-
-The Flink committers use IntelliJ IDEA to develop the Flink codebase.
-We recommend IntelliJ IDEA for developing projects that involve Scala code.
-
-Minimal requirements for an IDE are:
-* Support for Java and Scala (also mixed projects)
-* Support for Maven with Java and Scala
-
-
-### IntelliJ IDEA
-
-The IntelliJ IDE supports Maven out of the box and offers a plugin for Scala development.
-
-* IntelliJ download: [https://www.jetbrains.com/idea/](https://www.jetbrains.com/idea/)
-* IntelliJ Scala Plugin: [https://plugins.jetbrains.com/plugin/?id=1347](https://plugins.jetbrains.com/plugin/?id=1347)
-
-Check out our [Setting up IntelliJ](https://ci.apache.org/projects/flink/flink-docs-master/flinkDev/ide_setup.html#intellij-idea) guide for details.
-
-### Eclipse Scala IDE
-
-**NOTE:** From our experience, this setup does not work with Flink
-due to deficiencies of the old Eclipse version bundled with Scala IDE 3.0.3 or
-due to version incompatibilities with the bundled Scala version in Scala IDE 4.4.1.
-
-**We recommend to use IntelliJ instead (see above)**
-
-## Support
-
-Don’t hesitate to ask!
-
-Contact the developers and community on the [mailing lists](https://flink.apache.org/community.html#mailing-lists) if you need any help.
-
-[Open an issue](https://issues.apache.org/jira/browse/FLINK) if you found a bug in Flink.
-
-
-## Documentation
-
-The documentation of Apache Flink is located on the website: [https://flink.apache.org](https://flink.apache.org)
-or in the `docs/` directory of the source code.
-
-
-## Fork and Contribute
-
-This is an active open-source project. We are always open to people who want to use the system or contribute to it.
-Contact us if you are looking for implementation tasks that fit your skills.
-This article describes [how to contribute to Apache Flink](https://flink.apache.org/contributing/how-to-contribute.html).
-
-
-## About
-
-Apache Flink is an open source project of The Apache Software Foundation (ASF).
-The Apache Flink project originated from the [Stratosphere](http://stratosphere.eu) research project.
