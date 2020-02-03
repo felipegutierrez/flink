@@ -47,9 +47,14 @@ import java.util.Map;
  *
  * <pre>
  * Changes the frequency that the data source generates data:
- * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "1000"
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "100"
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "10"
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "1"
  *
  * Changes the frequency that the pre-aggregate emits batches of data:
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "0"
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "10"
+ * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "100"
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
  *
  * </pre>
@@ -112,7 +117,6 @@ public class WordCountPreAggregate {
 
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
-	private static final String MAX_PRE_AGGREGATE = "max-pre-aggregate";
 	private static final String BUFFER_TIMEOUT = "bufferTimeout";
 	private static final String SYNTHETIC_DELAY = "delay";
 	private static final String POOLING_FREQUENCY = "pooling";
@@ -151,7 +155,7 @@ public class WordCountPreAggregate {
 		String output = params.get(SINK, "");
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
-		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, -1);
+		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, 0);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 
@@ -206,15 +210,11 @@ public class WordCountPreAggregate {
 		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
 		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
 
-		if (preAggregationWindowTime == -1) {
+		if (preAggregationWindowTime == 0) {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = counts;
 		} else {
 			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			// } else if (preAggregationWindowTime >= 0 && maxToPreAggregate == -1) {
-			// 	preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			// } else if (preAggregationWindowTime >= 0 && maxToPreAggregate > 0) {
-			// 	preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime, maxToPreAggregate);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -325,7 +325,7 @@ public class WordCountPreAggregate {
 	private static class FlatOutputMap implements MapFunction<Tuple2<String, Integer>, String> {
 		@Override
 		public String map(Tuple2<String, Integer> value) throws Exception {
-			return value.toString();
+			return value.f0 + " - " + value.f1;
 		}
 	}
 }

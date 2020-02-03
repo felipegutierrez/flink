@@ -53,7 +53,7 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 	public void run() {
 		try {
 			while (running) {
-				System.out.println("waiting for messages...");
+				// System.out.println("waiting for messages...");
 				Message msg = subscriber.receive(10, TimeUnit.SECONDS);
 				if (msg != null) {
 					msg.ack();

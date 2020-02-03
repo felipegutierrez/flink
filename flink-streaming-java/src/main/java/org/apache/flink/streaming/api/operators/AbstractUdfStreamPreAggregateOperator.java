@@ -87,11 +87,13 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 
 	@Override
 	public void collect() throws Exception {
-		if (!this.bundle.isEmpty()) {
-			this.numOfElements = 0;
-			this.userFunction.collect(bundle, collector);
-			this.bundle.clear();
+		synchronized (this) {
+			if (!this.bundle.isEmpty()) {
+				this.numOfElements = 0;
+				this.userFunction.collect(bundle, collector);
+				this.bundle.clear();
+			}
+			this.preAggregateTrigger.reset();
 		}
-		this.preAggregateTrigger.reset();
 	}
 }

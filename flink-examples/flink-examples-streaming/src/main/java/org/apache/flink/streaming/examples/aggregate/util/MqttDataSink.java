@@ -69,7 +69,7 @@ public class MqttDataSink extends RichSinkFunction<String> {
 	}
 
 	@Override
-	public void invoke(String value) throws Exception {
+	public void invoke(String value, Context context) throws Exception {
 		// System.out.println(PrinterSink.class.getSimpleName() + ": " + value);
 		System.out.flush();
 

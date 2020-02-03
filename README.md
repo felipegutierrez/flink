@@ -12,6 +12,32 @@ $ git remote fetch
 // From my own github repository
 $ git pull
 ```
+## Quick start
+
+To put the application to run quickly and with pre-configured options we just need to run a producer, the stream application, and a consumer.
+```
+java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:MqttDataProducer.jar //
+	org.apache.flink.streaming.examples.utils.MqttDataProducer -input /home/felipe/Temp/1524-0.txt -output mqtt
+./bin/flink run /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/WordCountPreAggregate.jar //
+	-pre-aggregate-window 1000 -input mqtt -output mqtt
+mosquitto_sub -h 127.0.0.1 -t topic-data-sink
+```
+
+## Producer
+
+You have the option to use which file you want to the stream application or some pre-defined files which follow some specific distribution
+```
+java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:MqttDataProducer.jar //
+        org.apache.flink.streaming.examples.utils.MqttDataProducer -input [hamlet|mobydick|dictionary|your_file] -output mqtt
+```
+
+## The pre-aggregate stream application
+
+```
+./bin/flink run /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/WordCountPreAggregate.jar //
+        -pre-aggregate-window 1000 -input mqtt -output mqtt
+```
+
 
 ## Combiner
  - The example is implemented on the file [WordCountCombiner](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/combiner/WordCountCombiner.java).
