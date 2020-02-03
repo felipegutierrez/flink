@@ -33,7 +33,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 * Output for stream records.
 	 */
 	private transient TimestampedCollector<OUT> collector;
-	private transient int numOfElements = 0;
+	private transient int numOfElements;
 
 	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
 												 PreAggregateTriggerFunction<IN> preAggregateTrigger) {
@@ -53,14 +53,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.preAggregateTrigger.registerCallback(this);
 		// reset trigger
 		this.preAggregateTrigger.reset();
-		this.preAggregateTrigger.start();
-		// this.preAggregateTrigger.setPeriodMilliseconds(new delay);
 		try {
 			this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger);
 			this.preAggregateMqttListener.connect();
 			this.preAggregateMqttListener.start();
-
-			// this.preAggregateTrigger.setPeriodMilliseconds(20);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -87,13 +83,11 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 
 	@Override
 	public void collect() throws Exception {
-		synchronized (this) {
-			if (!this.bundle.isEmpty()) {
-				this.numOfElements = 0;
-				this.userFunction.collect(bundle, collector);
-				this.bundle.clear();
-			}
-			this.preAggregateTrigger.reset();
+		if (!this.bundle.isEmpty()) {
+			this.numOfElements = 0;
+			this.userFunction.collect(bundle, collector);
+			this.bundle.clear();
 		}
+		this.preAggregateTrigger.reset();
 	}
 }

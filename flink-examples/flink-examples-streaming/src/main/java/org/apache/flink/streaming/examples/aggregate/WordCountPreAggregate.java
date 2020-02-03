@@ -119,14 +119,14 @@ public class WordCountPreAggregate {
 		String output = params.get(SINK, "");
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
-		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 
 		System.out.println("data source                         : " + input);
 		System.out.println("data sink                           : " + output);
 		System.out.println("pooling frequency [milliseconds]    : " + poolingFrequency);
-		System.out.println("pre-aggregate window [milliseconds] : " + preAggregationWindowTime);
+		System.out.println("pre-aggregate window [count]        : " + preAggregationWindowCount);
 		// System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
 		System.out.println("window [seconds]                    : " + window);
 		System.out.println("BufferTimeout [milliseconds]        : " + bufferTimeout);
@@ -174,11 +174,11 @@ public class WordCountPreAggregate {
 		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
 		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
 
-		if (preAggregationWindowTime == 0) {
+		if (preAggregationWindowCount == 0) {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = counts;
 		} else {
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"

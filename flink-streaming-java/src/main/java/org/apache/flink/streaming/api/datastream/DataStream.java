@@ -1205,18 +1205,18 @@ public class DataStream<T> {
 	 * If the @maxToCombine is not reach the secondsTimeout ensure to finish the combining.
 	 *
 	 * @param preAggregateFunction the function to PreAggregate tuples
-	 * @param windowProcessingTime time to trigger the window in seconds
+	 * @param windowProcessingCount count to trigger the window in seconds
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long windowProcessingTime) {
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long windowProcessingCount) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingTime);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingCount);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector)));

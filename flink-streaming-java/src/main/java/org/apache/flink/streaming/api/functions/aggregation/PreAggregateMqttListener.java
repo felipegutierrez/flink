@@ -20,7 +20,6 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 	private MQTT mqtt;
 	private String host;
 	private int port;
-	private long frequencyParameter;
 	private boolean running = false;
 	private PreAggregateTriggerFunction preAggregateTriggerFunction;
 
@@ -34,10 +33,6 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 		this.port = port;
 		this.running = true;
 		this.disclaimer();
-	}
-
-	public long getFrequencyParameter() {
-		return this.frequencyParameter;
 	}
 
 	public void connect() throws Exception {
@@ -60,7 +55,7 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 					String message = new String(msg.getPayload(), UTF_8);
 					System.out.println(message);
 					if (isInteger(message)) {
-						this.preAggregateTriggerFunction.setPeriodMilliseconds(Long.valueOf(message).longValue());
+						this.preAggregateTriggerFunction.setMaxCount(Long.valueOf(message).longValue());
 					}
 				}
 			}
@@ -97,7 +92,7 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 		System.out.println("This is the application [" + PreAggregateMqttListener.class.getSimpleName() + "].");
 		System.out.println("It listens new frequency parameters from an MQTT broker.");
 		System.out.println("To publish in this broker use:");
-		System.out.println("mosquitto_pub -h " + host + " -p " + port + " -t " + TOPIC_REDUCER_OUT_POOL_USAGE + " -m \"miliseconds\"");
+		System.out.println("mosquitto_pub -h " + host + " -p " + port + " -t " + TOPIC_REDUCER_OUT_POOL_USAGE + " -m \"MaxCount\"");
 		System.out.println();
 	}
 }
