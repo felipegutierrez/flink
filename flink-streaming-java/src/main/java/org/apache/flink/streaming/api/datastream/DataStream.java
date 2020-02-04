@@ -36,6 +36,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.io.CsvOutputFormat;
 import org.apache.flink.api.java.io.TextOutputFormat;
 import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.InputTypeConfigurable;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.core.fs.FileSystem.WriteMode;
@@ -1209,7 +1210,7 @@ public class DataStream<T> {
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction preAggregateFunction, long windowProcessingCount) {
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction, long windowProcessingCount) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
