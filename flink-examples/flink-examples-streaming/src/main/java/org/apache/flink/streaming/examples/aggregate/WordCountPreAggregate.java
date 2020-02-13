@@ -61,7 +61,7 @@ import java.util.Map;
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
- *        -slotSplit [false]
+ *        -slotSplit [false] -disableOperatorChaining [false]
  *        -window [>=0 seconds]
  *
  * Running on the IDE:
@@ -85,6 +85,7 @@ public class WordCountPreAggregate {
 	private static final String SLOT_GROUP_LOCAL = "local-group";
 	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
 	private static final String SLOT_GROUP_SPLIT = "slotSplit";
+	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
 
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
@@ -137,6 +138,7 @@ public class WordCountPreAggregate {
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
+		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 
 		String slotSharingGroup01 = null;
 		String slotSharingGroup02 = null;
@@ -152,6 +154,7 @@ public class WordCountPreAggregate {
 		System.out.println("data sink host:port                 : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                     : " + TOPIC_DATA_SINK);
 		System.out.println("Splitting into different slots      : " + slotSplit);
+		System.out.println("Disable operator chaining           : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]    : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]        : " + preAggregationWindowCount);
 		// System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
@@ -166,7 +169,9 @@ public class WordCountPreAggregate {
 		if (bufferTimeout != -999) {
 			env.setBufferTimeout(bufferTimeout);
 		}
-
+		if (disableOperatorChaining) {
+			env.disableOperatorChaining();
+		}
 
 		// get input data
 		DataStream<String> text;

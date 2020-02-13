@@ -32,7 +32,7 @@ java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:M
     -output mqtt
 ./bin/flink run WordCountPreAggregate.jar \
     -pre-aggregate-window 10 -input mqtt -sourceHost 192.168.56.1 \
-    -output mqtt -sinkHost 192.168.56.1 -slotSplit true
+    -output mqtt -sinkHost 192.168.56.1 -slotSplit true -disableOperatorChaining true
 mosquitto_sub -h 192.168.56.1 -t topic-data-sink
 ```
 You just start a producer that emits data every 10 seconds and the pre-aggregate stream application that pre-aggregate every 1000 milliseconds. In norder to chacke that the producer is actually producing data you can verify its mqtt broker topic. Then you can change its interval to produce data for 1 second. Its interval is defined in milliseconds (1000 milliseconds).
@@ -55,7 +55,7 @@ java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file
         -pooling 100 \ # pooling frequency from source if not using mqtt data source
         -output [mqtt|log|text] \
         -sinkHost [127.0.0.1] -sinkPort [1883] \
-        -slotSplit [false] \
+        -slotSplit [false] -disableOperatorChaining [false] \
         -window [>=0 seconds]
 ```
 
