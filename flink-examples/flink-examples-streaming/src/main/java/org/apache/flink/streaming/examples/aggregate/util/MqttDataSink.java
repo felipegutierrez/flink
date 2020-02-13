@@ -27,6 +27,10 @@ public class MqttDataSink extends RichSinkFunction<String> {
 		this(DEFAUL_HOST, DEFAUL_PORT, topic, QoS.AT_LEAST_ONCE);
 	}
 
+	public MqttDataSink(String topic, String host, int port) {
+		this(host, port, topic, QoS.AT_LEAST_ONCE);
+	}
+
 	public MqttDataSink(String host, String topic) {
 		this(host, DEFAUL_PORT, topic, QoS.AT_LEAST_ONCE);
 	}
@@ -101,7 +105,7 @@ public class MqttDataSink extends RichSinkFunction<String> {
 	private void disclaimer() {
 		System.out.println("Consuming data >>>");
 		System.out.println("In order to consume data from this application use the command line below:");
-		System.out.println("mosquitto_sub -h " + host + " -t " + topic);
+		System.out.println("mosquitto_sub -h " + host + " -p " + port + " -t " + topic);
 		System.out.println();
 	}
 }

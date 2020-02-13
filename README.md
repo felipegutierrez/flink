@@ -29,8 +29,8 @@ To put the application to run quickly and with pre-configured options we just ne
 java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:MqttDataProducer.jar \
 	org.apache.flink.streaming.examples.utils.MqttDataProducer -input /home/felipe/Temp/1524-0.txt -output mqtt
 ./bin/flink run /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/WordCountPreAggregate.jar \
-	-pre-aggregate-window 1000 -input mqtt -output mqtt
-mosquitto_sub -h 127.0.0.1 -t topic-data-sink
+	-pre-aggregate-window 10 -input mqtt -sourceHost 192.168.56.1 -output mqtt -sinkHost 192.168.56.1 -slotSplit true
+mosquitto_sub -h 192.168.56.1 -t topic-data-sink
 ```
 You just start a producer that emits data every 10 seconds and the pre-aggregate stream application that pre-aggregate every 1000 milliseconds. In norder to chacke that the producer is actually producing data you can verify its mqtt broker topic. Then you can change its interval to produce data for 1 second. Its interval is defined in milliseconds (1000 milliseconds).
 ```
@@ -48,8 +48,11 @@ java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file
 ./bin/flink run ...WordCountPreAggregate.jar \
         -pre-aggregate-window [>0 seconds] \
         -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
+        -sourceHost [127.0.0.1] -sourcePort [1883] \
         -pooling 100 \ # pooling frequency from source if not using mqtt data source
         -output [mqtt|log|text] \
+        -sinkHost [127.0.0.1] -sinkPort [1883] \
+        -slotSplit [false] \
         -window [>=0 seconds]
 ```
 
@@ -67,12 +70,16 @@ java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file
 ```
 DataStream<String> text = env.fromElements(WordCountCombinerData.WORDS_SKEW)
 	.flatMap(new Tokenizer())
-	.preAggregate(new PreAggregateFunction(), preAggregationWindowTime)
+	.preAggregate(new PreAggregateFunction(), 10)
 	.keyBy(0)
 	.sum(1)
 	.print();
 ```
-
+Then you can change the number of items that the Pre-aggregate operator is aggregating in run-time (without restarting the job).
+```
+mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "100"
+mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
+```
 
 ## Partial partition
 

@@ -20,6 +20,10 @@ public class MqttDataSource extends RichSourceFunction<String> {
 		this(topic, DEFAUL_HOST, DEFAUL_PORT, false);
 	}
 
+	public MqttDataSource(String topic, String host, int port) throws Exception {
+		this(topic, host, port, false);
+	}
+
 	public MqttDataSource(String topic, String host, int port, boolean collectWithTimestamp) throws Exception {
 		this.host = host;
 		this.port = port;

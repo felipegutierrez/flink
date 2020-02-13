@@ -2,7 +2,6 @@ package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTrigger;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 
 public class StreamPreAggregateOperator<K, V, IN, OUT> extends AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT> {
