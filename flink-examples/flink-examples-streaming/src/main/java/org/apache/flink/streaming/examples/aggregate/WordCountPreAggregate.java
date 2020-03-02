@@ -61,8 +61,9 @@ import java.util.Map;
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
- *        -slotSplit [false] -disableOperatorChaining [false]
- *        -window [>=0 seconds]
+ *        -slotSplit [false] -disableOperatorChaining [false] \
+ *        -window [>=0 seconds] \
+ *        -latencyTrackingInterval [0]
  *
  * Running on the IDE:
  * usage: java WordCountPreAggregate [parameters]
@@ -86,6 +87,7 @@ public class WordCountPreAggregate {
 	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
 	private static final String SLOT_GROUP_SPLIT = "slotSplit";
 	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
+	private static final String LATENCY_TRACKING_INTERVAL = "latencyTrackingInterval";
 
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
@@ -137,6 +139,7 @@ public class WordCountPreAggregate {
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
+		long latencyTrackingInterval = params.getLong(LATENCY_TRACKING_INTERVAL, 0);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 
@@ -147,20 +150,21 @@ public class WordCountPreAggregate {
 			slotSharingGroup02 = SLOT_GROUP_SHUFFLE;
 		}
 
-		System.out.println("data source                         : " + input);
-		System.out.println("data source host:port               : " + sourceHost + ":" + sourcePort);
-		System.out.println("data source topic                   : " + TOPIC_DATA_SOURCE);
-		System.out.println("data sink                           : " + output);
-		System.out.println("data sink host:port                 : " + sinkHost + ":" + sinkPort);
-		System.out.println("data sink topic                     : " + TOPIC_DATA_SINK);
-		System.out.println("Splitting into different slots      : " + slotSplit);
-		System.out.println("Disable operator chaining           : " + disableOperatorChaining);
-		System.out.println("pooling frequency [milliseconds]    : " + poolingFrequency);
-		System.out.println("pre-aggregate window [count]        : " + preAggregationWindowCount);
-		// System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
-		System.out.println("window [seconds]                    : " + window);
-		System.out.println("BufferTimeout [milliseconds]        : " + bufferTimeout);
-		System.out.println("Synthetic delay [milliseconds]      : " + delay);
+		System.out.println("data source                              : " + input);
+		System.out.println("data source host:port                    : " + sourceHost + ":" + sourcePort);
+		System.out.println("data source topic                        : " + TOPIC_DATA_SOURCE);
+		System.out.println("data sink                                : " + output);
+		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
+		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
+		System.out.println("Splitting into different slots           : " + slotSplit);
+		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
+		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
+		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
+		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
+		System.out.println("window [seconds]                         : " + window);
+		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
+		System.out.println("Synthetic delay [milliseconds]           : " + delay);
+		System.out.println("Latency tracking interval [milliseconds] : " + latencyTrackingInterval);
 		System.out.println("Changing pooling frequency of the data source:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
@@ -172,36 +176,49 @@ public class WordCountPreAggregate {
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
 		}
+		if (latencyTrackingInterval > 0) {
+			env.getConfig().setLatencyTrackingInterval(latencyTrackingInterval);
+		}
 
 		// get input data
 		DataStream<String> text;
 
 		if (Strings.isNullOrEmpty(input)) {
-			text = env.addSource(new DataRateSource(new String[0], poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new DataRateSource(new String[0], poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_WORDS.equalsIgnoreCase(input)) {
-			text = env.addSource(new DataRateSource(WordCountPreAggregateData.WORDS, poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new DataRateSource(WordCountPreAggregateData.WORDS, poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_SKEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.addSource(new DataRateSource(WordCountPreAggregateData.SKEW_WORDS, poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new DataRateSource(WordCountPreAggregateData.SKEW_WORDS, poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_FEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.addSource(new DataRateSource(WordCountPreAggregateData.FEW_WORDS, poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new DataRateSource(WordCountPreAggregateData.FEW_WORDS, poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_DATA_RATE_VARIATION_WORDS.equalsIgnoreCase(input)) {
 			// creates a data rate variation to test how long takes to the dynamic combiner adapt
-			text = env.addSource(new DataRateVariationSource(poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new DataRateVariationSource(poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_DATA_HAMLET.equalsIgnoreCase(input)) {
-			text = env.addSource(new OnlineDataSource(UrlSource.HAMLET, poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new OnlineDataSource(UrlSource.HAMLET, poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_DATA_MOBY_DICK.equalsIgnoreCase(input)) {
-			text = env.addSource(new OnlineDataSource(UrlSource.MOBY_DICK, poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new OnlineDataSource(UrlSource.MOBY_DICK, poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_DATA_DICTIONARY.equalsIgnoreCase(input)) {
-			text = env.addSource(new OnlineDataSource(UrlSource.ENGLISH_DICTIONARY, poolingFrequency)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new OnlineDataSource(UrlSource.ENGLISH_DICTIONARY, poolingFrequency))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_DATA_MQTT.equalsIgnoreCase(input)) {
-			text = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE, sourceHost, sourcePort)).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE, sourceHost, sourcePort))
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else {
 			// read the text file from given input path
-			text = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			text = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		}
 
 		// split up the lines in pairs (2-tuples) containing: (word,1)
-		DataStream<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer()).name(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
+		DataStream<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer())
+			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
 
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
@@ -211,7 +228,8 @@ public class WordCountPreAggregate {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = counts;
 		} else {
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount).name(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -222,11 +240,11 @@ public class WordCountPreAggregate {
 		if (window != 0) {
 			resultStream = keyedStream
 				.window(TumblingProcessingTimeWindows.of(Time.seconds(window)))
-				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM).slotSharingGroup(slotSharingGroup02);
+				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM).uid(OPERATOR_SUM).slotSharingGroup(slotSharingGroup02);
 			// .sum(1).name(OPERATOR_SUM);
 		} else {
 			resultStream = keyedStream
-				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM).slotSharingGroup(slotSharingGroup02);
+				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM).uid(OPERATOR_SUM).slotSharingGroup(slotSharingGroup02);
 			// .sum(1).name(OPERATOR_SUM);
 		}
 
@@ -234,14 +252,14 @@ public class WordCountPreAggregate {
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			resultStream
 				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		} else if (output.equalsIgnoreCase(SINK_LOG)) {
-			resultStream.print().name(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
-			resultStream.writeAsText(params.get("output")).name(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream.writeAsText(params.get("output")).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
-			resultStream.print().name(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		}
 
 		System.out.println("Execution plan >>>");
