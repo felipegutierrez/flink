@@ -19,10 +19,11 @@
 package org.apache.flink.core.memory;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.JavaGcCleanerWrapper;
+import org.apache.flink.util.Preconditions;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -33,13 +34,15 @@ import java.nio.ByteOrder;
 public class MemoryUtils {
 
 	/** The "unsafe", which can be used to perform native memory accesses. */
-	@SuppressWarnings("restriction")
+	@SuppressWarnings({"restriction", "UseOfSunClasses"})
 	public static final sun.misc.Unsafe UNSAFE = getUnsafe();
 
 	/** The native byte order of the platform on which the system currently runs. */
 	public static final ByteOrder NATIVE_BYTE_ORDER = ByteOrder.nativeOrder();
 
-	private static final Constructor<?> DIRECT_BUFFER_CONSTRUCTOR = getDirectBufferPrivateConstructor();
+	private static final long BUFFER_ADDRESS_FIELD_OFFSET = getClassFieldOffset(Buffer.class, "address");
+	private static final long BUFFER_CAPACITY_FIELD_OFFSET = getClassFieldOffset(Buffer.class, "capacity");
+	private static final Class<?> DIRECT_BYTE_BUFFER_CLASS = getClassByName("java.nio.DirectByteBuffer");
 
 	@SuppressWarnings("restriction")
 	private static sun.misc.Unsafe getUnsafe() {
@@ -48,44 +51,40 @@ public class MemoryUtils {
 			unsafeField.setAccessible(true);
 			return (sun.misc.Unsafe) unsafeField.get(null);
 		} catch (SecurityException e) {
-			throw new RuntimeException("Could not access the sun.misc.Unsafe handle, permission denied by security manager.", e);
+			throw new Error("Could not access the sun.misc.Unsafe handle, permission denied by security manager.", e);
 		} catch (NoSuchFieldException e) {
-			throw new RuntimeException("The static handle field in sun.misc.Unsafe was not found.");
+			throw new Error("The static handle field in sun.misc.Unsafe was not found.", e);
 		} catch (IllegalArgumentException e) {
-			throw new RuntimeException("Bug: Illegal argument reflection access for static field.", e);
+			throw new Error("Bug: Illegal argument reflection access for static field.", e);
 		} catch (IllegalAccessException e) {
-			throw new RuntimeException("Access to sun.misc.Unsafe is forbidden by the runtime.", e);
+			throw new Error("Access to sun.misc.Unsafe is forbidden by the runtime.", e);
 		} catch (Throwable t) {
-			throw new RuntimeException("Unclassified error while trying to access the sun.misc.Unsafe handle.", t);
+			throw new Error("Unclassified error while trying to access the sun.misc.Unsafe handle.", t);
 		}
 	}
 
-	/** Should not be instantiated. */
-	private MemoryUtils() {}
-
-	private static Constructor<? extends ByteBuffer> getDirectBufferPrivateConstructor() {
-		//noinspection OverlyBroadCatchBlock
+	private static long getClassFieldOffset(@SuppressWarnings("SameParameterValue") Class<?> cl, String fieldName) {
 		try {
-			Constructor<? extends ByteBuffer> constructor =
-				ByteBuffer.allocateDirect(1).getClass().getDeclaredConstructor(long.class, int.class);
-			constructor.setAccessible(true);
-			return constructor;
-		} catch (NoSuchMethodException e) {
-			ExceptionUtils.rethrow(
-				e,
-				"The private constructor java.nio.DirectByteBuffer.<init>(long, int) is not available.");
+			return UNSAFE.objectFieldOffset(cl.getDeclaredField(fieldName));
 		} catch (SecurityException e) {
-			ExceptionUtils.rethrow(
-				e,
-				"The private constructor java.nio.DirectByteBuffer.<init>(long, int) is not available, " +
-					"permission denied by security manager");
+			throw new Error(getClassFieldOffsetErrorMessage(cl, fieldName) + ", permission denied by security manager.", e);
+		} catch (NoSuchFieldException e) {
+			throw new Error(getClassFieldOffsetErrorMessage(cl, fieldName), e);
 		} catch (Throwable t) {
-			ExceptionUtils.rethrow(
-				t,
-				"Unclassified error while trying to access private constructor " +
-					"java.nio.DirectByteBuffer.<init>(long, int).");
+			throw new Error(getClassFieldOffsetErrorMessage(cl, fieldName) + ", unclassified error", t);
 		}
-		throw new RuntimeException("unexpected to avoid returning null");
+	}
+
+	private static String getClassFieldOffsetErrorMessage(Class<?> cl, String fieldName) {
+		return  "Could not get field '" + fieldName + "' offset in class '" + cl + "' for unsafe operations";
+	}
+
+	private static Class<?> getClassByName(@SuppressWarnings("SameParameterValue") String className) {
+		try {
+			return Class.forName(className);
+		} catch (ClassNotFoundException e) {
+			throw new Error("Could not find class '" + className + "' for unsafe operations.", e);
+		}
 	}
 
 	/**
@@ -108,15 +107,8 @@ public class MemoryUtils {
 	 * @param address address of the unsafe memory to release
 	 * @return action to run to release the unsafe memory manually
 	 */
-	@SuppressWarnings("UseOfSunClasses")
 	static Runnable createMemoryGcCleaner(Object owner, long address) {
-		// TODO: rollbacked to direct memory because of FLINK-13985
-		// The release call is wrapped with the sun.misc.Cleaner
-		// which will schedule it before GC is run for the owner object (not reachable in user code).
-		// but only if sun.misc.Cleaner::clean has not been already called explicitly by user before.
-		// If sun.misc.Cleaner::clean is called after GC it will not call the release.
-		// This way we guarantee that there will always be a release at some point but only once.
-		return null; // sun.misc.Cleaner.create(owner, () -> releaseUnsafe(address))::clean;
+		return JavaGcCleanerWrapper.create(owner, () -> releaseUnsafe(address));
 	}
 
 	private static void releaseUnsafe(long address) {
@@ -133,10 +125,32 @@ public class MemoryUtils {
 	static ByteBuffer wrapUnsafeMemoryWithByteBuffer(long address, int size) {
 		//noinspection OverlyBroadCatchBlock
 		try {
-			return (ByteBuffer) DIRECT_BUFFER_CONSTRUCTOR.newInstance(address, size);
+			ByteBuffer buffer = (ByteBuffer) UNSAFE.allocateInstance(DIRECT_BYTE_BUFFER_CLASS);
+			UNSAFE.putLong(buffer, BUFFER_ADDRESS_FIELD_OFFSET, address);
+			UNSAFE.putInt(buffer, BUFFER_CAPACITY_FIELD_OFFSET, size);
+			buffer.clear();
+			return buffer;
 		} catch (Throwable t) {
-			ExceptionUtils.rethrow(t, "Failed to wrap unsafe off-heap memory with ByteBuffer");
+			throw new Error("Failed to wrap unsafe off-heap memory with ByteBuffer", t);
 		}
-		throw new RuntimeException("unexpected to avoid returning null");
 	}
+
+	/**
+	 * Get native memory address wrapped by the given {@link ByteBuffer}.
+	 *
+	 * @param buffer {@link ByteBuffer} which wraps the native memory address to get
+	 * @return native memory address wrapped by the given {@link ByteBuffer}
+	 */
+	static long getByteBufferAddress(ByteBuffer buffer) {
+		Preconditions.checkNotNull(buffer, "buffer is null");
+		Preconditions.checkArgument(buffer.isDirect(), "Can't get address of a non-direct ByteBuffer.");
+		try {
+			return UNSAFE.getLong(buffer, BUFFER_ADDRESS_FIELD_OFFSET);
+		} catch (Throwable t) {
+			throw new Error("Could not access direct byte buffer address field.", t);
+		}
+	}
+
+	/** Should not be instantiated. */
+	private MemoryUtils() {}
 }

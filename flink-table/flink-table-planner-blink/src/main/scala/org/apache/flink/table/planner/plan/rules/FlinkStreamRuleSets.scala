@@ -236,6 +236,7 @@ object FlinkStreamRuleSets {
 
     // join rules
     FlinkJoinPushExpressionsRule.INSTANCE,
+    SimplifyJoinConditionRule.INSTANCE,
 
     // remove union with only a single child
     UnionEliminatorRule.INSTANCE,
@@ -336,6 +337,13 @@ object FlinkStreamRuleSets {
     SplitAggregateRule.INSTANCE,
     // transpose calc past snapshot
     CalcSnapshotTransposeRule.INSTANCE,
+    // Rule that splits python ScalarFunctions from join conditions
+    SplitPythonConditionFromJoinRule.INSTANCE,
+    // Rule that splits python ScalarFunctions from
+    // java/scala ScalarFunctions in correlate conditions
+    SplitPythonConditionFromCorrelateRule.INSTANCE,
+    // Rule that splits java calls from python TableFunction
+    PythonCorrelateSplitRule.INSTANCE,
     // merge calc after calc transpose
     FlinkCalcMergeRule.INSTANCE,
     // Rule that splits python ScalarFunctions from java/scala ScalarFunctions.
@@ -390,6 +398,7 @@ object FlinkStreamRuleSets {
     // correlate
     StreamExecConstantTableFunctionScanRule.INSTANCE,
     StreamExecCorrelateRule.INSTANCE,
+    StreamExecPythonCorrelateRule.INSTANCE,
     // sink
     StreamExecSinkRule.INSTANCE
   )

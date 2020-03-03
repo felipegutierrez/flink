@@ -18,7 +18,7 @@
 
 package org.apache.flink.runtime.checkpoint;
 
-import org.apache.flink.runtime.jobgraph.JobStatus;
+import org.apache.flink.api.common.JobStatus;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,7 +107,7 @@ public interface CompletedCheckpointStore {
 	 * This method returns whether the completed checkpoint store requires checkpoints to be
 	 * externalized. Externalized checkpoints have their meta data persisted, which the checkpoint
 	 * store can exploit (for example by simply pointing the persisted metadata).
-	 * 
+	 *
 	 * @return True, if the store requires that checkpoints are externalized before being added, false
 	 *         if the store stores the metadata itself.
 	 */

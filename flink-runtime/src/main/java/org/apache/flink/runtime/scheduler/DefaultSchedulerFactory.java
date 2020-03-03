@@ -25,9 +25,9 @@ import org.apache.flink.runtime.blob.BlobWriter;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
 import org.apache.flink.runtime.concurrent.ScheduledExecutorServiceAdapter;
 import org.apache.flink.runtime.executiongraph.SlotProviderStrategy;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverStrategyFactoryLoader;
 import org.apache.flink.runtime.executiongraph.failover.flip1.RestartBackoffTimeStrategy;
 import org.apache.flink.runtime.executiongraph.failover.flip1.RestartBackoffTimeStrategyFactoryLoader;
-import org.apache.flink.runtime.executiongraph.failover.flip1.RestartPipelinedRegionStrategy;
 import org.apache.flink.runtime.io.network.partition.JobMasterPartitionTracker;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.ScheduleMode;
@@ -69,7 +69,7 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
 
 		final SchedulingStrategyFactory schedulingStrategyFactory = createSchedulingStrategyFactory(jobGraph.getScheduleMode());
 		final RestartBackoffTimeStrategy restartBackoffTimeStrategy = RestartBackoffTimeStrategyFactoryLoader
-			.createRestartStrategyFactory(
+			.createRestartBackoffTimeStrategyFactory(
 				jobGraph
 					.getSerializedExecutionConfig()
 					.deserializeValue(userCodeLoader)
@@ -77,12 +77,12 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
 				jobMasterConfiguration,
 				jobGraph.isCheckpointingEnabled())
 			.create();
+		log.info("Using restart back off time strategy {} for {} ({}).", restartBackoffTimeStrategy, jobGraph.getName(), jobGraph.getJobID());
 
 		final SlotProviderStrategy slotProviderStrategy = SlotProviderStrategy.from(
 			jobGraph.getScheduleMode(),
 			slotProvider,
-			slotRequestTimeout,
-			true);
+			slotRequestTimeout);
 
 		return new DefaultScheduler(
 			log,
@@ -90,7 +90,6 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
 			backPressureStatsTracker,
 			ioExecutor,
 			jobMasterConfiguration,
-			slotProvider,
 			futureExecutor,
 			new ScheduledExecutorServiceAdapter(futureExecutor),
 			userCodeLoader,
@@ -98,21 +97,21 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
 			rpcTimeout,
 			blobWriter,
 			jobManagerJobMetricGroup,
-			slotRequestTimeout,
 			shuffleMaster,
 			partitionTracker,
 			schedulingStrategyFactory,
-			new RestartPipelinedRegionStrategy.Factory(),
+			FailoverStrategyFactoryLoader.loadFailoverStrategyFactory(jobMasterConfiguration),
 			restartBackoffTimeStrategy,
 			new DefaultExecutionVertexOperations(),
 			new ExecutionVertexVersioner(),
 			new DefaultExecutionSlotAllocatorFactory(slotProviderStrategy));
 	}
 
-	private SchedulingStrategyFactory createSchedulingStrategyFactory(final ScheduleMode scheduleMode) {
+	static SchedulingStrategyFactory createSchedulingStrategyFactory(final ScheduleMode scheduleMode) {
 		switch (scheduleMode) {
 			case EAGER:
 				return new EagerSchedulingStrategy.Factory();
+			case LAZY_FROM_SOURCES_WITH_BATCH_SLOT_REQUEST:
 			case LAZY_FROM_SOURCES:
 				return new LazyFromSourcesSchedulingStrategy.Factory();
 			default:

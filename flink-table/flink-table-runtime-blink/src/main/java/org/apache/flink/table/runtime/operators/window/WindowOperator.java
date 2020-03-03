@@ -234,6 +234,8 @@ public abstract class WindowOperator<K, W extends Window>
 	public void open() throws Exception {
 		super.open();
 
+		functionsClosed = false;
+
 		collector = new TimestampedCollector<>(output);
 		collector.eraseTimestamp();
 
@@ -286,7 +288,7 @@ public abstract class WindowOperator<K, W extends Window>
 		this.numLateRecordsDropped = metrics.counter(LATE_ELEMENTS_DROPPED_METRIC_NAME);
 		this.lateRecordsDroppedRate = metrics.meter(
 				LATE_ELEMENTS_DROPPED_RATE_METRIC_NAME,
-				new MeterView(numLateRecordsDropped, 60));
+				new MeterView(numLateRecordsDropped));
 		this.watermarkLatency = metrics.gauge(WATERMARK_LATENCY_METRIC_NAME, () -> {
 			long watermark = internalTimerService.currentWatermark();
 			if (watermark < 0) {
@@ -385,6 +387,10 @@ public abstract class WindowOperator<K, W extends Window>
 
 	@Override
 	public void onProcessingTime(InternalTimer<K, W> timer) throws Exception {
+		if (functionsClosed) {
+			return;
+		}
+
 		setCurrentKey(timer.getKey());
 
 		triggerContext.window = timer.getNamespace();
@@ -629,7 +635,6 @@ public abstract class WindowOperator<K, W extends Window>
 			}
 		}
 	}
-
 
 	// ------------------------------------------------------------------------------
 	// Visible For Testing

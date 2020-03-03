@@ -19,28 +19,26 @@
 package org.apache.flink.test.checkpointing.utils;
 
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.common.JobSubmissionResult;
 import org.apache.flink.api.common.time.Deadline;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.client.ClientUtils;
 import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.HeartbeatManagerOptions;
 import org.apache.flink.configuration.TaskManagerOptions;
-import org.apache.flink.runtime.checkpoint.savepoint.SavepointSerializers;
 import org.apache.flink.runtime.jobgraph.JobGraph;
-import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.test.util.TestBaseUtils;
-import org.apache.flink.testutils.junit.category.AlsoRunWithSchedulerNG;
-import org.apache.flink.util.OptionalFailure;
+import org.apache.flink.testutils.junit.category.AlsoRunWithLegacyScheduler;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.experimental.categories.Category;
@@ -57,19 +55,14 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-import static junit.framework.Assert.fail;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
 
 /**
  * Test savepoint migration.
  */
-@Category(AlsoRunWithSchedulerNG.class)
+@Category(AlsoRunWithLegacyScheduler.class)
 public abstract class SavepointMigrationTestBase extends TestBaseUtils {
-
-	@BeforeClass
-	public static void before() {
-		SavepointSerializers.setFailWhenLegacyStateDetected(false);
-	}
 
 	@ClassRule
 	public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
@@ -78,6 +71,7 @@ public abstract class SavepointMigrationTestBase extends TestBaseUtils {
 	public final MiniClusterWithClientResource miniClusterResource;
 
 	private static final Logger LOG = LoggerFactory.getLogger(SavepointMigrationTestBase.class);
+
 	protected static final int DEFAULT_PARALLELISM = 4;
 
 	protected static String getResourceFilename(String filename) {
@@ -134,33 +128,28 @@ public abstract class SavepointMigrationTestBase extends TestBaseUtils {
 		final Deadline deadLine = Deadline.fromNow(Duration.ofMinutes(5));
 
 		ClusterClient<?> client = miniClusterResource.getClusterClient();
-		client.setDetached(true);
 
 		// Submit the job
 		JobGraph jobGraph = env.getStreamGraph().getJobGraph();
 
-		JobSubmissionResult jobSubmissionResult = client.submitJob(jobGraph, SavepointMigrationTestBase.class.getClassLoader());
+		JobSubmissionResult jobSubmissionResult = ClientUtils.submitJob(client, jobGraph);
 
 		LOG.info("Submitted job {} and waiting...", jobSubmissionResult.getJobID());
 
 		boolean done = false;
 		while (deadLine.hasTimeLeft()) {
 			Thread.sleep(100);
-			Map<String, OptionalFailure<Object>> accumulators = client.getAccumulators(jobSubmissionResult.getJobID());
+			Map<String, Object> accumulators = client.getAccumulators(jobSubmissionResult.getJobID()).get();
 
 			boolean allDone = true;
 			for (Tuple2<String, Integer> acc : expectedAccumulators) {
-				OptionalFailure<Object> accumOpt = accumulators.get(acc.f0);
+				Object accumOpt = accumulators.get(acc.f0);
 				if (accumOpt == null) {
 					allDone = false;
 					break;
 				}
 
-				Integer numFinished = (Integer) accumOpt.get();
-				if (numFinished == null) {
-					allDone = false;
-					break;
-				}
+				Integer numFinished = (Integer) accumOpt;
 				if (!numFinished.equals(acc.f1)) {
 					allDone = false;
 					break;
@@ -200,14 +189,13 @@ public abstract class SavepointMigrationTestBase extends TestBaseUtils {
 		final Deadline deadLine = Deadline.fromNow(Duration.ofMinutes(5));
 
 		ClusterClient<?> client = miniClusterResource.getClusterClient();
-		client.setDetached(true);
 
 		// Submit the job
 		JobGraph jobGraph = env.getStreamGraph().getJobGraph();
 
 		jobGraph.setSavepointRestoreSettings(SavepointRestoreSettings.forPath(savepointPath));
 
-		JobSubmissionResult jobSubmissionResult = client.submitJob(jobGraph, SavepointMigrationTestBase.class.getClassLoader());
+		JobSubmissionResult jobSubmissionResult = ClientUtils.submitJob(client, jobGraph);
 
 		boolean done = false;
 		while (deadLine.hasTimeLeft()) {
@@ -227,16 +215,16 @@ public abstract class SavepointMigrationTestBase extends TestBaseUtils {
 			}
 
 			Thread.sleep(100);
-			Map<String, OptionalFailure<Object>> accumulators = client.getAccumulators(jobId);
+			Map<String, Object> accumulators = client.getAccumulators(jobId).get();
 
 			boolean allDone = true;
 			for (Tuple2<String, Integer> acc : expectedAccumulators) {
-				OptionalFailure<Object> numFinished = accumulators.get(acc.f0);
+				Object numFinished = accumulators.get(acc.f0);
 				if (numFinished == null) {
 					allDone = false;
 					break;
 				}
-				if (!numFinished.get().equals(acc.f1)) {
+				if (!numFinished.equals(acc.f1)) {
 					allDone = false;
 					break;
 				}

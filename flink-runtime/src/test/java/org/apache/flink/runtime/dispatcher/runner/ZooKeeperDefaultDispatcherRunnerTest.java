@@ -56,7 +56,8 @@ import org.apache.flink.runtime.zookeeper.ZooKeeperResource;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.TestLogger;
 
-import org.apache.curator.framework.CuratorFramework;
+import org.apache.flink.shaded.curator4.org.apache.curator.framework.CuratorFramework;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -240,8 +241,6 @@ public class ZooKeeperDefaultDispatcherRunnerTest extends TestLogger {
 		vertex.setParallelism(1);
 
 		final JobGraph jobGraph = new JobGraph("Test job graph", vertex);
-		jobGraph.setAllowQueuedScheduling(true);
-
 		final PermanentBlobKey permanentBlobKey = blobServer.putPermanent(jobGraph.getJobID(), new byte[256]);
 		jobGraph.addUserJarBlobKey(permanentBlobKey);
 

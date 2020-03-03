@@ -19,6 +19,7 @@
 package org.apache.flink.test.runtime;
 
 import org.apache.flink.api.common.JobExecutionResult;
+import org.apache.flink.client.ClientUtils;
 import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.core.io.IOReadableWritable;
 import org.apache.flink.core.memory.DataInputView;
@@ -35,7 +36,7 @@ import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobmanager.scheduler.SlotSharingGroup;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
-import org.apache.flink.testutils.junit.category.AlsoRunWithSchedulerNG;
+import org.apache.flink.testutils.junit.category.AlsoRunWithLegacyScheduler;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.Test;
@@ -49,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Manually test the throughput of the network stack.
  */
-@Category(AlsoRunWithSchedulerNG.class)
+@Category(AlsoRunWithLegacyScheduler.class)
 public class NetworkStackThroughputITCase extends TestLogger {
 
 	private static final Logger LOG = LoggerFactory.getLogger(NetworkStackThroughputITCase.class);
@@ -269,9 +270,9 @@ public class NetworkStackThroughputITCase extends TestLogger {
 			final boolean isSlowReceiver,
 			final int parallelism) throws Exception {
 		ClusterClient<?> client = cluster.getClusterClient();
-		client.setDetached(false);
 
-		JobExecutionResult jer = (JobExecutionResult) client.submitJob(
+		JobExecutionResult jer = ClientUtils.submitJobAndWaitForResult(
+			client,
 			createJobGraph(
 				dataVolumeGb,
 				useForwarder,

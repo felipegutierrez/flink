@@ -79,8 +79,8 @@ public class DefaultExecutionSlotAllocator implements ExecutionSlotAllocator {
 	}
 
 	@Override
-	public Collection<SlotExecutionVertexAssignment> allocateSlotsFor(
-			Collection<ExecutionVertexSchedulingRequirements> executionVertexSchedulingRequirements) {
+	public List<SlotExecutionVertexAssignment> allocateSlotsFor(
+			List<ExecutionVertexSchedulingRequirements> executionVertexSchedulingRequirements) {
 
 		validateSchedulingRequirements(executionVertexSchedulingRequirements);
 
@@ -104,11 +104,12 @@ public class DefaultExecutionSlotAllocator implements ExecutionSlotAllocator {
 								slotProviderStrategy.allocateSlot(
 									slotRequestId,
 									new ScheduledUnit(
-										executionVertexId.getJobVertexId(),
+										executionVertexId,
 										slotSharingGroupId,
 										schedulingRequirements.getCoLocationConstraint()),
-									new SlotProfile(
-										schedulingRequirements.getResourceProfile(),
+									SlotProfile.priorAllocation(
+										schedulingRequirements.getTaskResourceProfile(),
+										schedulingRequirements.getPhysicalSlotResourceProfile(),
 										preferredLocations,
 										Collections.singletonList(schedulingRequirements.getPreviousAllocationId()),
 										allPreviousAllocationIds)));

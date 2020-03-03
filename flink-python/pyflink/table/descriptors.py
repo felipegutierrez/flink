@@ -840,6 +840,26 @@ class Kafka(ConnectorDescriptor):
         self._j_kafka = self._j_kafka.startFromSpecificOffset(int(partition), int(specific_offset))
         return self
 
+    def start_from_timestamp(self, timestamp):
+        """
+        Specifies the consumer to start reading partitions from a specified timestamp.
+        The specified timestamp must be before the current timestamp.
+        This lets the consumer ignore any committed group offsets in Zookeeper / Kafka brokers.
+
+        The consumer will look up the earliest offset whose timestamp is greater than or equal
+        to the specific timestamp from Kafka. If there's no such offset, the consumer will use the
+        latest offset to read data from kafka.
+
+        This method does not affect where partitions are read from when the consumer is restored
+        from a checkpoint or savepoint. When the consumer is restored from a checkpoint or
+        savepoint, only the offsets in the restored state will be used.
+
+        :param timestamp timestamp for the startup offsets, as milliseconds from epoch.
+        :return: This object.
+        """
+        self._j_kafka = self._j_kafka.startFromTimestamp(int(timestamp))
+        return self
+
     def sink_partitioner_fixed(self):
         """
         Configures how to partition records from Flink's partitions into Kafka's partitions.
@@ -1265,39 +1285,23 @@ class ConnectTableDescriptor(Descriptor):
             self._j_connect_table_descriptor.withSchema(schema._j_schema)
         return self
 
-    def register_table_sink(self, name):
+    def create_temporary_table(self, path):
         """
-        Searches for the specified table sink, configures it accordingly, and registers it as
-        a table under the given name.
+        Registers the table described by underlying properties in a given path.
 
-        :param name: Table name to be registered in the table environment.
-        :return: This object.
-        """
-        self._j_connect_table_descriptor = self._j_connect_table_descriptor.registerTableSink(name)
-        return self
+        There is no distinction between source and sink at the descriptor level anymore as this
+        method does not perform actual class lookup. It only stores the underlying properties. The
+        actual source/sink lookup is performed when the table is used.
 
-    def register_table_source(self, name):
-        """
-        Searches for the specified table source, configures it accordingly, and registers it as
-        a table under the given name.
+        Temporary objects can shadow permanent ones. If a permanent object in a given path exists,
+        it will be inaccessible in the current session. To make the permanent object available
+        again you can drop the corresponding temporary object.
 
-        :param name: Table name to be registered in the table environment.
-        :return: This object.
-        """
-        self._j_connect_table_descriptor = \
-            self._j_connect_table_descriptor.registerTableSource(name)
-        return self
+        .. note:: The schema must be explicitly defined.
 
-    def register_table_source_and_sink(self, name):
+        :param path: path where to register the temporary table
         """
-        Searches for the specified table source and sink, configures them accordingly, and
-        registers them as a table under the given name.
-
-        :param name: Table name to be registered in the table environment.
-        :return: This object.
-        """
-        self._j_connect_table_descriptor = \
-            self._j_connect_table_descriptor.registerTableSourceAndSink(name)
+        self._j_connect_table_descriptor.createTemporaryTable(path)
         return self
 
 

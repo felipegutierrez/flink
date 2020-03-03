@@ -20,11 +20,13 @@ import os
 from pyflink.dataset import ExecutionEnvironment
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import DataTypes, CsvTableSink, StreamTableEnvironment, EnvironmentSettings
+from pyflink.table.descriptors import FileSystem, OldCsv, Schema
 from pyflink.table.table_config import TableConfig
 from pyflink.table.table_environment import BatchTableEnvironment
 from pyflink.table.types import RowType
 from pyflink.testing import source_sink_utils
-from pyflink.testing.test_case_utils import PyFlinkStreamTableTestCase, PyFlinkBatchTableTestCase
+from pyflink.testing.test_case_utils import PyFlinkStreamTableTestCase, PyFlinkBatchTableTestCase, \
+    PyFlinkBlinkBatchTableTestCase
 from pyflink.util.exceptions import TableException
 
 
@@ -90,6 +92,81 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
         expected = ['Orders', 'Results', 'Sinks']
         self.assert_equals(actual, expected)
 
+    def test_temporary_tables(self):
+        t_env = self.t_env
+        t_env.connect(FileSystem().path(os.path.join(self.tempdir + '/temp_1.csv'))) \
+            .with_format(OldCsv()
+                         .field_delimiter(',')
+                         .field("a", DataTypes.INT())
+                         .field("b", DataTypes.STRING())) \
+            .with_schema(Schema()
+                         .field("a", DataTypes.INT())
+                         .field("b", DataTypes.STRING())) \
+            .create_temporary_table("temporary_table_1")
+
+        t_env.connect(FileSystem().path(os.path.join(self.tempdir + '/temp_2.csv'))) \
+            .with_format(OldCsv()
+                         .field_delimiter(',')
+                         .field("a", DataTypes.INT())
+                         .field("b", DataTypes.STRING())) \
+            .with_schema(Schema()
+                         .field("a", DataTypes.INT())
+                         .field("b", DataTypes.STRING())) \
+            .create_temporary_table("temporary_table_2")
+
+        actual = t_env.list_temporary_tables()
+        expected = ['temporary_table_1', 'temporary_table_2']
+        self.assert_equals(actual, expected)
+
+        t_env.drop_temporary_table("temporary_table_1")
+        actual = t_env.list_temporary_tables()
+        expected = ['temporary_table_2']
+        self.assert_equals(actual, expected)
+
+    def test_temporary_views(self):
+        t_env = self.t_env
+        t_env.create_temporary_view(
+            "temporary_view_1",
+            t_env.from_elements([(1, 'Hi', 'Hello')], ['a', 'b', 'c']))
+        t_env.create_temporary_view(
+            "temporary_view_2",
+            t_env.from_elements([(1, 'Hi')], ['a', 'b']))
+
+        actual = t_env.list_temporary_views()
+        expected = ['temporary_view_1', 'temporary_view_2']
+        self.assert_equals(actual, expected)
+
+        t_env.drop_temporary_view("temporary_view_1")
+        actual = t_env.list_temporary_views()
+        expected = ['temporary_view_2']
+        self.assert_equals(actual, expected)
+
+    def test_from_path(self):
+        t_env = self.t_env
+        t_env.create_temporary_view(
+            "temporary_view_1",
+            t_env.from_elements([(1, 'Hi', 'Hello')], ['a', 'b', 'c']))
+        result = t_env.from_path("temporary_view_1")
+        self.assertEqual(
+            'CatalogTable: (identifier: [`default_catalog`.`default_database`.`temporary_view_1`]'
+            ', fields: [a, b, c])',
+            result._j_table.getQueryOperation().asSummaryString())
+
+    def test_insert_into(self):
+        t_env = self.t_env
+        field_names = ["a", "b", "c"]
+        field_types = [DataTypes.BIGINT(), DataTypes.STRING(), DataTypes.STRING()]
+        t_env.register_table_sink(
+            "Sinks",
+            source_sink_utils.TestAppendSink(field_names, field_types))
+
+        t_env.insert_into("Sinks", t_env.from_elements([(1, "Hi", "Hello")], ["a", "b", "c"]))
+        self.t_env.execute("test")
+
+        actual = source_sink_utils.results()
+        expected = ['1,Hi,Hello']
+        self.assert_equals(actual, expected)
+
     def test_explain(self):
         schema = RowType()\
             .add('a', DataTypes.INT())\
@@ -131,9 +208,8 @@ class StreamTableEnvironmentTests(PyFlinkStreamTableTestCase):
         t_env.sql_update("insert into sink1 select * from %s where a > 100" % source)
         t_env.sql_update("insert into sink2 select * from %s where a < 100" % source)
 
-        actual = t_env.explain(extended=True)
-
-        assert isinstance(actual, str)
+        with self.assertRaises(TableException):
+            t_env.explain(extended=True)
 
     def test_sql_query(self):
         t_env = self.t_env
@@ -363,3 +439,24 @@ class BatchTableEnvironmentTests(PyFlinkBatchTableTestCase):
                         line = f.readline()
 
         self.assert_equals(results, ['2,hi,hello\n', '3,hello,hello\n'])
+
+
+class BlinkBatchTableEnvironmentTests(PyFlinkBlinkBatchTableTestCase):
+
+    def test_explain_with_multi_sinks(self):
+        t_env = self.t_env
+        source = t_env.from_elements([(1, "Hi", "Hello"), (2, "Hello", "Hello")], ["a", "b", "c"])
+        field_names = ["a", "b", "c"]
+        field_types = [DataTypes.BIGINT(), DataTypes.STRING(), DataTypes.STRING()]
+        t_env.register_table_sink(
+            "sink1",
+            CsvTableSink(field_names, field_types, "path1"))
+        t_env.register_table_sink(
+            "sink2",
+            CsvTableSink(field_names, field_types, "path2"))
+
+        t_env.sql_update("insert into sink1 select * from %s where a > 100" % source)
+        t_env.sql_update("insert into sink2 select * from %s where a < 100" % source)
+
+        actual = t_env.explain(extended=True)
+        self.assertIsInstance(actual, str)

@@ -35,9 +35,7 @@ public final class KeyGroupRangeAssignment {
 	 */
 	public static final int DEFAULT_LOWER_BOUND_MAX_PARALLELISM = 1 << 7;
 
-	/**
-	 * The (inclusive) upper bound for max parallelism
-	 */
+	/** The (inclusive) upper bound for max parallelism. */
 	public static final int UPPER_BOUND_MAX_PARALLELISM = Transformation.UPPER_BOUND_MAX_PARALLELISM;
 
 	private KeyGroupRangeAssignment() {
@@ -53,6 +51,7 @@ public final class KeyGroupRangeAssignment {
 	 * @return the index of the parallel operator to which the given key should be routed.
 	 */
 	public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism) {
+		Preconditions.checkNotNull(key, "Assigned key must not be null!");
 		return computeOperatorIndexForKeyGroup(maxParallelism, parallelism, assignToKeyGroup(key, maxParallelism));
 	}
 
@@ -70,6 +69,7 @@ public final class KeyGroupRangeAssignment {
 	 * @return the key-group to which the given key is assigned
 	 */
 	public static int assignToKeyGroup(Object key, int maxParallelism) {
+		Preconditions.checkNotNull(key, "Assigned key must not be null!");
 		return computeKeyGroupForKeyHash(key.hashCode(), maxParallelism);
 	}
 
@@ -105,8 +105,13 @@ public final class KeyGroupRangeAssignment {
 	/**
 	 * Computes the range of key-groups that are assigned to a given operator under the given parallelism and maximum
 	 * parallelism.
+<<<<<<< HEAD
 	 * <p>
 	 * IMPORTANT: maxParallelism must be <= Short.MAX_VALUE to avoid rounding problems in this method. If we ever want
+=======
+	 *
+	 * <p>IMPORTANT: maxParallelism must be <= Short.MAX_VALUE to avoid rounding problems in this method. If we ever want
+>>>>>>> 2806215c0c4d88c336ee57ab639d24685b485273
 	 * to go beyond this boundary, this method must perform arithmetic on long values.
 	 * </p>
 	 *
@@ -134,8 +139,13 @@ public final class KeyGroupRangeAssignment {
 	/**
 	 * Computes the index of the operator to which a key-group belongs under the given parallelism and maximum
 	 * parallelism.
+<<<<<<< HEAD
 	 * <p>
 	 * IMPORTANT: maxParallelism must be <= Short.MAX_VALUE to avoid rounding problems in this method. If we ever want
+=======
+	 *
+	 * <p>IMPORTANT: maxParallelism must be <= Short.MAX_VALUE to avoid rounding problems in this method. If we ever want
+>>>>>>> 2806215c0c4d88c336ee57ab639d24685b485273
 	 * to go beyond this boundary, this method must perform arithmetic on long values.
 	 * </p>
 	 *

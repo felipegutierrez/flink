@@ -1,8 +1,8 @@
 ---
-title:  "Kubernetes 安装"
+title:  "Kubernetes 设置"
 nav-title: Kubernetes
 nav-parent_id: deployment
-nav-pos: 4
+nav-pos: 7
 ---
 <!--
 Licensed to the Apache Software Foundation (ASF) under one
@@ -28,19 +28,21 @@ This page describes how to deploy a Flink job and session cluster on [Kubernetes
 * This will be replaced by the TOC
 {:toc}
 
+{% info %} This page describes deploying a [standalone](#cluster_setup.html) Flink session on top of Kubernetes. For information on native Kubernetes deployments read [here]({{ site.baseurl }}/zh/ops/deployment/native_kubernetes.html).
+
 ## Setup Kubernetes
 
 Please follow [Kubernetes' setup guide](https://kubernetes.io/docs/setup/) in order to deploy a Kubernetes cluster.
 If you want to run Kubernetes locally, we recommend using [MiniKube](https://kubernetes.io/docs/setup/minikube/).
 
 <div class="alert alert-info" markdown="span">
-  <strong>Note:</strong> If using MiniKube please make sure to execute `minikube ssh 'sudo ip link set docker0 promisc on'` before deploying a Flink cluster. 
-  Otherwise Flink components are not able to self reference themselves through a Kubernetes service. 
+  <strong>Note:</strong> If using MiniKube please make sure to execute `minikube ssh 'sudo ip link set docker0 promisc on'` before deploying a Flink cluster.
+  Otherwise Flink components are not able to self reference themselves through a Kubernetes service.
 </div>
 
 ## Flink session cluster on Kubernetes
 
-A Flink session cluster is executed as a long-running Kubernetes Deployment. 
+A Flink session cluster is executed as a long-running Kubernetes Deployment.
 Note that you can run multiple Flink jobs on a session cluster.
 Each job needs to be submitted to the cluster after the cluster has been deployed.
 
@@ -89,15 +91,15 @@ In order to terminate the Flink session cluster, use `kubectl`:
 
 ## Flink job cluster on Kubernetes
 
-A Flink job cluster is a dedicated cluster which runs a single job. 
-The job is part of the image and, thus, there is no extra job submission needed. 
+A Flink job cluster is a dedicated cluster which runs a single job.
+The job is part of the image and, thus, there is no extra job submission needed.
 
 ### Creating the job-specific image
 
 The Flink job cluster image needs to contain the user code jars of the job for which the cluster is started.
 Therefore, one needs to build a dedicated container image for every job.
 Please follow these [instructions](https://github.com/apache/flink/blob/{{ site.github_branch }}/flink-container/docker/README.md) to build the Docker image.
-    
+
 ### Deploy Flink job cluster on Kubernetes
 
 In order to deploy the a job cluster on Kubernetes please follow these [instructions](https://github.com/apache/flink/blob/{{ site.github_branch }}/flink-container/kubernetes/README.md#deploy-flink-job-cluster).
@@ -129,28 +131,40 @@ data:
     jobmanager.rpc.port: 6123
     taskmanager.rpc.port: 6122
     jobmanager.heap.size: 1024m
-    taskmanager.heap.size: 1024m
+    taskmanager.memory.process.size: 1024m
   log4j.properties: |+
-    log4j.rootLogger=INFO, file
-    log4j.logger.akka=INFO
-    log4j.logger.org.apache.kafka=INFO
-    log4j.logger.org.apache.hadoop=INFO
-    log4j.logger.org.apache.zookeeper=INFO
-    log4j.appender.file=org.apache.log4j.FileAppender
-    log4j.appender.file.file=${log.file}
-    log4j.appender.file.layout=org.apache.log4j.PatternLayout
-    log4j.appender.file.layout.ConversionPattern=%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p %-60c %x - %m%n
-    log4j.logger.org.apache.flink.shaded.akka.org.jboss.netty.channel.DefaultChannelPipeline=ERROR, file
+    rootLogger.level = INFO
+    rootLogger.appenderRef.file.ref = MainAppender
+    logger.akka.name = akka
+    logger.akka.level = INFO
+    logger.kafka.name= org.apache.kafka
+    logger.kafka.level = INFO
+    logger.hadoop.name = org.apache.hadoop
+    logger.hadoop.level = INFO
+    logger.zookeeper.name = org.apache.zookeeper
+    logger.zookeeper.level = INFO
+    appender.main.name = MainAppender
+    appender.main.type = File
+    appender.main.append = false
+    appender.main.fileName = ${sys:log.file}
+    appender.main.layout.type = PatternLayout
+    appender.main.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p %-60c %x - %m%n
+    logger.netty.name = org.apache.flink.shaded.akka.org.jboss.netty.channel.DefaultChannelPipeline
+    logger.netty.level = ERROR
 {% endhighlight %}
 
 `jobmanager-deployment.yaml`
 {% highlight yaml %}
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: flink-jobmanager
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: flink
+      component: jobmanager
   template:
     metadata:
       labels:
@@ -183,6 +197,8 @@ spec:
         volumeMounts:
         - name: flink-config-volume
           mountPath: /opt/flink/conf
+        securityContext:
+          runAsUser: 9999  # refers to user _flink_ from official flink image, change if necessary
       volumes:
       - name: flink-config-volume
         configMap:
@@ -196,12 +212,16 @@ spec:
 
 `taskmanager-deployment.yaml`
 {% highlight yaml %}
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: flink-taskmanager
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: flink
+      component: taskmanager
   template:
     metadata:
       labels:
@@ -230,6 +250,8 @@ spec:
         volumeMounts:
         - name: flink-config-volume
           mountPath: /opt/flink/conf/
+        securityContext:
+          runAsUser: 9999  # refers to user _flink_ from official flink image, change if necessary
       volumes:
       - name: flink-config-volume
         configMap:

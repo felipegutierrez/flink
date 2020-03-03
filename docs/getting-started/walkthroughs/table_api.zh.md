@@ -48,7 +48,7 @@ Flink 中的 Table API 通常用于简化数据分析，数据流水线和 ETL �
 ## 如何跟进
 
 如果想要继续，你的电脑需要安装：
-* Java 8 
+* Java 8 or 11
 * Maven 
 
 现成的 Flink Maven Archetype 可以快速创建一个具有所有必要依赖的框架项目：
@@ -86,7 +86,27 @@ $ mvn archetype:generate \
 
 {% unless site.is_stable %}
 <p style="border-radius: 5px; padding: 5px" class="bg-danger">
-    <b>注意</b>：对于 Maven 3.0 或更高版本， 已经不再需要在命令行指定仓库（-DarchetypeCatalog）了。 如果希望使用快照（snapshot）仓库，需要在你的 setting.xml 文件中加入仓库入口。有关此变更的详细信息，请参阅 <a href="http://maven.apache.org/archetype/maven-archetype-plugin/archetype-repository.html">Maven 官方文档</a>。
+    <b>注意</b>：Maven 3.0 及更高版本，不再支持通过命令行指定仓库（-DarchetypeCatalog）。有关这个改动的详细信息，
+    请参阅 <a href="http://maven.apache.org/archetype/maven-archetype-plugin/archetype-repository.html">Maven 官方文档</a>
+    如果你希望使用快照仓库，则需要在 settings.xml 文件中添加一个仓库条目。例如：
+{% highlight bash %}
+<settings>
+  <activeProfiles>
+    <activeProfile>apache</activeProfile>
+  </activeProfiles>
+  <profiles>
+    <profile>
+      <id>apache</id>
+      <repositories>
+        <repository>
+          <id>apache-snapshots</id>
+          <url>https://repository.apache.org/content/repositories/snapshots/</url>
+        </repository>
+      </repositories>
+    </profile>
+  </profiles>
+</settings>
+{% endhighlight %}
 </p>
 {% endunless %}
 
@@ -188,7 +208,7 @@ tEnv.registerTableSink("spend_report", new SpendReportTableSink)
 
 #### 注册 UDF
 
-一个用来处理时间戳的[自定义函数]({{ site.baseurl }}/zh/dev/table/udfs.html)随表一起被注册到tEnv中。
+一个用来处理时间戳的[自定义函数]({{ site.baseurl }}/zh/dev/table/functions/udfs.html)随表一起被注册到tEnv中。
 此函数将时间戳向下舍入到最接近的小时。
 
 <div class="codetabs" markdown="1">
@@ -256,7 +276,7 @@ env.execute("Spend Report")
 目标是建立一个报表来显示每天每小时每个账户的总支出。
 就像一个 SQL 查询一样，Flink 可以选取所需的字段并且按键分组。
 由于时间戳字段具有毫秒的粒度，你可以使用自定义函数将其舍入到最近的小时。
-最后，选取所有的字段，用内建的 `sum` [聚合函数]({{ site.baseurl }}/zh/dev/table/functions.html#aggregate-functions)函数合计每一个账户每小时的支出。
+最后，选取所有的字段，用内建的 `sum` [聚合函数]({{ site.baseurl }}/zh/dev/table/functions/systemFunctions.html#aggregate-functions)函数合计每一个账户每小时的支出。
 <div class="codetabs" markdown="1">
 <div data-lang="java" markdown="1">
 {% highlight java %}

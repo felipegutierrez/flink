@@ -17,6 +17,7 @@
  */
 package org.apache.flink.table.planner.codegen.agg
 
+import org.apache.flink.api.common.functions.RuntimeContext
 import org.apache.flink.table.api.TableException
 import org.apache.flink.table.dataformat.GenericRow
 import org.apache.flink.table.dataformat.util.BaseRowUtil
@@ -333,18 +334,27 @@ class AggsHandlerCodeGenerator(
 
     val functionName = newName(name)
 
+    val RUNTIME_CONTEXT = className[RuntimeContext]
+
     val functionCode =
       j"""
         public final class $functionName implements $AGGS_HANDLER_FUNCTION {
 
           ${ctx.reuseMemberCode()}
 
+          private $STATE_DATA_VIEW_STORE store;
+
           public $functionName(java.lang.Object[] references) throws Exception {
             ${ctx.reuseInitCode()}
           }
 
+          private $RUNTIME_CONTEXT getRuntimeContext() {
+            return store.getRuntimeContext();
+          }
+
           @Override
           public void open($STATE_DATA_VIEW_STORE store) throws Exception {
+            this.store = store;
             ${ctx.reuseOpenCode()}
           }
 
@@ -941,20 +951,29 @@ class AggsHandlerCodeGenerator(
       windowProperties: Seq[PlannerWindowProperty]): Seq[GeneratedExpression] = {
     windowProperties.map {
       case w: PlannerWindowStart =>
-        // return a Timestamp(Internal is long)
+        // return a Timestamp(Internal is SqlTimestamp)
         GeneratedExpression(
-          s"$NAMESPACE_TERM.getStart()", "false", "", w.resultType)
+          s"$SQL_TIMESTAMP.fromEpochMillis($NAMESPACE_TERM.getStart())",
+          "false",
+          "",
+          w.resultType)
       case w: PlannerWindowEnd =>
-        // return a Timestamp(Internal is long)
+        // return a Timestamp(Internal is SqlTimestamp)
         GeneratedExpression(
-          s"$NAMESPACE_TERM.getEnd()", "false", "", w.resultType)
+          s"$SQL_TIMESTAMP.fromEpochMillis($NAMESPACE_TERM.getEnd())",
+          "false",
+          "",
+          w.resultType)
       case r: PlannerRowtimeAttribute =>
-        // return a rowtime, use long as internal type
+        // return a rowtime, use SqlTimestamp as internal type
         GeneratedExpression(
-          s"$NAMESPACE_TERM.getEnd() - 1", "false", "", r.resultType)
+          s"$SQL_TIMESTAMP.fromEpochMillis($NAMESPACE_TERM.getEnd() - 1)",
+          "false",
+          "",
+          r.resultType)
       case p: PlannerProctimeAttribute =>
         // ignore this property, it will be null at the position later
-        GeneratedExpression("-1L", "true", "", p.resultType)
+        GeneratedExpression(s"$SQL_TIMESTAMP.fromEpochMillis(-1L)", "true", "", p.resultType)
     }
   }
 
