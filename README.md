@@ -28,8 +28,9 @@ $ ll flink-examples/flink-examples-streaming/target/
 To put the application to run quickly and with pre-configured options we just need to run a producer, the stream application, and a consumer.
 ```
 java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:MqttDataProducer.jar \
-    org.apache.flink.streaming.examples.utils.MqttDataProducer -input /home/felipe/Temp/1524-0.txt \
-    -output mqtt
+    org.apache.flink.streaming.examples.utils.MqttDataProducer \
+    -input /home/felipe/Temp/1524-0.txt -output mqtt
+
 ./bin/flink run WordCountPreAggregate.jar \
     -pre-aggregate-window 10 -input mqtt -sourceHost 192.168.56.1 \
     -output mqtt -sinkHost 192.168.56.1 -slotSplit true -disableOperatorChaining true -latencyTrackingInterval 10000

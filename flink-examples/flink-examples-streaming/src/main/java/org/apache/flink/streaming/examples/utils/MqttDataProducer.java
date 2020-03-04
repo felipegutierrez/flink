@@ -1,7 +1,7 @@
 package org.apache.flink.streaming.examples.utils;
 
-import com.google.common.base.Strings;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 import org.fusesource.hawtbuf.AsciiBuffer;
 import org.fusesource.hawtbuf.Buffer;
 import org.fusesource.hawtbuf.UTF8Buffer;
