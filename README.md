@@ -88,9 +88,10 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
 
 ## Metrics
 
- - [http://127.0.0.1:8081/jobs/<JOB_ID>](http://127.0.0.1:8081/jobs/<JOB_ID>)
- - [http://127.0.0.1:8081/jobs/<JOB_ID>/metrics](http://127.0.0.1:8081/jobs/<JOB_ID>/metrics)
- - [http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99](http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99)
+ - Job: [http://127.0.0.1:8081/jobs/<JOB_ID>](http://127.0.0.1:8081/jobs/<JOB_ID>)
+ - Metrics: [http://127.0.0.1:8081/jobs/<JOB_ID>/metrics](http://127.0.0.1:8081/jobs/<JOB_ID>/metrics)
+ - 99th percentile latency: [http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99](http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99)
+ - Backpressure: [http://localhost:8081/jobs/:jobID/vertices/:verticeID/backpressure](http://localhost:8081/jobs/:jobID/vertices/:verticeID/backpressure)
 
 ## Partial partition
 
