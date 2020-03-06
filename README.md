@@ -90,7 +90,8 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
 
  - Job: [http://127.0.0.1:8081/jobs/<JOB_ID>](http://127.0.0.1:8081/jobs/<JOB_ID>)
  - Metrics: [http://127.0.0.1:8081/jobs/<JOB_ID>/metrics](http://127.0.0.1:8081/jobs/<JOB_ID>/metrics)
- - 99th percentile latency: [http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99](http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99)
+ - 99th percentile latency: [http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99](http://127.0.0.1:8081/jobs/<JOB_ID>/metrics?get=latency.source_id.<ID>.operator_id.<UID>.operator_subtask_index.0.latency_p99). Detail description is given at [Latency tracking](https://ci.apache.org/projects/flink/flink-docs-stable/monitoring/metrics.html#latency-tracking).
+ - For latency histogram of the pre-aggregate operator use the metric: `flink_taskmanager_job_task_operator_pre_aggregate_histogram`.
  - Backpressure: [http://localhost:8081/jobs/:jobID/vertices/:verticeID/backpressure](http://localhost:8081/jobs/:jobID/vertices/:verticeID/backpressure)
 
 ## Partial partition

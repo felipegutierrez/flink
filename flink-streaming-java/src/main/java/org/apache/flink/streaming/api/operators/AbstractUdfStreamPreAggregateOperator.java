@@ -1,6 +1,9 @@
 package org.apache.flink.streaming.api.operators;
 
+import com.codahale.metrics.SlidingWindowReservoir;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
+import org.apache.flink.metrics.Histogram;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateMqttListener;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
@@ -35,6 +38,16 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	private transient TimestampedCollector<OUT> collector;
 	private transient int numOfElements;
 
+	/**
+	 * Histogram metrics to monitor latency
+	 */
+	private Histogram histogram;
+	private long elapsedTime;
+
+	/**
+	 * @param function
+	 * @param preAggregateTrigger
+	 */
 	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
 												 PreAggregateTriggerFunction<IN> preAggregateTrigger) {
 		super(function);
@@ -53,6 +66,13 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.preAggregateTrigger.registerCallback(this);
 		// reset trigger
 		this.preAggregateTrigger.reset();
+
+		com.codahale.metrics.Histogram dropwizardHistogram =
+			new com.codahale.metrics.Histogram(new SlidingWindowReservoir(500));
+		this.histogram = getRuntimeContext().getMetricGroup()
+			.histogram("pre-aggregate-histogram", new DropwizardHistogramWrapper(dropwizardHistogram));
+		this.elapsedTime = System.currentTimeMillis();
+
 		try {
 			this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger);
 			this.preAggregateMqttListener.connect();
@@ -89,5 +109,9 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 			this.bundle.clear();
 		}
 		this.preAggregateTrigger.reset();
+
+		// update and reset latency elapsed
+		this.histogram.update(System.currentTimeMillis() - elapsedTime);
+		this.elapsedTime = System.currentTimeMillis();
 	}
 }
