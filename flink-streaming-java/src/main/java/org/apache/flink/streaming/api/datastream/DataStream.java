@@ -46,6 +46,7 @@ import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.*;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
@@ -1275,17 +1276,22 @@ public class DataStream<T> {
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction, long windowProcessingCount) {
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction,
+														  long windowProcessingCount, PreAggregateStrategy preAggregateStrategy) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingCount);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingCount, preAggregateStrategy);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
+	}
+
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction, long windowProcessingCount) {
+		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL);
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(

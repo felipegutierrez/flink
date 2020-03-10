@@ -29,6 +29,7 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.aggregate.util.*;
@@ -52,10 +53,9 @@ import java.util.Map;
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "100"
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
  *
- * </pre>
- * <pre>
  * usage: java WordCountPreAggregate \
  *        -pre-aggregate-window [>0 seconds] \
+ *        -strategy [GLOBAL, LOCAL, PER_KEY] \
  *        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
@@ -91,6 +91,7 @@ public class WordCountPreAggregate {
 
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
+	private static final String PRE_AGGREGATE_STRATEGY = "strategy";
 	private static final String BUFFER_TIMEOUT = "bufferTimeout";
 	private static final String SYNTHETIC_DELAY = "delay";
 	private static final String POOLING_FREQUENCY = "pooling";
@@ -142,6 +143,8 @@ public class WordCountPreAggregate {
 		long latencyTrackingInterval = params.getLong(LATENCY_TRACKING_INTERVAL, 0);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
+		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
+			PreAggregateStrategy.GLOBAL.toString()));
 
 		String slotSharingGroup01 = null;
 		String slotSharingGroup02 = null;
@@ -160,6 +163,7 @@ public class WordCountPreAggregate {
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
 		System.out.println("window [seconds]                         : " + window);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
@@ -228,7 +232,7 @@ public class WordCountPreAggregate {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = counts;
 		} else {
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount)
+			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 

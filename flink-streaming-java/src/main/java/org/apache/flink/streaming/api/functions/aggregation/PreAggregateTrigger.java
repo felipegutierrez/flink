@@ -25,4 +25,6 @@ public interface PreAggregateTrigger<T> extends Serializable {
 	String explain();
 
 	long getMaxCount();
+
+	PreAggregateStrategy getPreAggregateStrategy();
 }

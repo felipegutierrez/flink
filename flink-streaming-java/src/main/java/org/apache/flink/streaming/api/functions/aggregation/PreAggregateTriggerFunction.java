@@ -4,6 +4,7 @@ import org.apache.flink.util.Preconditions;
 
 public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
+	private PreAggregateStrategy preAggregateStrategy;
 	private long maxCount;
 	private transient long count = 0;
 	private transient PreAggregateTriggerCallback callback;
@@ -11,6 +12,13 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	public PreAggregateTriggerFunction(long maxCount) {
 		Preconditions.checkArgument(maxCount > 0, "periodMilliseconds must be greater than 0");
 		this.maxCount = maxCount;
+		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
+	}
+
+	public PreAggregateTriggerFunction(long maxCount, PreAggregateStrategy preAggregateStrategy) {
+		Preconditions.checkArgument(maxCount > 0, "periodMilliseconds must be greater than 0");
+		this.maxCount = maxCount;
+		this.preAggregateStrategy = preAggregateStrategy;
 	}
 
 	@Override
@@ -41,8 +49,16 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 		return maxCount;
 	}
 
-	public void setMaxCount(long maxCount) {
-		System.out.println("new maxCount set: " + maxCount);
+	public void setMaxCount(long maxCount, int subtaskIndex) {
+		if (subtaskIndex == -1) {
+			System.out.println("Subtask[all] - new maxCount set: " + maxCount);
+		} else {
+			System.out.println("Subtask[" + subtaskIndex + "] - new maxCount set: " + maxCount);
+		}
 		this.maxCount = maxCount;
+	}
+
+	public PreAggregateStrategy getPreAggregateStrategy() {
+		return preAggregateStrategy;
 	}
 }

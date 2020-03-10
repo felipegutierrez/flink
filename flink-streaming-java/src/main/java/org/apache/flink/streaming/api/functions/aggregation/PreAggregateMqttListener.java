@@ -18,31 +18,42 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 	private static final String TOPIC_REDUCER_OUT_POOL_USAGE = "topic-frequency-pre-aggregate";
 	private BlockingConnection subscriber;
 	private MQTT mqtt;
+	private String topic;
 	private String host;
 	private int port;
+	private int subtaskIndex;
 	private boolean running = false;
 	private PreAggregateTriggerFunction preAggregateTriggerFunction;
 
 	public PreAggregateMqttListener(PreAggregateTriggerFunction preAggregateTriggerFunction) {
-		this(preAggregateTriggerFunction, "127.0.0.1", 1883);
+		this(preAggregateTriggerFunction, "127.0.0.1", 1883, -1);
 	}
 
-	public PreAggregateMqttListener(PreAggregateTriggerFunction preAggregateTriggerFunction, String host, int port) {
+	public PreAggregateMqttListener(PreAggregateTriggerFunction preAggregateTriggerFunction, int subtaskIndex) {
+		this(preAggregateTriggerFunction, "127.0.0.1", 1883, subtaskIndex);
+	}
+
+	public PreAggregateMqttListener(PreAggregateTriggerFunction preAggregateTriggerFunction, String host, int port, int subtaskIndex) {
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
 		this.host = host;
 		this.port = port;
 		this.running = true;
+		this.subtaskIndex = subtaskIndex;
+		if (this.subtaskIndex == -1) {
+			this.topic = TOPIC_REDUCER_OUT_POOL_USAGE;
+		} else {
+			this.topic = TOPIC_REDUCER_OUT_POOL_USAGE + "-" + this.subtaskIndex;
+		}
 		this.disclaimer();
 	}
 
 	public void connect() throws Exception {
-		mqtt = new MQTT();
-		mqtt.setHost(host, port);
-
-		subscriber = mqtt.blockingConnection();
-		subscriber.connect();
-		Topic[] topics = new Topic[]{new Topic(TOPIC_REDUCER_OUT_POOL_USAGE, QoS.AT_MOST_ONCE)};
-		subscriber.subscribe(topics);
+		this.mqtt = new MQTT();
+		this.mqtt.setHost(host, port);
+		this.subscriber = mqtt.blockingConnection();
+		this.subscriber.connect();
+		Topic[] topics = new Topic[]{new Topic(this.topic, QoS.AT_MOST_ONCE)};
+		this.subscriber.subscribe(topics);
 	}
 
 	public void run() {
@@ -53,9 +64,10 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 				if (msg != null) {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
-					System.out.println(message);
 					if (isInteger(message)) {
-						this.preAggregateTriggerFunction.setMaxCount(Long.valueOf(message).longValue());
+						this.preAggregateTriggerFunction.setMaxCount(Long.valueOf(message).longValue(), this.subtaskIndex);
+					} else {
+						System.out.println("The parameter sent is not an integer: " + message);
 					}
 				}
 			}
@@ -92,7 +104,7 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 		System.out.println("This is the application [" + PreAggregateMqttListener.class.getSimpleName() + "].");
 		System.out.println("It listens new frequency parameters from an MQTT broker.");
 		System.out.println("To publish in this broker use:");
-		System.out.println("mosquitto_pub -h " + host + " -p " + port + " -t " + TOPIC_REDUCER_OUT_POOL_USAGE + " -m \"MaxCount\"");
+		System.out.println("mosquitto_pub -h " + this.host + " -p " + this.port + " -t " + this.topic + " -m \"MaxCount\"");
 		System.out.println();
 	}
 }

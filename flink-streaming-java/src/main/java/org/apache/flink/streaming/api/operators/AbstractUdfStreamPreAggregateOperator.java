@@ -5,6 +5,7 @@ import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateMqttListener;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -74,7 +75,16 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.elapsedTime = System.currentTimeMillis();
 
 		try {
-			this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger);
+			if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.GLOBAL) {
+				this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger);
+			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.LOCAL) {
+				int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
+				this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger, subtaskIndex);
+			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.PER_KEY) {
+				System.out.println("Pre-aggregate per-key strategy not implemented.");
+			} else {
+				System.out.println("Pre-aggregate strategy not implemented.");
+			}
 			this.preAggregateMqttListener.connect();
 			this.preAggregateMqttListener.start();
 		} catch (Exception e) {
