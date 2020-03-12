@@ -17,10 +17,7 @@
 
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -58,6 +55,7 @@ import java.util.Map;
  *        -strategy [GLOBAL, LOCAL, PER_KEY] \
  *        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
+ *        -simulateSkew [false] \
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
@@ -88,6 +86,7 @@ public class WordCountPreAggregate {
 	private static final String SLOT_GROUP_SPLIT = "slotSplit";
 	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
 	private static final String LATENCY_TRACKING_INTERVAL = "latencyTrackingInterval";
+	private static final String SIMULATE_SKEW = "simulateSkew";
 
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
@@ -142,6 +141,7 @@ public class WordCountPreAggregate {
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 		long latencyTrackingInterval = params.getLong(LATENCY_TRACKING_INTERVAL, 0);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
+		boolean simulateSkew = params.getBoolean(SIMULATE_SKEW, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
@@ -159,6 +159,7 @@ public class WordCountPreAggregate {
 		System.out.println("data sink                                : " + output);
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
+		System.out.println("Simulating skew                          : " + simulateSkew);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
@@ -224,15 +225,22 @@ public class WordCountPreAggregate {
 		DataStream<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer())
 			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
 
+		DataStream<Tuple2<String, Integer>> skewed = null;
+		if (simulateSkew) {
+			skewed = counts.partitionCustom(new SimulateSkewPartition(), 0);
+		} else {
+			skewed = counts;
+		}
+
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
 		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
 
 		if (preAggregationWindowCount == 0) {
 			// NO PRE_AGGREGATE
-			preAggregatedStream = counts;
+			preAggregatedStream = skewed;
 		} else {
-			preAggregatedStream = counts.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy)
+			preAggregatedStream = skewed.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 
@@ -345,6 +353,21 @@ public class WordCountPreAggregate {
 		@Override
 		public String map(Tuple2<String, Integer> value) throws Exception {
 			return value.f0 + " - " + value.f1;
+		}
+	}
+
+	private static class SimulateSkewPartition implements Partitioner<String> {
+		private static final long serialVersionUID = 1L;
+		private int nextChannelToSendTo;
+
+		@Override
+		public int partition(String key, int numPartitions) {
+			if ("GUTENBERG".equalsIgnoreCase(key)) {
+				return 0;
+			} else {
+				nextChannelToSendTo = (nextChannelToSendTo + 1) % numPartitions;
+				return nextChannelToSendTo;
+			}
 		}
 	}
 }

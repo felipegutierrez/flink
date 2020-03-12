@@ -32,7 +32,7 @@ java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:M
     -input /home/felipe/Temp/1524-0.txt -output mqtt
 
 ./bin/flink run WordCountPreAggregate.jar \
-    -pre-aggregate-window 10 -strategy GLOBAL -input mqtt -sourceHost 192.168.56.1 \
+    -pre-aggregate-window 10 -strategy GLOBAL -input mqtt -sourceHost 192.168.56.1 -simulateSkew true \
     -output mqtt -sinkHost 192.168.56.1 -slotSplit true -disableOperatorChaining true
 mosquitto_sub -h 192.168.56.1 -t topic-data-sink
 ```
@@ -54,6 +54,7 @@ java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file
         -strategy [GLOBAL, LOCAL, PER_KEY] \
         -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
         -sourceHost [127.0.0.1] -sourcePort [1883] \
+        -simulateSkew [false] \
         -pooling 100 \ # pooling frequency from source if not using mqtt data source
         -output [mqtt|log|text] \
         -sinkHost [127.0.0.1] -sinkPort [1883] \
