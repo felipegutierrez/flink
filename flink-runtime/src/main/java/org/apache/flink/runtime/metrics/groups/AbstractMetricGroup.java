@@ -393,6 +393,11 @@ public abstract class AbstractMetricGroup<A extends AbstractMetricGroup<?>> impl
 		return meter;
 	}
 
+	@Override
+	public Metric getMetric(String name) {
+		return metrics.get(name);
+	}
+
 	/**
 	 * Adds the given metric to the group and registers it at the registry, if the group
 	 * is not yet closed, and if no metric with the same name has been registered before.
@@ -455,6 +460,10 @@ public abstract class AbstractMetricGroup<A extends AbstractMetricGroup<?>> impl
 	@Override
 	public MetricGroup addGroup(String key, String value) {
 		return addGroup(key, ChildType.KEY).addGroup(value, ChildType.VALUE);
+	}
+
+	public MetricGroup getGroup(String key) {
+		return groups.get(key);
 	}
 
 	private AbstractMetricGroup<?> addGroup(String name, ChildType childType) {

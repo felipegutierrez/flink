@@ -18,13 +18,7 @@
 
 package org.apache.flink.metrics.groups;
 
-import org.apache.flink.metrics.CharacterFilter;
-import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.Gauge;
-import org.apache.flink.metrics.Histogram;
-import org.apache.flink.metrics.Meter;
-import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.metrics.*;
 
 import java.util.Collections;
 import java.util.Map;
@@ -63,6 +57,11 @@ public class UnregisteredMetricsGroup implements MetricGroup {
 	@Override
 	public <T, G extends Gauge<T>> G gauge(String name, G gauge) {
 		return gauge;
+	}
+
+	@Override
+	public Metric getMetric(String name) {
+		return null;
 	}
 
 	@Override

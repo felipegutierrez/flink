@@ -130,6 +130,8 @@ public interface MetricGroup {
 	 */
 	<M extends Meter> M meter(int name, M meter);
 
+	Metric getMetric(String name);
+
 	// ------------------------------------------------------------------------
 	// Groups
 	// ------------------------------------------------------------------------

@@ -3,7 +3,11 @@ package org.apache.flink.streaming.api.operators;
 import com.codahale.metrics.SlidingWindowReservoir;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
+import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
+import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateMqttListener;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerCallback;
@@ -40,9 +44,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	private transient int numOfElements;
 
 	/**
-	 * Histogram metrics to monitor latency
+	 * Histogram metrics to monitor latency and network buffer
 	 */
-	private Histogram histogram;
+	private Histogram latencyHistogram;
+	private Histogram outPoolUsageHistogram;
 	private long elapsedTime;
 
 	/**
@@ -68,11 +73,16 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		// reset trigger
 		this.preAggregateTrigger.reset();
 
-		com.codahale.metrics.Histogram dropwizardHistogram =
+		com.codahale.metrics.Histogram dropwizardLatencyHistogram =
 			new com.codahale.metrics.Histogram(new SlidingWindowReservoir(500));
-		this.histogram = getRuntimeContext().getMetricGroup()
-			.histogram("pre-aggregate-histogram", new DropwizardHistogramWrapper(dropwizardHistogram));
+		this.latencyHistogram = getRuntimeContext().getMetricGroup()
+			.histogram("pre-aggregate-latency-histogram", new DropwizardHistogramWrapper(dropwizardLatencyHistogram));
 		this.elapsedTime = System.currentTimeMillis();
+
+		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram =
+			new com.codahale.metrics.Histogram(new SlidingWindowReservoir(500));
+		this.outPoolUsageHistogram = getRuntimeContext().getMetricGroup()
+			.histogram("pre-aggregate-outPoolUsage-histogram", new DropwizardHistogramWrapper(dropwizardOutPoolBufferHistogram));
 
 		try {
 			if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.GLOBAL) {
@@ -121,7 +131,17 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.preAggregateTrigger.reset();
 
 		// update and reset latency elapsed
-		this.histogram.update(System.currentTimeMillis() - elapsedTime);
+		this.latencyHistogram.update(System.currentTimeMillis() - elapsedTime);
 		this.elapsedTime = System.currentTimeMillis();
+
+		// update outPoolBuffer size
+		OperatorMetricGroup operatorMetricGroup = (OperatorMetricGroup) this.getMetricGroup();
+		TaskMetricGroup taskMetricGroup = operatorMetricGroup.parent();
+		MetricGroup metricGroup = taskMetricGroup.getGroup("buffers");
+		Gauge<Float> gauge = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
+		if (gauge != null && gauge.getValue() != null) {
+			float outPoolUsage = gauge.getValue().floatValue();
+			this.outPoolUsageHistogram.update((long) (outPoolUsage * 100));
+		}
 	}
 }

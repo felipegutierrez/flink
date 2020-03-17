@@ -18,12 +18,7 @@
 
 package org.apache.flink.runtime.metrics.groups;
 
-import org.apache.flink.metrics.CharacterFilter;
-import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.Gauge;
-import org.apache.flink.metrics.Histogram;
-import org.apache.flink.metrics.Meter;
-import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.metrics.*;
 
 import java.util.Map;
 
@@ -71,6 +66,9 @@ public class ProxyMetricGroup<P extends MetricGroup> implements MetricGroup {
 	public final <T, G extends Gauge<T>> G gauge(String name, G gauge) {
 		return parentMetricGroup.gauge(name, gauge);
 	}
+
+	@Override
+	public final Metric getMetric(String name) { return parentMetricGroup.getMetric(name); }
 
 	@Override
 	public final <H extends Histogram> H histogram(String name, H histogram) {

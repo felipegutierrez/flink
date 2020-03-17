@@ -85,8 +85,9 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 	}
 
 	private boolean isInteger(String s, int radix) {
-		if (s.isEmpty())
+		if (s.isEmpty()) {
 			return false;
+		}
 		for (int i = 0; i < s.length(); i++) {
 			if (i == 0 && s.charAt(i) == '-') {
 				if (s.length() == 1)

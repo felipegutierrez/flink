@@ -20,6 +20,7 @@ package org.apache.flink.runtime.metrics.groups;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.CharacterFilter;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.metrics.MetricRegistry;
 import org.apache.flink.runtime.metrics.dump.QueryScopeInfo;
@@ -91,5 +92,17 @@ public class OperatorMetricGroup extends ComponentMetricGroup<TaskMetricGroup> {
 	@Override
 	protected String getGroupName(CharacterFilter filter) {
 		return "operator";
+	}
+
+	public String isBackpressured() {
+		Gauge<Float> gauge = (Gauge<Float>) this.parent.getMetric("outPoolUsage");
+		if (gauge == null) {
+			System.out.println("outPoolUsage: null");
+		} else if (gauge.getValue() == null) {
+			System.out.println("outPoolUsage: gauge.getValue(): null");
+		} else {
+			System.out.println("outPoolUsage: " + gauge.getValue());
+		}
+		return "isBackpressured";
 	}
 }
