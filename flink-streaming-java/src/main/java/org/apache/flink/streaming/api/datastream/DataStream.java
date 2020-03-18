@@ -1277,7 +1277,9 @@ public class DataStream<T> {
 	 * @return The transformed {@link DataStream} constructed.
 	 */
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction,
-														  long windowProcessingCount, PreAggregateStrategy preAggregateStrategy) {
+														  long windowProcessingCount,
+														  PreAggregateStrategy preAggregateStrategy,
+														  boolean piController) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
@@ -1287,11 +1289,19 @@ public class DataStream<T> {
 		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingCount, preAggregateStrategy);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
-		return doTransform("PreAggregate", outType, SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector)));
+		return doTransform("PreAggregate", outType,
+			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector, piController)));
 	}
 
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction, long windowProcessingCount) {
-		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL);
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction,
+														  long windowProcessingCount,
+														  boolean piController) {
+		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL, piController);
+	}
+
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction,
+														  long windowProcessingCount) {
+		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL, false);
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(

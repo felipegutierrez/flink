@@ -152,8 +152,6 @@ public class NettyShuffleMetricFactory {
 		}
 		buffersGroup.gauge(METRIC_OUTPUT_QUEUE_LENGTH, new OutputBuffersGauge(resultPartitions));
 		buffersGroup.gauge(METRIC_OUTPUT_POOL_USAGE, new OutputBufferPoolUsageGauge(resultPartitions));
-		Gauge<Float> gauge = (Gauge<Float>) buffersGroup.getMetric(METRIC_OUTPUT_POOL_USAGE);
-		System.out.println("gauge.getValue(): " + gauge.getValue());
 	}
 
 	public static void registerInputMetrics(

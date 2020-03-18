@@ -45,19 +45,30 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 		return "maxCount [" + maxCount + "]";
 	}
 
+	@Override
 	public long getMaxCount() {
 		return maxCount;
 	}
 
+	@Override
 	public void setMaxCount(long maxCount, int subtaskIndex) {
-		if (subtaskIndex == -1) {
-			System.out.println("Subtask[all] - new maxCount set: " + maxCount);
+		if (maxCount > -1) {
+			if (subtaskIndex == -1) {
+				System.out.println("Subtask[all] - new maxCount set: " + maxCount);
+			} else {
+				System.out.println("Subtask[" + subtaskIndex + "] - new maxCount set: " + maxCount);
+			}
+			this.maxCount = maxCount;
 		} else {
-			System.out.println("Subtask[" + subtaskIndex + "] - new maxCount set: " + maxCount);
+			if (subtaskIndex == -1) {
+				System.out.println("Warning: attempt to set maxCount failed[" + maxCount + "] for Subtask[all]");
+			} else {
+				System.out.println("Warning: attempt to set maxCount failed[" + maxCount + "] for Subtask[" + subtaskIndex + "]");
+			}
 		}
-		this.maxCount = maxCount;
 	}
 
+	@Override
 	public PreAggregateStrategy getPreAggregateStrategy() {
 		return preAggregateStrategy;
 	}

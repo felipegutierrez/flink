@@ -56,6 +56,7 @@ import java.util.Map;
  *        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
  *        -simulateSkew [false] \
+ *        -piController [false] \
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
@@ -87,6 +88,7 @@ public class WordCountPreAggregate {
 	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
 	private static final String LATENCY_TRACKING_INTERVAL = "latencyTrackingInterval";
 	private static final String SIMULATE_SKEW = "simulateSkew";
+	private static final String PI_CONTROLLER = "piController";
 
 	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
@@ -143,6 +145,7 @@ public class WordCountPreAggregate {
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean simulateSkew = params.getBoolean(SIMULATE_SKEW, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
+		boolean piController = params.getBoolean(PI_CONTROLLER, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
@@ -160,6 +163,7 @@ public class WordCountPreAggregate {
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
 		System.out.println("Simulating skew                          : " + simulateSkew);
+		System.out.println("Feedback loop PI Controller              : " + piController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
@@ -240,7 +244,7 @@ public class WordCountPreAggregate {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = skewed;
 		} else {
-			preAggregatedStream = skewed.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy)
+			preAggregatedStream = skewed.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, piController)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 

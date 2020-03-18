@@ -26,5 +26,7 @@ public interface PreAggregateTrigger<T> extends Serializable {
 
 	long getMaxCount();
 
+	void setMaxCount(long maxCount, int subtaskIndex);
+
 	PreAggregateStrategy getPreAggregateStrategy();
 }
