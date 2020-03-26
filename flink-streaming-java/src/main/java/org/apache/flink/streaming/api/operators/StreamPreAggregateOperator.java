@@ -15,8 +15,8 @@ public class StreamPreAggregateOperator<K, V, IN, OUT> extends AbstractUdfStream
 	public StreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
 									  PreAggregateTriggerFunction<IN> preAggregateTrigger,
 									  KeySelector<IN, K> keySelector,
-									  boolean piController) {
-		super(function, preAggregateTrigger, piController);
+									  boolean controller) {
+		super(function, preAggregateTrigger, controller);
 		this.keySelector = keySelector;
 	}
 

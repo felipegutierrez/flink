@@ -48,8 +48,8 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	/**
 	 * A Feedback loop PI Controller to find the optimal parameter K of pre-aggregating items
 	 */
-	private PreAggregatePIController preAggregatePIController;
-	private boolean piController;
+	private PreAggregateController preAggregateController;
+	private boolean controller;
 
 	/**
 	 * Histogram metrics to monitor latency and network buffer
@@ -69,10 +69,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 */
 	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
 												 PreAggregateTriggerFunction<IN> preAggregateTrigger,
-												 boolean piController) {
+												 boolean controller) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;
-		this.piController = piController;
+		this.controller = controller;
 		this.bundle = new HashMap<>();
 		this.preAggregateTrigger = checkNotNull(preAggregateTrigger, "bundleTrigger is null");
 	}
@@ -92,15 +92,15 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.elapsedTime = System.currentTimeMillis();
 
 		// create histogram metrics
-		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(500));
+		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(10));
 		Histogram latencyHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_LATENCY_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardLatencyHistogram));
-		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(500));
+		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(10));
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardOutPoolBufferHistogram));
 
 		// initiate the PI Controller with the histogram metrics
-		this.preAggregatePIController = new PreAggregatePIController(this.preAggregateTrigger,
+		this.preAggregateController = new PreAggregateController(this.preAggregateTrigger,
 			latencyHistogram, outPoolUsageHistogram, this.subtaskIndex);
 
 		try {
@@ -120,8 +120,8 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		}
 
 		// initialize the PI controller for the pre-aggregate operator
-		if (this.piController) {
-			this.preAggregatePIController.start();
+		if (this.controller) {
+			this.preAggregateController.start();
 		}
 	}
 
@@ -156,7 +156,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		// update metrics to Prometheus+Grafana and reset latency elapsed
 		long latency = System.currentTimeMillis() - elapsedTime;
 		this.elapsedTime = System.currentTimeMillis();
-		this.preAggregatePIController.getLatencyHistogram().update(latency);
+		this.preAggregateController.getLatencyHistogram().update(latency);
 
 		// update outPoolUsage size metrics to Prometheus+Grafana
 		float outPoolUsage = 0.0f;
@@ -166,12 +166,12 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		Gauge<Float> gauge = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
 		if (gauge != null && gauge.getValue() != null) {
 			outPoolUsage = gauge.getValue().floatValue();
-			this.preAggregatePIController.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
+			this.preAggregateController.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
 		}
 
-		if (this.piController) {
+		if (this.controller) {
 			// update metrics to the PI Controller
-			this.preAggregatePIController.updateMonitoredValues(latency, outPoolUsage);
+			this.preAggregateController.updateMonitoredValues(latency, outPoolUsage);
 		}
 	}
 }

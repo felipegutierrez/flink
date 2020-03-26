@@ -1276,10 +1276,10 @@ public class DataStream<T> {
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction,
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  long windowProcessingCount,
 														  PreAggregateStrategy preAggregateStrategy,
-														  boolean piController) {
+														  boolean controller) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
@@ -1290,16 +1290,16 @@ public class DataStream<T> {
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType,
-			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector, piController)));
+			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector, controller)));
 	}
 
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction,
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  long windowProcessingCount,
 														  boolean piController) {
 		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL, piController);
 	}
 
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<String, Integer, T, R> preAggregateFunction,
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  long windowProcessingCount) {
 		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL, false);
 	}

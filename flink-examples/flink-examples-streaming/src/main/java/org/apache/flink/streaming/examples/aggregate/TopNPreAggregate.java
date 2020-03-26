@@ -29,7 +29,9 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.streaming.examples.aggregate.util.*;
+import org.apache.flink.streaming.examples.aggregate.util.DataRateSource;
+import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
+import org.apache.flink.streaming.examples.aggregate.util.MqttDataSource;
 import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
@@ -50,10 +52,10 @@ import java.util.Map;
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "100"
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
  *
- * usage: java WordCountPreAggregate \
+ * usage: java TopNPreAggregate \
  *        -pre-aggregate-window [>0 items] \
  *        -strategy [GLOBAL, LOCAL, PER_KEY] \
- *        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
+ *        -input mqtt \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
  *        -simulateSkew [false] \
  *        -controller [false] \
@@ -65,11 +67,11 @@ import java.util.Map;
  *        -latencyTrackingInterval [0]
  *
  * Running on the IDE:
- * usage: java WordCountPreAggregate [parameters]
+ * usage: java TopNPreAggregate -pre-aggregate-window 1 -strategy GLOBAL -input mqtt -output mqtt
  *
  * </pre>
  */
-public class WordCountPreAggregate {
+public class TopNPreAggregate {
 
 	private static final String TOPIC_DATA_SOURCE = "topic-data-source";
 	private static final String TOPIC_DATA_SINK = "topic-data-sink";
@@ -94,13 +96,6 @@ public class WordCountPreAggregate {
 	private static final String SYNTHETIC_DELAY = "delay";
 	private static final String POOLING_FREQUENCY = "pooling";
 	private static final String SOURCE = "input";
-	private static final String SOURCE_WORDS = "words";
-	private static final String SOURCE_SKEW_WORDS = "skew";
-	private static final String SOURCE_FEW_WORDS = "few";
-	private static final String SOURCE_DATA_RATE_VARIATION_WORDS = "variation";
-	private static final String SOURCE_DATA_HAMLET = "hamlet";
-	private static final String SOURCE_DATA_MOBY_DICK = "mobydick";
-	private static final String SOURCE_DATA_DICTIONARY = "dictionary";
 	private static final String SOURCE_DATA_MQTT = "mqtt";
 	private static final String SOURCE_HOST = "sourceHost";
 	private static final String SOURCE_PORT = "sourcePort";
@@ -187,61 +182,41 @@ public class WordCountPreAggregate {
 		}
 
 		// get input data
-		DataStream<String> text;
+		DataStream<String> rawSensorValues;
 		if (Strings.isNullOrEmpty(input)) {
-			text = env.addSource(new DataRateSource(new String[0], poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		} else if (SOURCE_WORDS.equalsIgnoreCase(input)) {
-			text = env.addSource(new DataRateSource(WordCountPreAggregateData.WORDS, poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		} else if (SOURCE_SKEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.addSource(new DataRateSource(WordCountPreAggregateData.SKEW_WORDS, poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		} else if (SOURCE_FEW_WORDS.equalsIgnoreCase(input)) {
-			text = env.addSource(new DataRateSource(WordCountPreAggregateData.FEW_WORDS, poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		} else if (SOURCE_DATA_RATE_VARIATION_WORDS.equalsIgnoreCase(input)) {
-			// creates a data rate variation to test how long takes to the dynamic combiner adapt
-			text = env.addSource(new DataRateVariationSource(poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		} else if (SOURCE_DATA_HAMLET.equalsIgnoreCase(input)) {
-			text = env.addSource(new OnlineDataSource(UrlSource.HAMLET, poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		} else if (SOURCE_DATA_MOBY_DICK.equalsIgnoreCase(input)) {
-			text = env.addSource(new OnlineDataSource(UrlSource.MOBY_DICK, poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		} else if (SOURCE_DATA_DICTIONARY.equalsIgnoreCase(input)) {
-			text = env.addSource(new OnlineDataSource(UrlSource.ENGLISH_DICTIONARY, poolingFrequency))
+			rawSensorValues = env.addSource(new DataRateSource(new String[0], poolingFrequency))
 				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else if (SOURCE_DATA_MQTT.equalsIgnoreCase(input)) {
-			text = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE, sourceHost, sourcePort))
+			rawSensorValues = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE, sourceHost, sourcePort))
 				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		} else {
 			// read the text file from given input path
-			text = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			rawSensorValues = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
 		}
 
 		// split up the lines in pairs (2-tuples) containing: (word,1)
-		DataStream<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer())
+		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer())
 			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
 
-		DataStream<Tuple2<String, Integer>> skewed = null;
+		// Combine the stream
+		DataStream<Tuple2<Integer, Double>> preAggregatedStream = null;
+		PreAggregateFunction<Integer, Double, Tuple2<Integer, Double>, Tuple2<Integer, Double>> topNPreAggregateFunction = new TopNPreAggregateFunction(delay);
+
+		if (preAggregationWindowCount == 0) {
+			// NO PRE_AGGREGATE
+			preAggregatedStream = sensorValues;
+		} else {
+			preAggregatedStream = sensorValues.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controller)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
+		}
+		preAggregatedStream.print();
+
+		/*
+		DataStream<Tuple2<Integer, Double>> skewed = null;
 		if (simulateSkew) {
 			skewed = counts.partitionCustom(new SimulateSkewPartition(), 0);
 		} else {
 			skewed = counts;
-		}
-
-		// Combine the stream
-		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
-		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
-
-		if (preAggregationWindowCount == 0) {
-			// NO PRE_AGGREGATE
-			preAggregatedStream = skewed;
-		} else {
-			preAggregatedStream = skewed.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controller)
-				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -273,11 +248,12 @@ public class WordCountPreAggregate {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
 			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		}
+		*/
 
 		System.out.println("Execution plan >>>");
 		System.err.println(env.getExecutionPlan());
 		// execute program
-		env.execute(WordCountPreAggregate.class.getSimpleName());
+		env.execute(TopNPreAggregate.class.getSimpleName());
 	}
 
 	// *************************************************************************
@@ -285,22 +261,27 @@ public class WordCountPreAggregate {
 	// *************************************************************************
 
 	/**
-	 * Implements the string tokenizer that splits sentences into words as a
+	 * Implements the string tokenizer that splits the sensor values into <sensorId, sensorValue> as a
 	 * user-defined FlatMapFunction. The function takes a line (String) and
-	 * splits it into multiple pairs in the form of "(word,1)" ({@code Tuple2<String,
-	 * Integer>}).
+	 * splits it into multiple pairs in the form of "(1,20.4)" ({@code Tuple2<Integer,
+	 * Double>}).
 	 */
-	public static final class Tokenizer implements FlatMapFunction<String, Tuple2<String, Integer>> {
+	public static final class SensorTokenizer implements FlatMapFunction<String, Tuple2<Integer, Double>> {
 
 		@Override
-		public void flatMap(String value, Collector<Tuple2<String, Integer>> out) {
+		public void flatMap(String value, Collector<Tuple2<Integer, Double>> out) {
 			// normalize and split the line
-			String[] tokens = value.toLowerCase().split("\\W+");
+			String[] tokens = value.toLowerCase().split("\n");
 
 			// emit the pairs
 			for (String token : tokens) {
 				if (token.length() > 0) {
-					out.collect(new Tuple2<>(token, 1));
+					String[] sensorIdAndValue = token.split(";");
+					if (sensorIdAndValue.length == 2) {
+						out.collect(new Tuple2<Integer, Double>(Integer.valueOf(sensorIdAndValue[0]), Double.valueOf(sensorIdAndValue[1])));
+					} else {
+						System.out.println("WARNING: Sensor ID and VALUE do not match with pattern <Integer, Double>: " + sensorIdAndValue.toString());
+					}
 				}
 			}
 		}
@@ -309,16 +290,16 @@ public class WordCountPreAggregate {
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
-	private static class WordCountPreAggregateFunction
-		extends PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
+	private static class TopNPreAggregateFunction
+		extends PreAggregateFunction<Integer, Double, Tuple2<Integer, Double>, Tuple2<Integer, Double>> {
 		private long milliseconds = 0;
 
-		public WordCountPreAggregateFunction(long milliseconds) {
+		public TopNPreAggregateFunction(long milliseconds) {
 			this.milliseconds = milliseconds;
 		}
 
 		@Override
-		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) throws InterruptedException {
+		public Double addInput(@Nullable Double value, Tuple2<Integer, Double> input) throws InterruptedException {
 			Thread.sleep(milliseconds);
 			if (value == null) {
 				return input.f1;
@@ -328,8 +309,8 @@ public class WordCountPreAggregate {
 		}
 
 		@Override
-		public void collect(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) {
-			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
+		public void collect(Map<Integer, Double> buffer, Collector<Tuple2<Integer, Double>> out) {
+			for (Map.Entry<Integer, Double> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}
 		}

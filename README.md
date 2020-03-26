@@ -33,7 +33,7 @@ java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.10.jar:M
 
 ./bin/flink run WordCountPreAggregate.jar \
     -pre-aggregate-window 10 -strategy GLOBAL -input mqtt -sourceHost 192.168.56.1 -simulateSkew true \
-    -piController true -output mqtt -sinkHost 192.168.56.1 -slotSplit true -disableOperatorChaining true
+    -controller true -output mqtt -sinkHost 192.168.56.1 -slotSplit true -disableOperatorChaining true
 mosquitto_sub -h 192.168.56.1 -t topic-data-sink
 ```
 You just start a producer that emits data every 10 seconds and the pre-aggregate stream application that pre-aggregate every 1000 milliseconds. In norder to chacke that the producer is actually producing data you can verify its mqtt broker topic. Then you can change its interval to produce data for 1 second. Its interval is defined in milliseconds (1000 milliseconds).
@@ -44,26 +44,45 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "1000"
 Checkout the [Flink dashboard](http://127.0.0.1:8081/) and the [Grafana dashboard](http://127.0.0.1:3000/).
 
 
-## Options
+## Pre-aggregate Word count use case
 
 You have the option to use which file you want to the stream application or some pre-defined files which follow some specific distribution
 ```
-java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file] -output mqtt
+java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file|topN] -output mqtt
+
 ./bin/flink run ...WordCountPreAggregate.jar \
-        -pre-aggregate-window [>0 seconds] \
+        -pre-aggregate-window [>0 items] \
         -strategy [GLOBAL, LOCAL, PER_KEY] \
         -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
         -sourceHost [127.0.0.1] -sourcePort [1883] \
         -simulateSkew [false] \
-        -piController [false] \
-        -pooling 100 \ # pooling frequency from source if not using mqtt data source
+        -controller [false] \
+        -pooling 100 \ # Pooling frequency from source if not using mqtt data source. Does not apply when using Mqtt broker.
         -output [mqtt|log|text] \
         -sinkHost [127.0.0.1] -sinkPort [1883] \
         -slotSplit [false] -disableOperatorChaining [false] \
         -window [>=0 seconds] \
         -latencyTrackingInterval [0]
 ```
+## Pre-aggregate TopN use case
 
+When using the `topN` data producer you may want to test the `TopNPreAggregate` application.
+```
+java -classpath ...MqttDataProducer -input topN -output mqtt
+
+./bin/flink run ...TopNPreAggregate.jar \
+        -pre-aggregate-window [>0 items] \
+        -strategy [GLOBAL, LOCAL, PER_KEY] \
+        -input [mqtt] \
+        -sourceHost [127.0.0.1] -sourcePort [1883] \
+        -simulateSkew [false] \
+        -controller [false] \
+        -output [mqtt|log|text] \
+        -sinkHost [127.0.0.1] -sinkPort [1883] \
+        -slotSplit [false] -disableOperatorChaining [false] \
+        -window [>=0 seconds] \
+        -latencyTrackingInterval [0]
+```
 
 
 

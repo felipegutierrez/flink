@@ -6,7 +6,7 @@ import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class PreAggregatePIController extends Thread implements Serializable {
+public class PreAggregateController extends Thread implements Serializable {
 
 	private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 	private PreAggregateTriggerFunction preAggregateTriggerFunction;
@@ -23,15 +23,15 @@ public class PreAggregatePIController extends Thread implements Serializable {
 	private Histogram latencyHistogram;
 	private Histogram outPoolUsageHistogram;
 
-	public PreAggregatePIController(PreAggregateTriggerFunction preAggregateTriggerFunction,
-									Histogram latencyHistogram, Histogram outPoolUsageHistogram,
-									int subtaskIndex) {
+	public PreAggregateController(PreAggregateTriggerFunction preAggregateTriggerFunction,
+								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
+								  int subtaskIndex) {
 		this(preAggregateTriggerFunction, latencyHistogram, outPoolUsageHistogram, subtaskIndex, 20);
 	}
 
-	public PreAggregatePIController(PreAggregateTriggerFunction preAggregateTriggerFunction,
-									Histogram latencyHistogram, Histogram outPoolUsageHistogram,
-									int subtaskIndex, long seconds) {
+	public PreAggregateController(PreAggregateTriggerFunction preAggregateTriggerFunction,
+								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
+								  int subtaskIndex, long seconds) {
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
 		this.latencyHistogram = latencyHistogram;
 		this.outPoolUsageHistogram = outPoolUsageHistogram;
@@ -42,7 +42,7 @@ public class PreAggregatePIController extends Thread implements Serializable {
 	}
 
 	private void disclaimer() {
-		System.out.println("Initialized pre-aggregate PI Controller for subtask[" + this.subtaskIndex + "] scheduled to every " + this.seconds + " seconds.");
+		System.out.println("Initialized pre-aggregate Controller for subtask[" + this.subtaskIndex + "] scheduled to every " + this.seconds + " seconds.");
 	}
 
 	public void run() {
@@ -53,7 +53,7 @@ public class PreAggregatePIController extends Thread implements Serializable {
 				long newMaxCountPreAggregate = this.computePreAggregateParameter();
 				this.preAggregateTriggerFunction.setMaxCount(newMaxCountPreAggregate, this.subtaskIndex);
 
-				System.out.println("PI Controller for subtask[" + this.subtaskIndex + "] at " + sdf.format(new Date(System.currentTimeMillis())));
+				System.out.println("Controller for subtask[" + this.subtaskIndex + "] at " + sdf.format(new Date(System.currentTimeMillis())));
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
