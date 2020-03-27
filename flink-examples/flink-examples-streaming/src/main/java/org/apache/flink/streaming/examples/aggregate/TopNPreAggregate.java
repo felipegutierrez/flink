@@ -17,24 +17,29 @@
 
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.functions.*;
+import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.aggregate.util.DataRateSource;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSource;
 import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -57,14 +62,12 @@ import java.util.Map;
  *        -strategy [GLOBAL, LOCAL, PER_KEY] \
  *        -input mqtt \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
- *        -simulateSkew [false] \
  *        -controller [false] \
+ *        -topN [long] \
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
- *        -slotSplit [false] -disableOperatorChaining [false] \
- *        -window [>=0 seconds] \
- *        -latencyTrackingInterval [0]
+ *        -slotSplit [false] -disableOperatorChaining [false]
  *
  * Running on the IDE:
  * usage: java TopNPreAggregate -pre-aggregate-window 1 -strategy GLOBAL -input mqtt -output mqtt
@@ -79,21 +82,18 @@ public class TopNPreAggregate {
 	private static final String OPERATOR_SINK = "sink";
 	private static final String OPERATOR_TOKENIZER = "tokenizer";
 	private static final String OPERATOR_PRE_AGGREGATE = "pre-aggregate";
-	private static final String OPERATOR_SUM = "sum";
+	private static final String OPERATOR_TOP_N = "topN";
 	private static final String OPERATOR_FLAT_OUTPUT = "flat-output";
 	private static final String SLOT_GROUP_LOCAL = "local-group";
 	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
 	private static final String SLOT_GROUP_SPLIT = "slotSplit";
 	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
-	private static final String LATENCY_TRACKING_INTERVAL = "latencyTrackingInterval";
-	private static final String SIMULATE_SKEW = "simulateSkew";
 	private static final String CONTROLLER = "controller";
 
-	private static final String WINDOW = "window";
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
 	private static final String PRE_AGGREGATE_STRATEGY = "strategy";
 	private static final String BUFFER_TIMEOUT = "bufferTimeout";
-	private static final String SYNTHETIC_DELAY = "delay";
+	private static final String TOP_N = "topN";
 	private static final String POOLING_FREQUENCY = "pooling";
 	private static final String SOURCE = "input";
 	private static final String SOURCE_DATA_MQTT = "mqtt";
@@ -109,7 +109,6 @@ public class TopNPreAggregate {
 	// *************************************************************************
 	// PROGRAM
 	// *************************************************************************
-
 	public static void main(String[] args) throws Exception {
 
 		// Checking input parameters
@@ -128,14 +127,11 @@ public class TopNPreAggregate {
 		String output = params.get(SINK, "");
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
-		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
-		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
+		int topN = params.getInt(TOP_N, 10);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
-		long delay = params.getLong(SYNTHETIC_DELAY, 0);
-		long latencyTrackingInterval = params.getLong(LATENCY_TRACKING_INTERVAL, 0);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
-		boolean simulateSkew = params.getBoolean(SIMULATE_SKEW, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		boolean controller = params.getBoolean(CONTROLLER, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
@@ -154,18 +150,15 @@ public class TopNPreAggregate {
 		System.out.println("data sink                                : " + output);
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
-		System.out.println("Simulating skew                          : " + simulateSkew);
 		System.out.println("Feedback loop Controller                 : " + controller);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
+		System.out.println("topN                                     : " + topN);
 		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
-		System.out.println("window [seconds]                         : " + window);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
-		System.out.println("Synthetic delay [milliseconds]           : " + delay);
-		System.out.println("Latency tracking interval [milliseconds] : " + latencyTrackingInterval);
 		System.out.println("Changing pooling frequency of the data source:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
@@ -176,9 +169,6 @@ public class TopNPreAggregate {
 		}
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
-		}
-		if (latencyTrackingInterval > 0) {
-			env.getConfig().setLatencyTrackingInterval(latencyTrackingInterval);
 		}
 
 		// get input data
@@ -199,41 +189,17 @@ public class TopNPreAggregate {
 			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
 
 		// Combine the stream
-		DataStream<Tuple2<Integer, Double>> preAggregatedStream = null;
-		PreAggregateFunction<Integer, Double, Tuple2<Integer, Double>, Tuple2<Integer, Double>> topNPreAggregateFunction = new TopNPreAggregateFunction(delay);
-
-		if (preAggregationWindowCount == 0) {
-			// NO PRE_AGGREGATE
-			preAggregatedStream = sensorValues;
-		} else {
-			preAggregatedStream = sensorValues.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controller)
-				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
-		}
-		preAggregatedStream.print();
-
-		/*
-		DataStream<Tuple2<Integer, Double>> skewed = null;
-		if (simulateSkew) {
-			skewed = counts.partitionCustom(new SimulateSkewPartition(), 0);
-		} else {
-			skewed = counts;
-		}
+		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
+		DataStream<Tuple2<Integer, Double>> preAggregatedStream = sensorValues
+			.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controller)
+			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"
-		KeyedStream<Tuple2<String, Integer>, Tuple> keyedStream = preAggregatedStream
+		KeyedStream<Tuple2<Integer, Double>, Tuple> keyedStream = preAggregatedStream
 			.keyBy(0);
 
-		DataStream<Tuple2<String, Integer>> resultStream = null;
-		if (window != 0) {
-			resultStream = keyedStream
-				.window(TumblingProcessingTimeWindows.of(Time.seconds(window)))
-				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM).uid(OPERATOR_SUM).slotSharingGroup(slotSharingGroup02);
-			// .sum(1).name(OPERATOR_SUM);
-		} else {
-			resultStream = keyedStream
-				.reduce(new SumReduceFunction(delay)).name(OPERATOR_SUM).uid(OPERATOR_SUM).slotSharingGroup(slotSharingGroup02);
-			// .sum(1).name(OPERATOR_SUM);
-		}
+		DataStream<Tuple2<Integer, Double>> resultStream = keyedStream
+			.process(new TopNKeyedProcessFunction(topN)).name(OPERATOR_TOP_N).uid(OPERATOR_TOP_N).slotSharingGroup(slotSharingGroup02);
 
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
@@ -243,12 +209,15 @@ public class TopNPreAggregate {
 		} else if (output.equalsIgnoreCase(SINK_LOG)) {
 			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
-			resultStream.writeAsText(params.get("output")).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
+				.writeAsText(params.get("output")).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
-			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		}
-		*/
 
 		System.out.println("Execution plan >>>");
 		System.err.println(env.getExecutionPlan());
@@ -259,13 +228,6 @@ public class TopNPreAggregate {
 	// *************************************************************************
 	// USER FUNCTIONS
 	// *************************************************************************
-
-	/**
-	 * Implements the string tokenizer that splits the sensor values into <sensorId, sensorValue> as a
-	 * user-defined FlatMapFunction. The function takes a line (String) and
-	 * splits it into multiple pairs in the form of "(1,20.4)" ({@code Tuple2<Integer,
-	 * Double>}).
-	 */
 	public static final class SensorTokenizer implements FlatMapFunction<String, Tuple2<Integer, Double>> {
 
 		@Override
@@ -291,64 +253,136 @@ public class TopNPreAggregate {
 	// GENERIC merge function
 	// *************************************************************************
 	private static class TopNPreAggregateFunction
-		extends PreAggregateFunction<Integer, Double, Tuple2<Integer, Double>, Tuple2<Integer, Double>> {
-		private long milliseconds = 0;
+		extends PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double>> {
+		private final Double MIN_VALUE = -999999.9;
+		private int topN;
 
-		public TopNPreAggregateFunction(long milliseconds) {
-			this.milliseconds = milliseconds;
+		public TopNPreAggregateFunction(int topN) {
+			this.topN = topN;
 		}
 
 		@Override
-		public Double addInput(@Nullable Double value, Tuple2<Integer, Double> input) throws InterruptedException {
-			Thread.sleep(milliseconds);
+		public Double[] addInput(@Nullable Double[] value, Tuple2<Integer, Double> input) throws Exception {
 			if (value == null) {
-				return input.f1;
+				value = new Double[this.topN];
+				for (int i = 0; i < this.topN; i++) {
+					if (i == this.topN - 1) {
+						value[i] = input.f1;
+					} else {
+						value[i] = MIN_VALUE;
+					}
+				}
 			} else {
-				return value + input.f1;
+				Arrays.sort(value);
+				for (int i = this.topN - 1; i >= 0; i--) {
+					if (value[i] < input.f1) {
+						value[i] = input.f1;
+						break;
+					}
+				}
+			}
+			return value;
+		}
+
+		@Override
+		public void collect(Map<Integer, Double[]> buffer, Collector<Tuple2<Integer, Double>> out) throws Exception {
+			for (Map.Entry<Integer, Double[]> entry : buffer.entrySet()) {
+				Double[] values = entry.getValue();
+				for (int i = 0; i < values.length; i++) {
+					if (!values[i].equals(MIN_VALUE)) {
+						out.collect(Tuple2.of(entry.getKey(), values[i]));
+					}
+				}
 			}
 		}
 
-		@Override
-		public void collect(Map<Integer, Double> buffer, Collector<Tuple2<Integer, Double>> out) {
-			for (Map.Entry<Integer, Double> entry : buffer.entrySet()) {
-				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
-			}
-		}
 	}
 
-	private static class SumReduceFunction implements ReduceFunction<Tuple2<String, Integer>> {
-		private long milliseconds = 0;
+	private static class TopNKeyedProcessFunction extends KeyedProcessFunction<Tuple, Tuple2<Integer, Double>, Tuple2<Integer, Double>> {
+		private final Double MIN_VALUE = -999999.9;
+		private int topN;
+		private ValueState<TopNValues> state;
 
-		public SumReduceFunction(long milliseconds) {
-			this.milliseconds = milliseconds;
+		public TopNKeyedProcessFunction(int topN) {
+			this.topN = topN;
 		}
 
 		@Override
-		public Tuple2<String, Integer> reduce(Tuple2<String, Integer> value1, Tuple2<String, Integer> value2) throws Exception {
-			Thread.sleep(milliseconds);
-			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
+		public void open(Configuration parameters) throws Exception {
+			state = getRuntimeContext().getState(new ValueStateDescriptor<>("state", TopNValues.class));
 		}
-	}
-
-	private static class FlatOutputMap implements MapFunction<Tuple2<String, Integer>, String> {
-		@Override
-		public String map(Tuple2<String, Integer> value) throws Exception {
-			return value.f0 + " - " + value.f1;
-		}
-	}
-
-	private static class SimulateSkewPartition implements Partitioner<String> {
-		private static final long serialVersionUID = 1L;
-		private int nextChannelToSendTo;
 
 		@Override
-		public int partition(String key, int numPartitions) {
-			if ("GUTENBERG".equalsIgnoreCase(key)) {
-				return 0;
+		public void processElement(Tuple2<Integer, Double> value, Context ctx, Collector<Tuple2<Integer, Double>> out) throws Exception {
+			TopNValues current = state.value();
+			if (current == null) {
+				current = new TopNValues(value.f0, value.f1, this.topN);
 			} else {
-				nextChannelToSendTo = (nextChannelToSendTo + 1) % numPartitions;
-				return nextChannelToSendTo;
+				current.addValue(value.f1);
 			}
+			// set the state's timestamp to the record's assigned event time timestamp
+			current.lastModified = ctx.timerService().currentProcessingTime();
+
+			// write the state back
+			state.update(current);
+
+			// schedule the next timer 60 seconds from the current event time
+			ctx.timerService().registerProcessingTimeTimer(current.lastModified + 30000);
+		}
+
+		@Override
+		public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple2<Integer, Double>> out) throws Exception {
+			TopNValues result = state.value();
+			Double[] values = result.getValues();
+			for (int i = 0; i < values.length; i++) {
+				if (!values[i].equals(MIN_VALUE)) {
+					out.collect(Tuple2.of(result.getSensorId(), values[i]));
+				}
+			}
+		}
+	}
+
+	private static class TopNValues {
+		private final Double MIN_VALUE = -999999.9;
+		public long lastModified;
+		private Integer sensorId;
+		private Double[] values;
+
+		public TopNValues(Integer sensorId, Double value, int topN) {
+			this.sensorId = sensorId;
+			this.values = new Double[topN];
+			for (int i = 0; i < topN; i++) {
+				if (i == topN - 1) {
+					this.values[i] = value;
+				} else {
+					this.values[i] = MIN_VALUE;
+				}
+			}
+		}
+
+		public Integer getSensorId() {
+			return this.sensorId;
+		}
+
+		public Double[] getValues() {
+			return this.values;
+		}
+
+		public void addValue(Double newValue) {
+			Arrays.sort(this.values);
+			for (int i = this.values.length - 1; i >= 0; i--) {
+				if (this.values[i] < newValue) {
+					this.values[i] = newValue;
+					break;
+				}
+			}
+		}
+	}
+
+	private static class FlatOutputMap implements MapFunction<Tuple2<Integer, Double>, String> {
+		@Override
+		public String map(Tuple2<Integer, Double> value) throws Exception {
+			return value.f0 + " [" + value + "]";
 		}
 	}
 }

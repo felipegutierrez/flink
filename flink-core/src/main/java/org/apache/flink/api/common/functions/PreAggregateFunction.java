@@ -7,8 +7,8 @@ import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
- * @param <K>
- * @param <V>
+ * @param <K> The key to pre-aggregate elements.
+ * @param <V> The value to pre-aggregate elements.
  * @param <T> Type of the input elements.
  * @param <O> Type of the output elements.
  */

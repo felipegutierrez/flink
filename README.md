@@ -71,22 +71,16 @@ When using the `topN` data producer you may want to test the `TopNPreAggregate` 
 java -classpath ...MqttDataProducer -input topN -output mqtt
 
 ./bin/flink run ...TopNPreAggregate.jar \
-        -pre-aggregate-window [>0 items] \
-        -strategy [GLOBAL, LOCAL, PER_KEY] \
+        -pre-aggregate-window 1000 \
+        -strategy LOCAL \
         -input [mqtt] \
         -sourceHost [127.0.0.1] -sourcePort [1883] \
         -simulateSkew [false] \
-        -controller [false] \
-        -output [mqtt|log|text] \
+        -controller true \
+        -output mqtt \
         -sinkHost [127.0.0.1] -sinkPort [1883] \
-        -slotSplit [false] -disableOperatorChaining [false] \
-        -window [>=0 seconds] \
-        -latencyTrackingInterval [0]
+        -slotSplit true -disableOperatorChaining [false]
 ```
-
-
-
-
 
 
 ## Pre-aggregate operator
