@@ -257,13 +257,15 @@ public class MqttDataProducer extends Thread {
 			return new FileInputStream(new File(this.resource));
 		} else if (MqttDataType.SOURCE_SENSOR_DATA == this.mqttDataType) {
 			String value = "";
-			for (int i = 0; i < monitoredTimes; i++) {
-				for (int sensorId = 1; sensorId <= numberOfSensors; sensorId++) {
-					double sensorValue = sensorRangeMin + (sensorRangeMax - sensorRangeMin) * random.nextDouble();
-					value = value + sensorId + ";" + sensorValue + "\n";
-				}
+			for (int sensorId = 1; sensorId <= numberOfSensors; sensorId++) {
+				double sensorValue = sensorRangeMin + (sensorRangeMax - sensorRangeMin) * random.nextDouble();
+				value = value + sensorId + ";" + sensorValue + "|";
 			}
-			InputStream is = new ByteArrayInputStream(StandardCharsets.UTF_8.encode(value).array());
+			String result = "";
+			for (int i = 0; i < monitoredTimes; i++) {
+				result = result + value;
+			}
+			InputStream is = new ByteArrayInputStream(StandardCharsets.UTF_8.encode(result).array());
 			return is;
 		} else {
 			throw new Exception("DataSourceType is NULL!");
@@ -291,6 +293,10 @@ public class MqttDataProducer extends Thread {
 		System.out.println("mosquitto_sub -h " + host + " -p " + port + " -t " + topicToPublish);
 		System.out.println("To change the frequency of emission use:");
 		System.out.println("mosquitto_pub -h " + host + " -p " + port + " -t " + topicFrequencyParameter + " -m \"miliseconds\"");
+		System.out.println("delay [milliseconds]: " + this.delay);
+		System.out.println("number of sensors: " + this.numberOfSensors);
+		System.out.println("quantity of metrics: " + this.monitoredTimes);
+		System.out.println("number of records every " + this.delay + " milliseconds: " + (this.numberOfSensors * this.monitoredTimes));
 		System.out.println();
 		// @formatter:on
 	}

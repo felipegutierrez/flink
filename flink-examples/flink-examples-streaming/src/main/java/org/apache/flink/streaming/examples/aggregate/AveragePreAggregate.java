@@ -59,7 +59,6 @@ import java.util.Map;
  *        -input mqtt \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
  *        -controller [false] \
- *        -topN [long] \
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
@@ -89,7 +88,6 @@ public class AveragePreAggregate {
 	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
 	private static final String PRE_AGGREGATE_STRATEGY = "strategy";
 	private static final String BUFFER_TIMEOUT = "bufferTimeout";
-	private static final String TOP_N = "topN";
 	private static final String POOLING_FREQUENCY = "pooling";
 	private static final String SOURCE = "input";
 	private static final String SOURCE_DATA_MQTT = "mqtt";
@@ -125,7 +123,6 @@ public class AveragePreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
-		int topN = params.getInt(TOP_N, 10);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
@@ -152,7 +149,6 @@ public class AveragePreAggregate {
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
-		System.out.println("topN                                     : " + topN);
 		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
 		System.out.println("Changing pooling frequency of the data source:");
@@ -228,8 +224,7 @@ public class AveragePreAggregate {
 		@Override
 		public void flatMap(String value, Collector<Tuple2<Integer, Double>> out) {
 			// normalize and split the line
-			String[] tokens = value.toLowerCase().split("\n");
-
+			String[] tokens = value.toLowerCase().split("\\|");
 			// emit the pairs
 			for (String token : tokens) {
 				if (token.length() > 0) {
