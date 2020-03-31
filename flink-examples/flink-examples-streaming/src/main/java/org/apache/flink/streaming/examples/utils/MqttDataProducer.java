@@ -16,11 +16,13 @@ import java.util.Random;
 
 /**
  * <pre>
- *     java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.9.0.jar:MqttDataProducer.jar org.apache.flink.streaming.examples.utils.MqttDataProducer
- *     -input [hamlet|mobydick|dictionary|existing_file|topN]
- *     -host [127.0.0.1]
- *     -port [1883]
- *     -maxCount [Long.MAX_VALUE]
+ *     java -classpath /home/flink/flink-1.9.0-partition/lib/flink-dist_2.11-1.9.0.jar:MqttDataProducer.jar org.apache.flink.streaming.examples.utils.MqttDataProducer \
+ *     -input [hamlet|mobydick|dictionary|existing_file|sensorData] \
+ *     -host [127.0.0.1] \
+ *     -port [1883] \
+ *     -maxCount [Long.MAX_VALUE] \
+ *     -qtdSensors [50] \
+ *     -qtdMetrics [200]
  *
  * Consume data from this producer:
  *     mosquitto_sub -h 127.0.0.1 -p 1883 -t topic-data-source
@@ -35,11 +37,13 @@ public class MqttDataProducer extends Thread {
 	private static final String SOURCE_DATA_HAMLET = "hamlet";
 	private static final String SOURCE_DATA_MOBY_DICK = "mobydick";
 	private static final String SOURCE_DATA_DICTIONARY = "dictionary";
-	private static final String SOURCE_DATA_TOP_N = "topN";
+	private static final String SOURCE_SENSOR_DATA = "sensorData";
 	private static final String SOURCE = "input";
 	private static final String HOST = "host";
 	private static final String PORT = "port";
 	private static final String MAX_COUNT = "maxCount";
+	private static final String QTD_SENSORS = "qtdSensors";
+	private static final String QTD_METRICS = "qtdMetrics";
 
 	private Random random;
 	private double sensorRangeMin;
@@ -50,7 +54,9 @@ public class MqttDataProducer extends Thread {
 	private MQTT mqtt;
 	private String host;
 	private int port;
-	private int delay = 10000;
+	private int delay;
+	private int numberOfSensors;
+	private int monitoredTimes;
 	private long count;
 	private long maxCount;
 	private boolean running = false;
@@ -61,13 +67,20 @@ public class MqttDataProducer extends Thread {
 	private MqttDataType mqttDataType;
 
 	public MqttDataProducer(MqttDataType mqttDataType, String resource, String host, int port, long maxCount) throws MalformedURLException {
+		this(mqttDataType, resource, host, port, maxCount, 50, 200);
+	}
+
+	public MqttDataProducer(MqttDataType mqttDataType, String resource, String host, int port, long maxCount, int numberOfSensors, int monitoredTimes) throws MalformedURLException {
 		this.random = new Random();
 		this.sensorRangeMin = -20.0;
 		this.sensorRangeMax = 60.0;
 		this.mqttDataType = mqttDataType;
 		this.host = host;
 		this.port = port;
+		this.delay = 10000;
 		this.running = true;
+		this.numberOfSensors = numberOfSensors;
+		this.monitoredTimes = monitoredTimes;
 
 		this.maxCount = maxCount;
 		this.topicToPublish = TOPIC_DATA_SOURCE;
@@ -82,7 +95,7 @@ public class MqttDataProducer extends Thread {
 		} else if (MqttDataType.DICTIONARY == this.mqttDataType) {
 			this.url = new URL("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt");
 			this.offlineData = false;
-		} else if (MqttDataType.SOURCE_DATA_TOP_N == this.mqttDataType) {
+		} else if (MqttDataType.SOURCE_SENSOR_DATA == this.mqttDataType) {
 			this.offlineData = true;
 			this.resource = resource;
 		} else if (MqttDataType.OFFLINE_FILE == this.mqttDataType) {
@@ -99,6 +112,8 @@ public class MqttDataProducer extends Thread {
 		String host = params.get(HOST, "127.0.0.1");
 		int port = params.getInt(PORT, 1883);
 		long maxCount = params.getLong(MAX_COUNT, Long.MAX_VALUE);
+		int qtdSensors = params.getInt(QTD_SENSORS, 50);
+		int qtdMetrics = params.getInt(QTD_METRICS, 200);
 
 		if (SOURCE_DATA_HAMLET.equalsIgnoreCase(input)) {
 			producer = new MqttDataProducer(MqttDataType.HAMLET, "", host, port, maxCount);
@@ -106,8 +121,8 @@ public class MqttDataProducer extends Thread {
 			producer = new MqttDataProducer(MqttDataType.MOBY_DICK, "", host, port, maxCount);
 		} else if (SOURCE_DATA_DICTIONARY.equalsIgnoreCase(input)) {
 			producer = new MqttDataProducer(MqttDataType.DICTIONARY, "", host, port, maxCount);
-		} else if (SOURCE_DATA_TOP_N.equalsIgnoreCase(input)) {
-			producer = new MqttDataProducer(MqttDataType.SOURCE_DATA_TOP_N, "", host, port, maxCount);
+		} else if (SOURCE_SENSOR_DATA.equalsIgnoreCase(input)) {
+			producer = new MqttDataProducer(MqttDataType.SOURCE_SENSOR_DATA, "", host, port, maxCount, qtdSensors, qtdMetrics);
 		} else if (!Strings.isNullOrEmpty(input)) {
 			producer = new MqttDataProducer(MqttDataType.OFFLINE_FILE, input, host, port, maxCount);
 		} else if (Strings.isNullOrEmpty(input)) {
@@ -201,6 +216,7 @@ public class MqttDataProducer extends Thread {
 			if (queue.size() >= 1000) {
 				queue.removeFirst().await();
 			}
+			// This is the delay to publish items on the MQTT broker
 			Thread.sleep(delay);
 			this.checkEndOfStream();
 		}
@@ -239,11 +255,13 @@ public class MqttDataProducer extends Thread {
 	private InputStream getDataSourceInputStream() throws Exception {
 		if (MqttDataType.OFFLINE_FILE == this.mqttDataType) {
 			return new FileInputStream(new File(this.resource));
-		} else if (MqttDataType.SOURCE_DATA_TOP_N == this.mqttDataType) {
+		} else if (MqttDataType.SOURCE_SENSOR_DATA == this.mqttDataType) {
 			String value = "";
-			for (int sensorId = 1; sensorId <= 200; sensorId++) {
-				double sensorValue = sensorRangeMin + (sensorRangeMax - sensorRangeMin) * random.nextDouble();
-				value = value + sensorId + ";" + sensorValue + "\n";
+			for (int i = 0; i < monitoredTimes; i++) {
+				for (int sensorId = 1; sensorId <= numberOfSensors; sensorId++) {
+					double sensorValue = sensorRangeMin + (sensorRangeMax - sensorRangeMin) * random.nextDouble();
+					value = value + sensorId + ";" + sensorValue + "\n";
+				}
 			}
 			InputStream is = new ByteArrayInputStream(StandardCharsets.UTF_8.encode(value).array());
 			return is;

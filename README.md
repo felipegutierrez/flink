@@ -48,7 +48,7 @@ Checkout the [Flink dashboard](http://127.0.0.1:8081/) and the [Grafana dashboar
 
 You have the option to use which file you want to the stream application or some pre-defined files which follow some specific distribution
 ```
-java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file|topN] -output mqtt
+java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file|sensorData] -output mqtt
 
 ./bin/flink run ...WordCountPreAggregate.jar \
         -pre-aggregate-window [>0 items] \
@@ -64,14 +64,14 @@ java -classpath ...MqttDataProducer -input [hamlet|mobydick|dictionary|your_file
         -window [>=0 seconds] \
         -latencyTrackingInterval [0]
 ```
-## Pre-aggregate TopN use case
+## Pre-aggregate TopN & Average use cases
 
-When using the `topN` data producer you may want to test the `TopNPreAggregate` application.
+When using the `sensorData` data producer you may want to test the `TopNPreAggregate` and the `AveragePreAggregate` application. When you use the parameter `-qtdSensors 50` it means that you are generating data for 50 different sensors. Likewise, the parameter `-qtdMetrics 200` generates the metrics for each sensor 200 times. Thus, using the configuration `-qtdSensors 50 -qtdMetrics 200` your producer will generate 50x200 = 10.000 records every 10000 milliseconds (10 seconds). Then you can change the frequency of the producer in run-time using the command `mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m "miliseconds"`.
 ```
-java -classpath ...MqttDataProducer -input topN -output mqtt
+java -classpath ...MqttDataProducer -input sensorData -qtdSensors 50 -qtdMetrics 200 -output mqtt
 
-./bin/flink run ...TopNPreAggregate.jar \
-        -pre-aggregate-window 1000 \
+./bin/flink run ...[TopNPreAggregate.jar|AveragePreAggregate.jar] \
+        -pre-aggregate-window 100 \
         -strategy LOCAL \
         -input [mqtt] \
         -sourceHost [127.0.0.1] -sourcePort [1883] \
@@ -81,6 +81,8 @@ java -classpath ...MqttDataProducer -input topN -output mqtt
         -sinkHost [127.0.0.1] -sinkPort [1883] \
         -slotSplit true -disableOperatorChaining [false]
 ```
+
+
 
 
 ## Pre-aggregate operator
