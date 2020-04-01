@@ -20,18 +20,15 @@ package org.apache.flink.streaming.examples.aggregate;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.examples.aggregate.util.DataRateSource;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
@@ -189,17 +186,17 @@ public class TopNPreAggregate {
 			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
 
 		// Combine the stream
-		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
-		DataStream<Tuple2<Integer, Double>> preAggregatedStream = sensorValues
+		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
+		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
 			.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controller)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"
-		KeyedStream<Tuple2<Integer, Double>, Tuple> keyedStream = preAggregatedStream
+		KeyedStream<Tuple2<Integer, Double[]>, Tuple> keyedStream = preAggregatedStream
 			.keyBy(0);
 
-		DataStream<Tuple2<Integer, Double>> resultStream = keyedStream
-			.process(new TopNKeyedProcessFunction(topN)).name(OPERATOR_TOP_N).uid(OPERATOR_TOP_N).slotSharingGroup(slotSharingGroup02);
+		DataStream<Tuple2<Integer, Double[]>> resultStream = keyedStream
+			.reduce(new TopNReduceFunction(topN)).name(OPERATOR_TOP_N).uid(OPERATOR_TOP_N).slotSharingGroup(slotSharingGroup02);
 
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
@@ -233,8 +230,7 @@ public class TopNPreAggregate {
 		@Override
 		public void flatMap(String value, Collector<Tuple2<Integer, Double>> out) {
 			// normalize and split the line
-			String[] tokens = value.toLowerCase().split("\n");
-
+			String[] tokens = value.toLowerCase().split("\\|");
 			// emit the pairs
 			for (String token : tokens) {
 				if (token.length() > 0) {
@@ -253,7 +249,7 @@ public class TopNPreAggregate {
 	// GENERIC merge function
 	// *************************************************************************
 	private static class TopNPreAggregateFunction
-		extends PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double>> {
+		extends PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> {
 		private final Double MIN_VALUE = -999999.9;
 		private int topN;
 
@@ -285,104 +281,82 @@ public class TopNPreAggregate {
 		}
 
 		@Override
-		public void collect(Map<Integer, Double[]> buffer, Collector<Tuple2<Integer, Double>> out) throws Exception {
+		public void collect(Map<Integer, Double[]> buffer, Collector<Tuple2<Integer, Double[]>> out) throws Exception {
 			for (Map.Entry<Integer, Double[]> entry : buffer.entrySet()) {
 				Double[] values = entry.getValue();
-				for (int i = 0; i < values.length; i++) {
-					if (!values[i].equals(MIN_VALUE)) {
-						out.collect(Tuple2.of(entry.getKey(), values[i]));
-					}
-				}
+				out.collect(Tuple2.of(entry.getKey(), values));
 			}
 		}
-
 	}
 
-	private static class TopNKeyedProcessFunction extends KeyedProcessFunction<Tuple, Tuple2<Integer, Double>, Tuple2<Integer, Double>> {
-		private final Double MIN_VALUE = -999999.9;
+	private static class TopNReduceFunction implements ReduceFunction<Tuple2<Integer, Double[]>> {
 		private int topN;
-		private ValueState<TopNValues> state;
 
-		public TopNKeyedProcessFunction(int topN) {
+		public TopNReduceFunction(int topN) {
 			this.topN = topN;
 		}
 
-		@Override
-		public void open(Configuration parameters) throws Exception {
-			state = getRuntimeContext().getState(new ValueStateDescriptor<>("state", TopNValues.class));
-		}
+		private static Double[] getTopNArray(Double[] array01, Double[] array02) {
+			if (array01.length != array02.length) {
+				System.out.println("Arrays need to have the same length. array01[" + array01.length + "] array02[" + array02.length + "]");
+			}
+			Arrays.sort(array01);
+			Arrays.sort(array02);
+			int offset01 = array01.length - 1; // i is the offset from array01
+			int offset02 = array02.length - 1; // j is the offset from array02
+			// if the topN of array01 is greater than the topN of the array02 we weill use the array01 as the result
+			if (array01[offset01] >= array02[offset02]) {
+				while (offset01 >= 0) {
+					while (offset02 >= 0 && offset01 >= 0) {
+						if (array01[offset01] > array02[offset02]) {
+							break;
+						} else if (array02[offset02] > array01[offset01]) {
+							Double swap = array01[offset01];
+							array01[offset01] = array02[offset02];
 
-		@Override
-		public void processElement(Tuple2<Integer, Double> value, Context ctx, Collector<Tuple2<Integer, Double>> out) throws Exception {
-			TopNValues current = state.value();
-			if (current == null) {
-				current = new TopNValues(value.f0, value.f1, this.topN);
+							int i = offset01 - 1;
+							while (i >= 0) {
+								Double swapInner = array01[i];
+								array01[i] = swap;
+								swap = swapInner;
+								i--;
+							}
+							offset01--;
+						}
+						offset02--;
+					}
+					offset01--;
+				}
+				return array01;
 			} else {
-				current.addValue(value.f1);
+				return getTopNArray(array02, array01);
 			}
-			// set the state's timestamp to the record's assigned event time timestamp
-			current.lastModified = ctx.timerService().currentProcessingTime();
+		}
 
-			// write the state back
-			state.update(current);
-
-			// schedule the next timer 60 seconds from the current event time
-			ctx.timerService().registerProcessingTimeTimer(current.lastModified + 30000);
+		public static void main(String[] main) {
+			Double[] array01 = new Double[]{55.0, 44.0, 5.0, 15.0, 25.0};
+			Double[] array02 = new Double[]{40.0, 50.0, 10.0, 20.0, 30.0};
+			Double[] result = TopNReduceFunction.getTopNArray(array01, array02);
+			System.out.println("Result: ");
+			for (int i = 0; i < result.length; i++) {
+				System.out.print(result[i] + " - ");
+			}
 		}
 
 		@Override
-		public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple2<Integer, Double>> out) throws Exception {
-			TopNValues result = state.value();
-			Double[] values = result.getValues();
-			for (int i = 0; i < values.length; i++) {
-				if (!values[i].equals(MIN_VALUE)) {
-					out.collect(Tuple2.of(result.getSensorId(), values[i]));
-				}
-			}
+		public Tuple2<Integer, Double[]> reduce(Tuple2<Integer, Double[]> value1, Tuple2<Integer, Double[]> value2) throws Exception {
+			return Tuple2.of(value1.f0, getTopNArray(value1.f1, value2.f1));
 		}
 	}
 
-	private static class TopNValues {
-		private final Double MIN_VALUE = -999999.9;
-		public long lastModified;
-		private Integer sensorId;
-		private Double[] values;
-
-		public TopNValues(Integer sensorId, Double value, int topN) {
-			this.sensorId = sensorId;
-			this.values = new Double[topN];
-			for (int i = 0; i < topN; i++) {
-				if (i == topN - 1) {
-					this.values[i] = value;
-				} else {
-					this.values[i] = MIN_VALUE;
-				}
-			}
-		}
-
-		public Integer getSensorId() {
-			return this.sensorId;
-		}
-
-		public Double[] getValues() {
-			return this.values;
-		}
-
-		public void addValue(Double newValue) {
-			Arrays.sort(this.values);
-			for (int i = this.values.length - 1; i >= 0; i--) {
-				if (this.values[i] < newValue) {
-					this.values[i] = newValue;
-					break;
-				}
-			}
-		}
-	}
-
-	private static class FlatOutputMap implements MapFunction<Tuple2<Integer, Double>, String> {
+	private static class FlatOutputMap implements MapFunction<Tuple2<Integer, Double[]>, String> {
 		@Override
-		public String map(Tuple2<Integer, Double> value) throws Exception {
-			return value.f0 + " [" + value + "]";
+		public String map(Tuple2<Integer, Double[]> value) throws Exception {
+			String result = "";
+			for (int i = 0; i < value.f1.length; i++) {
+				result = value.f1[i] + ", " + result;
+			}
+			return value.f0 + " [" + result + "]";
 		}
 	}
 }
