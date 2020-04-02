@@ -128,14 +128,14 @@ public class WordCountMultiPreAggregate {
 		String input = params.get(SOURCE, "");
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
-		int preAggregationWindowTime = params.getInt(PRE_AGGREGATE_WINDOW, -1);
+		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, -1);
 		// int maxToPreAggregate = params.getInt(MAX_PRE_AGGREGATE, -1);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 
 		System.out.println("data source                         : " + input);
 		System.out.println("pooling frequency [milliseconds]    : " + poolingFrequency);
-		System.out.println("pre-aggregate window [milliseconds] : " + preAggregationWindowTime);
+		System.out.println("pre-aggregate window [count]        : " + preAggregationWindowCount);
 		// System.out.println("pre-aggregate max items             : " + maxToPreAggregate);
 		System.out.println("window [seconds]                    : " + window);
 		System.out.println("BufferTimeout [milliseconds]        : " + bufferTimeout);
@@ -285,7 +285,7 @@ public class WordCountMultiPreAggregate {
 		DataStream<Tuple2<String, Integer>> preAggregatedStream10 = null;
 		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
 
-		if (preAggregationWindowTime == -1) {
+		if (preAggregationWindowCount == -1) {
 			// NO PRE_AGGREGATE
 			preAggregatedStream01 = counts01;
 			preAggregatedStream02 = counts02;
@@ -298,16 +298,16 @@ public class WordCountMultiPreAggregate {
 			preAggregatedStream09 = counts09;
 			preAggregatedStream10 = counts10;
 		} else {
-			preAggregatedStream01 = counts01.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream02 = counts02.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream03 = counts03.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream04 = counts04.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream05 = counts05.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream06 = counts06.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream07 = counts07.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream08 = counts08.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream09 = counts09.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
-			preAggregatedStream10 = counts10.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime);
+			preAggregatedStream01 = counts01.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream02 = counts02.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream03 = counts03.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream04 = counts04.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream05 = counts05.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream06 = counts06.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream07 = counts07.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream08 = counts08.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream09 = counts09.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
+			preAggregatedStream10 = counts10.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount);
 			// } else if (preAggregationWindowTime >= 0 && maxToPreAggregate == -1) {
 			// } else if (preAggregationWindowTime >= 0 && maxToPreAggregate > 0) {
 			// preAggregatedStream01 = counts01.preAggregate(wordCountPreAggregateFunction, preAggregationWindowTime, maxToPreAggregate);

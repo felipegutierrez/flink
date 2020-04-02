@@ -10,6 +10,7 @@ import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
 import org.apache.flink.streaming.api.functions.aggregation.*;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.util.functions.PreAggParamGauge;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,6 +24,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	private static final long serialVersionUID = 1L;
 	private final String PRE_AGGREGATE_LATENCY_HISTOGRAM = "pre-aggregate-latency-histogram";
 	private final String PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM = "pre-aggregate-outPoolUsage-histogram";
+	private final String PRE_AGGREGATE_PARAMETER = "pre-aggregate-parameter";
 
 	/**
 	 * The map in heap to store elements.
@@ -46,16 +48,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	private PreAggregateMqttListener preAggregateMqttListener;
 
 	/**
-	 * A Feedback loop PI Controller to find the optimal parameter K of pre-aggregating items
+	 * A Feedback loop Controller to find the optimal parameter K of pre-aggregating items
 	 */
 	private PreAggregateController preAggregateController;
-	private boolean controller;
-
-	/**
-	 * Histogram metrics to monitor latency and network buffer
-	 */
-	// private Histogram latencyHistogram;
-	// private Histogram outPoolUsageHistogram;
+	private int controllerFrequencySec;
 	private long elapsedTime;
 
 	/**
@@ -69,10 +65,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 */
 	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
 												 PreAggregateTriggerFunction<IN> preAggregateTrigger,
-												 boolean controller) {
+												 int controllerFrequencySec) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;
-		this.controller = controller;
+		this.controllerFrequencySec = controllerFrequencySec;
 		this.bundle = new HashMap<>();
 		this.preAggregateTrigger = checkNotNull(preAggregateTrigger, "bundleTrigger is null");
 	}
@@ -92,16 +88,17 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.elapsedTime = System.currentTimeMillis();
 
 		// create histogram metrics
-		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(10));
+		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(50));
 		Histogram latencyHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_LATENCY_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardLatencyHistogram));
-		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(10));
+		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(50));
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardOutPoolBufferHistogram));
+		PreAggParamGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggParamGauge());
 
 		// initiate the PI Controller with the histogram metrics
-		this.preAggregateController = new PreAggregateController(this.preAggregateTrigger,
-			latencyHistogram, outPoolUsageHistogram, this.subtaskIndex);
+		this.preAggregateController = new PreAggregateController(this.preAggregateTrigger, latencyHistogram,
+			outPoolUsageHistogram, preAggParamGauge, this.subtaskIndex, this.controllerFrequencySec);
 
 		try {
 			if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.GLOBAL) {
@@ -119,8 +116,8 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 			e.printStackTrace();
 		}
 
-		// initialize the PI controller for the pre-aggregate operator
-		if (this.controller) {
+		// initialize the controller for the pre-aggregate operator
+		if (this.controllerFrequencySec > -1) {
 			this.preAggregateController.start();
 		}
 	}
@@ -169,8 +166,8 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 			this.preAggregateController.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
 		}
 
-		if (this.controller) {
-			// update metrics to the PI Controller
+		if (this.controllerFrequencySec > -1) {
+			// update metrics to the Controller
 			this.preAggregateController.updateMonitoredValues(latency, outPoolUsage);
 		}
 	}

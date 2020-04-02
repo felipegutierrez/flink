@@ -65,7 +65,7 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
 					if (isInteger(message)) {
-						this.preAggregateTriggerFunction.setMaxCount(Long.valueOf(message).longValue(), this.subtaskIndex);
+						this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue(), this.subtaskIndex);
 					} else {
 						System.out.println("The parameter sent is not an integer: " + message);
 					}

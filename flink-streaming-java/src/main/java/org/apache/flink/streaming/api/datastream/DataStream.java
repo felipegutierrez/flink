@@ -1272,36 +1272,36 @@ public class DataStream<T> {
 	 * If the @maxToCombine is not reach the secondsTimeout ensure to finish the combining.
 	 *
 	 * @param preAggregateFunction the function to PreAggregate tuples
-	 * @param windowProcessingCount count to trigger the window in seconds
+	 * @param preAggWindowCount count to trigger the window in seconds
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-														  long windowProcessingCount,
+														  int preAggWindowCount,
 														  PreAggregateStrategy preAggregateStrategy,
-														  boolean controller) {
+														  int controllerFrequencySec) {
 
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(windowProcessingCount, preAggregateStrategy);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount, preAggregateStrategy);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType,
-			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector, controller)));
+			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction, keySelector, controllerFrequencySec)));
 	}
 
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-														  long windowProcessingCount,
-														  boolean piController) {
-		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL, piController);
+														  int preAggWindowCount,
+														  int controllerFrequencySec) {
+		return preAggregate(preAggregateFunction, preAggWindowCount, PreAggregateStrategy.GLOBAL, controllerFrequencySec);
 	}
 
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-														  long windowProcessingCount) {
-		return preAggregate(preAggregateFunction, windowProcessingCount, PreAggregateStrategy.GLOBAL, false);
+														  int preAggWindowCount) {
+		return preAggregate(preAggregateFunction, preAggWindowCount, PreAggregateStrategy.GLOBAL, 60);
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(

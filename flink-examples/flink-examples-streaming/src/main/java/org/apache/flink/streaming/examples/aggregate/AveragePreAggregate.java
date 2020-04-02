@@ -123,10 +123,10 @@ public class AveragePreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
+		int controllerFrequencySec = params.getInt(CONTROLLER, -1);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-		boolean controller = params.getBoolean(CONTROLLER, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
@@ -143,7 +143,7 @@ public class AveragePreAggregate {
 		System.out.println("data sink                                : " + output);
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
-		System.out.println("Feedback loop Controller                 : " + controller);
+		System.out.println("Feedback loop Controller                 : " + controllerFrequencySec);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
@@ -183,7 +183,8 @@ public class AveragePreAggregate {
 		// Combine the stream
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>, Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction =
 			new SumPreAggregateFunction();
-		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues.preAggregate(sumPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controller)
+		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues
+			.preAggregate(sumPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controllerFrequencySec)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"

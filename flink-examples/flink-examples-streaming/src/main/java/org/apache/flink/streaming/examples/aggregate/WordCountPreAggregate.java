@@ -136,13 +136,13 @@ public class WordCountPreAggregate {
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int controllerFrequencySec = params.getInt(CONTROLLER, -1);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 		long latencyTrackingInterval = params.getLong(LATENCY_TRACKING_INTERVAL, 0);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean simulateSkew = params.getBoolean(SIMULATE_SKEW, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-		boolean controller = params.getBoolean(CONTROLLER, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
@@ -160,7 +160,7 @@ public class WordCountPreAggregate {
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
 		System.out.println("Simulating skew                          : " + simulateSkew);
-		System.out.println("Feedback loop Controller                 : " + controller);
+		System.out.println("Feedback loop Controller                 : " + controllerFrequencySec);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
@@ -240,7 +240,8 @@ public class WordCountPreAggregate {
 			// NO PRE_AGGREGATE
 			preAggregatedStream = skewed;
 		} else {
-			preAggregatedStream = skewed.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controller)
+			preAggregatedStream = skewed
+				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controllerFrequencySec)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 
