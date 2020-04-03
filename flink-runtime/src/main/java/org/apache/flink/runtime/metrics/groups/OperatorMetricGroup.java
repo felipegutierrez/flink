@@ -93,16 +93,4 @@ public class OperatorMetricGroup extends ComponentMetricGroup<TaskMetricGroup> {
 	protected String getGroupName(CharacterFilter filter) {
 		return "operator";
 	}
-
-	public String isBackpressured() {
-		Gauge<Float> gauge = (Gauge<Float>) this.parent.getMetric("outPoolUsage");
-		if (gauge == null) {
-			System.out.println("outPoolUsage: null");
-		} else if (gauge.getValue() == null) {
-			System.out.println("outPoolUsage: gauge.getValue(): null");
-		} else {
-			System.out.println("outPoolUsage: " + gauge.getValue());
-		}
-		return "isBackpressured";
-	}
 }

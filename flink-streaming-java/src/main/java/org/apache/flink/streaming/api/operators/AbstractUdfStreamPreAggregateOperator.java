@@ -5,6 +5,7 @@ import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
+import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
@@ -88,10 +89,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.elapsedTime = System.currentTimeMillis();
 
 		// create histogram metrics
-		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(50));
+		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(25));
 		Histogram latencyHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_LATENCY_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardLatencyHistogram));
-		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(50));
+		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingWindowReservoir(25));
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardOutPoolBufferHistogram));
 		PreAggParamGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggParamGauge());
@@ -116,7 +117,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 			e.printStackTrace();
 		}
 
-		// initialize the controller for the pre-aggregate operator
+		// If the controller scheduling is not null [-1] we start the asynchronous thread to make the pre-aggregation autonomous
 		if (this.controllerFrequencySec > -1) {
 			this.preAggregateController.start();
 		}
@@ -160,15 +161,13 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		OperatorMetricGroup operatorMetricGroup = (OperatorMetricGroup) this.getMetricGroup();
 		TaskMetricGroup taskMetricGroup = operatorMetricGroup.parent();
 		MetricGroup metricGroup = taskMetricGroup.getGroup("buffers");
-		Gauge<Float> gauge = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
-		if (gauge != null && gauge.getValue() != null) {
-			outPoolUsage = gauge.getValue().floatValue();
+		Gauge<Float> gaugeOutPoolUsage = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
+		if (gaugeOutPoolUsage != null && gaugeOutPoolUsage.getValue() != null) {
+			outPoolUsage = gaugeOutPoolUsage.getValue().floatValue();
 			this.preAggregateController.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
 		}
 
-		if (this.controllerFrequencySec > -1) {
-			// update metrics to the Controller
-			this.preAggregateController.updateMonitoredValues(latency, outPoolUsage);
-		}
+		MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsOutPerSecond");
+		this.preAggregateController.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getCount());
 	}
 }
