@@ -168,6 +168,6 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		}
 
 		MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsOutPerSecond");
-		this.preAggregateController.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getCount());
+		this.preAggregateController.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
 	}
 }

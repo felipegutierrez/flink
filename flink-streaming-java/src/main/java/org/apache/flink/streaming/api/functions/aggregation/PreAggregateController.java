@@ -24,7 +24,7 @@ public class PreAggregateController extends Thread implements Serializable {
 	private Histogram latencyHistogram;
 	private Histogram outPoolUsageHistogram;
 	private PreAggParamGauge preAggParamGauge;
-	private long numRecordsOutPerSecond;
+	private double numRecordsOutPerSecond;
 
 	public PreAggregateController(PreAggregateTriggerFunction preAggregateTriggerFunction,
 								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
@@ -127,7 +127,7 @@ public class PreAggregateController extends Thread implements Serializable {
 		return outPoolUsageHistogram;
 	}
 
-	public void setNumRecordsOutPerSecond(long numRecordsOutPerSecond) {
+	public void setNumRecordsOutPerSecond(double numRecordsOutPerSecond) {
 		this.numRecordsOutPerSecond = numRecordsOutPerSecond;
 	}
 }
