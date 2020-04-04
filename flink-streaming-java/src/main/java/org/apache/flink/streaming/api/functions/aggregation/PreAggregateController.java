@@ -25,6 +25,8 @@ public class PreAggregateController extends Thread implements Serializable {
 	private Histogram outPoolUsageHistogram;
 	private PreAggParamGauge preAggParamGauge;
 	private double numRecordsOutPerSecond;
+	private double currentCapacity;
+	// private int minCountThreshold;
 
 	public PreAggregateController(PreAggregateTriggerFunction preAggregateTriggerFunction,
 								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
@@ -44,6 +46,8 @@ public class PreAggregateController extends Thread implements Serializable {
 		this.subtaskIndex = subtaskIndex;
 		this.controllerFrequencySec = controllerFrequencySec;
 		this.running = true;
+		this.currentCapacity = 0.0;
+		// this.minCountThreshold = 0;
 		this.disclaimer();
 	}
 
@@ -71,7 +75,7 @@ public class PreAggregateController extends Thread implements Serializable {
 	 *
 	 * @return
 	 */
-	private int computePreAggregateParameter(int currentMaxCount) {
+	private int computePreAggregateParameter(int currentMinCount) {
 		long latencyQuantileMin = this.latencyHistogram.getStatistics().getMin();
 		long latencyQuantileMax = this.latencyHistogram.getStatistics().getMax();
 		double latencyQuantileMean = this.latencyHistogram.getStatistics().getMean();
@@ -86,17 +90,24 @@ public class PreAggregateController extends Thread implements Serializable {
 		double outPoolUsage099 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.99);
 		double outPoolUsageStdDev = this.outPoolUsageHistogram.getStatistics().getStdDev();
 
-		int percent05 = (int) Math.ceil(currentMaxCount * 0.05);
-		int newMaxCount = currentMaxCount;
+		int percent05 = (int) Math.ceil(currentMinCount * 0.05);
+		int newMinCount = currentMinCount;
 		String label = "=";
 		if (outPoolUsage099 >= 50.0 || outPoolUsageMean >= 30.0) {
 			// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
-			newMaxCount = currentMaxCount + percent05;
+			newMinCount = currentMinCount + percent05;
 			label = "++";
 		} else if (outPoolUsage099 <= 25.0 && outPoolUsageMean <= 25.0) {
 			// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
-			newMaxCount = currentMaxCount - percent05;
-			label = "--";
+			if (this.numRecordsOutPerSecond > this.currentCapacity) {
+				// The current throughput did not reach the full capacity of the channel yet
+				this.currentCapacity = this.numRecordsOutPerSecond;
+				newMinCount = currentMinCount - percent05;
+				label = "--";
+				// this.minCountThreshold = currentMinCount;
+			} else {
+				label = "!-";
+			}
 		}
 
 		String msg = "Controller[" + this.subtaskIndex + "]" +
@@ -104,12 +115,13 @@ public class PreAggregateController extends Thread implements Serializable {
 			"]0.5[" + outPoolUsage05 + "]0.99[" + outPoolUsage099 + "]StdDev[" + df.format(outPoolUsageStdDev) + "]" +
 			" Latency min[" + latencyQuantileMin + "]max[" + latencyQuantileMax + "]mean[" + latencyQuantileMean +
 			"]0.5[" + latencyQuantile05 + "]0.99[" + latencyQuantile099 + "] StdDev[" + df.format(latencyStdDev) + "]" +
-			"numRecordsOutPerSecond[" + this.numRecordsOutPerSecond + "]" + " K" + label + "" + currentMaxCount + "->" + newMaxCount;
+			"numRecordsOutPerSecond[" + this.numRecordsOutPerSecond + "] threshold[" + this.currentCapacity + "]" +
+			" K" + label + ": " + currentMinCount + "->" + newMinCount;
 		System.out.println(msg);
 
-		if (currentMaxCount != newMaxCount) {
-			this.preAggParamGauge.updateValue(newMaxCount);
-			return newMaxCount;
+		if (currentMinCount != newMinCount) {
+			this.preAggParamGauge.updateValue(newMinCount);
+			return newMinCount;
 		} else {
 			return -1;
 		}
