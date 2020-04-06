@@ -25,19 +25,20 @@ public class PreAggregateController extends Thread implements Serializable {
 	private Histogram outPoolUsageHistogram;
 	private PreAggParamGauge preAggParamGauge;
 	private double numRecordsOutPerSecond;
+	private double numRecordsInPerSecond;
+	private double numRecordsInPerSecondPrev;
 	private double currentCapacity;
-	// private int minCountThreshold;
 
 	public PreAggregateController(PreAggregateTriggerFunction preAggregateTriggerFunction,
 								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
 								  PreAggParamGauge preAggParamGauge, int subtaskIndex) {
-		this(preAggregateTriggerFunction, latencyHistogram, outPoolUsageHistogram, preAggParamGauge, subtaskIndex, 180);
+		this(preAggregateTriggerFunction, latencyHistogram, outPoolUsageHistogram, preAggParamGauge, subtaskIndex, 60);
 	}
 
 	public PreAggregateController(PreAggregateTriggerFunction preAggregateTriggerFunction,
 								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
 								  PreAggParamGauge preAggParamGauge, int subtaskIndex, int controllerFrequencySec) {
-		Preconditions.checkArgument(controllerFrequencySec >= 180, "The controller frequency must be greater than 180 seconds");
+		Preconditions.checkArgument(controllerFrequencySec >= 60, "The controller frequency must be greater than 60 seconds");
 		Preconditions.checkArgument(controllerFrequencySec <= (60 * 10), "The controller frequency  must be less than 600 seconds");
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
 		this.latencyHistogram = latencyHistogram;
@@ -47,7 +48,6 @@ public class PreAggregateController extends Thread implements Serializable {
 		this.controllerFrequencySec = controllerFrequencySec;
 		this.running = true;
 		this.currentCapacity = 0.0;
-		// this.minCountThreshold = 0;
 		this.disclaimer();
 	}
 
@@ -95,7 +95,11 @@ public class PreAggregateController extends Thread implements Serializable {
 		String label = "=";
 		if (outPoolUsage099 >= 50.0 || outPoolUsageMean >= 30.0) {
 			// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
-			newMinCount = currentMinCount + percent05;
+			if (currentMinCount <= 50) {
+				newMinCount = currentMinCount * 3;
+			} else {
+				newMinCount = currentMinCount + percent05;
+			}
 			label = "++";
 		} else if (outPoolUsage099 <= 25.0 && outPoolUsageMean <= 25.0) {
 			// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
@@ -104,7 +108,11 @@ public class PreAggregateController extends Thread implements Serializable {
 				this.currentCapacity = this.numRecordsOutPerSecond;
 				newMinCount = currentMinCount - percent05;
 				label = "--";
-				// this.minCountThreshold = currentMinCount;
+			} else if (this.numRecordsInPerSecond < this.numRecordsInPerSecondPrev) {
+				// The current output throughput is updated in order to keep decreasing the parameter K w.r.t. the output throughput
+				this.currentCapacity = this.numRecordsOutPerSecond;
+				newMinCount = currentMinCount - percent05;
+				label = "---";
 			} else {
 				label = "!-";
 			}
@@ -115,9 +123,11 @@ public class PreAggregateController extends Thread implements Serializable {
 			"]0.5[" + outPoolUsage05 + "]0.99[" + outPoolUsage099 + "]StdDev[" + df.format(outPoolUsageStdDev) + "]" +
 			" Latency min[" + latencyQuantileMin + "]max[" + latencyQuantileMax + "]mean[" + latencyQuantileMean +
 			"]0.5[" + latencyQuantile05 + "]0.99[" + latencyQuantile099 + "] StdDev[" + df.format(latencyStdDev) + "]" +
-			"numRecordsOutPerSecond[" + this.numRecordsOutPerSecond + "] threshold[" + this.currentCapacity + "]" +
+			"IN_prev[" + this.numRecordsInPerSecondPrev + "] IN[" + this.numRecordsInPerSecond +
+			"] OUT[" + this.numRecordsOutPerSecond + "] threshold[" + this.currentCapacity + "]" +
 			" K" + label + ": " + currentMinCount + "->" + newMinCount;
 		System.out.println(msg);
+		this.numRecordsInPerSecondPrev = this.numRecordsInPerSecond;
 
 		if (currentMinCount != newMinCount) {
 			this.preAggParamGauge.updateValue(newMinCount);
@@ -141,5 +151,9 @@ public class PreAggregateController extends Thread implements Serializable {
 
 	public void setNumRecordsOutPerSecond(double numRecordsOutPerSecond) {
 		this.numRecordsOutPerSecond = numRecordsOutPerSecond;
+	}
+
+	public void setNumRecordsInPerSecond(double numRecordsInPerSecond) {
+		this.numRecordsInPerSecond = numRecordsInPerSecond;
 	}
 }
