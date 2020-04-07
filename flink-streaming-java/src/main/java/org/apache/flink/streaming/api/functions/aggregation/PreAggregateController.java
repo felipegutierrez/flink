@@ -38,15 +38,19 @@ public class PreAggregateController extends Thread implements Serializable {
 	public PreAggregateController(PreAggregateTriggerFunction preAggregateTriggerFunction,
 								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
 								  PreAggParamGauge preAggParamGauge, int subtaskIndex, int controllerFrequencySec) {
-		Preconditions.checkArgument(controllerFrequencySec >= 60, "The controller frequency must be greater than 60 seconds");
-		Preconditions.checkArgument(controllerFrequencySec <= (60 * 10), "The controller frequency  must be less than 600 seconds");
+		if (controllerFrequencySec != -1) {
+			Preconditions.checkArgument(controllerFrequencySec >= 60, "The controller frequency must be greater than 60 seconds");
+			Preconditions.checkArgument(controllerFrequencySec <= (60 * 10), "The controller frequency  must be less than 600 seconds");
+			this.running = true;
+		} else {
+			System.out.println("WARNING: The autonomous controller is not enabled.");
+		}
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
 		this.latencyHistogram = latencyHistogram;
 		this.outPoolUsageHistogram = outPoolUsageHistogram;
 		this.preAggParamGauge = preAggParamGauge;
 		this.subtaskIndex = subtaskIndex;
 		this.controllerFrequencySec = controllerFrequencySec;
-		this.running = true;
 		this.currentCapacity = 0.0;
 		this.disclaimer();
 	}
