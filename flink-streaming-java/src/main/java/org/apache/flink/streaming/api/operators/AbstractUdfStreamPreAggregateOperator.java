@@ -11,6 +11,7 @@ import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
 import org.apache.flink.streaming.api.functions.aggregation.*;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.util.functions.PreAggLatencyMeanGauge;
 import org.apache.flink.streaming.util.functions.PreAggParamGauge;
 
 import java.util.HashMap;
@@ -23,6 +24,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	implements OneInputStreamOperator<IN, OUT>, PreAggregateTriggerCallback {
 
 	private static final long serialVersionUID = 1L;
+	private final String PRE_AGGREGATE_LATENCY_MEAN = "pre-aggregate-latency-mean";
 	private final String PRE_AGGREGATE_LATENCY_HISTOGRAM = "pre-aggregate-latency-histogram";
 	private final String PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM = "pre-aggregate-outPoolUsage-histogram";
 	private final String PRE_AGGREGATE_PARAMETER = "pre-aggregate-parameter";
@@ -36,23 +38,20 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 * The trigger that determines how many elements should be put into a bundle.
 	 */
 	private final PreAggregateTriggerFunction<IN> preAggregateTrigger;
-
+	private final int controllerFrequencySec;
 	/**
 	 * Output for stream records.
 	 */
 	private transient TimestampedCollector<OUT> collector;
 	private transient int numOfElements;
-
 	/**
 	 * A Mqtt topic to change the parameter K of pre-aggregating items
 	 */
 	private PreAggregateMqttListener preAggregateMqttListener;
-
 	/**
 	 * A Feedback loop Controller to find the optimal parameter K of pre-aggregating items
 	 */
 	private PreAggregateController preAggregateController;
-	private int controllerFrequencySec;
 	private long elapsedTime;
 
 	/**
@@ -96,10 +95,11 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardOutPoolBufferHistogram));
 		PreAggParamGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggParamGauge());
+		PreAggLatencyMeanGauge preAgglatencyMeanGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_LATENCY_MEAN, new PreAggLatencyMeanGauge());
 
 		// initiate the PI Controller with the histogram metrics
 		this.preAggregateController = new PreAggregateController(this.preAggregateTrigger, latencyHistogram,
-			outPoolUsageHistogram, preAggParamGauge, this.subtaskIndex, this.controllerFrequencySec);
+			outPoolUsageHistogram, preAggParamGauge, preAgglatencyMeanGauge, this.subtaskIndex, this.controllerFrequencySec);
 
 		try {
 			if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.GLOBAL) {
@@ -116,11 +116,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-
-		// If the controller scheduling is not null [-1] we start the asynchronous thread to make the pre-aggregation autonomous
-		if (this.controllerFrequencySec > -1) {
-			this.preAggregateController.start();
-		}
+		this.preAggregateController.start();
 	}
 
 	@Override
