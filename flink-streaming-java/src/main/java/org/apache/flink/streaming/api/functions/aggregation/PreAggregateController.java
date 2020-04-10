@@ -100,6 +100,9 @@ public class PreAggregateController extends Thread implements Serializable {
 		long outPoolUsageMax = this.outPoolUsageHistogram.getStatistics().getMax();
 		double outPoolUsageMean = this.outPoolUsageHistogram.getStatistics().getMean();
 		double outPoolUsage05 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.5);
+		double outPoolUsage075 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.75);
+		double outPoolUsage095 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.95);
+		double outPoolUsage098 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.98);
 		double outPoolUsage099 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.99);
 		double outPoolUsageStdDev = this.outPoolUsageHistogram.getStatistics().getStdDev();
 		int newMinCount = currentMinCount;
@@ -107,47 +110,76 @@ public class PreAggregateController extends Thread implements Serializable {
 
 		if (this.enableController) {
 			int percent05 = (int) Math.ceil(currentMinCount * 0.05);
-			if (outPoolUsage099 >= 50.0 || outPoolUsageMean >= 30.0) {
+                        int percent50 = (int) Math.ceil(currentMinCount * 0.5);
+			
+			// Update the parameter K of the Pre-aggregation operator
+			if (outPoolUsageMean >= 27.0 && outPoolUsage099 >= 50.0) {
 				// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
-				if (currentMinCount <= 50) {
-					newMinCount = currentMinCount * 3;
+				if (outPoolUsageMin == 100 && outPoolUsageMax == 100) {
+					// Update the current capacity of the output channel to 95% of the maximum capacity
+                                	if (this.currentCapacity == 0.0 || this.numRecordsOutPerSecond > this.currentCapacity) {
+                                        	this.currentCapacity = this.numRecordsOutPerSecond * 0.95;
+                                	}
+					if (currentMinCount < 20) {
+                                        	newMinCount = currentMinCount * 2;
+						label = "+++";
+					} else {
+						newMinCount = currentMinCount + percent50;
+						label = "++";
+					}
 				} else {
 					newMinCount = currentMinCount + percent05;
+					label = "+";
 				}
-				label = "++";
-			} else if (outPoolUsage099 <= 25.0 && outPoolUsageMean <= 25.0) {
+			} else if (outPoolUsageMean < 27.0 && outPoolUsage075 < 31.0 && outPoolUsage095 < 37.0) {
+				// Update the current capacity of the output channel to 95% of the maximum capacity
+				if (outPoolUsageMin == 25 && outPoolUsage075 == 25.0 && this.numRecordsOutPerSecond > this.currentCapacity) {
+                                	this.currentCapacity = this.numRecordsOutPerSecond * 0.95;
+                        	}
 				// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
-				if (this.numRecordsOutPerSecond > this.currentCapacity) {
-					// The current throughput did not reach the full capacity of the channel yet
-					this.currentCapacity = this.numRecordsOutPerSecond;
-					newMinCount = currentMinCount - percent05;
+				if (outPoolUsageMin == 25 && outPoolUsageMax == 25) {
+					newMinCount = currentMinCount - percent50;
 					label = "--";
-				} else if (this.numRecordsInPerSecond < this.numRecordsInPerSecondPrev) {
-					// The current output throughput is updated in order to keep decreasing the parameter K w.r.t. the output throughput
-					this.currentCapacity = this.numRecordsOutPerSecond;
-					newMinCount = currentMinCount - percent05;
-					label = "---";
 				} else {
-					label = "!-";
+					if (this.numRecordsOutPerSecond < this.currentCapacity) {
+						newMinCount = currentMinCount - percent05;
+						label = "-";
+					}
 				}
+				//if (this.numRecordsOutPerSecond > this.currentCapacity) {
+				//	// The current throughput did not reach the full capacity of the channel yet
+				//	this.currentCapacity = this.numRecordsOutPerSecond;
+				//	newMinCount = currentMinCount - percent05;
+				//	label = "--";
+				//} else if (this.numRecordsInPerSecond < this.numRecordsInPerSecondPrev) {
+				//	// The current output throughput is updated in order to keep decreasing the parameter K w.r.t. the output throughput
+				//	this.currentCapacity = this.numRecordsOutPerSecond;
+				//	newMinCount = currentMinCount - percent05;
+				//	label = "---";
+				//} else {
+				//	label = "!-";
+				//}
 			}
 		}
 
 		String msg = "Controller[" + this.subtaskIndex + "]" +
 			" OutPoolUsg min[" + outPoolUsageMin + "]max[" + outPoolUsageMax + "]mean[" + outPoolUsageMean +
-			"]0.5[" + outPoolUsage05 + "]0.99[" + outPoolUsage099 + "]StdDev[" + df.format(outPoolUsageStdDev) + "]" +
+			"]0.5[" + outPoolUsage05 + "]0.75[" + outPoolUsage075 + "]0.95[" + outPoolUsage095 + "]0.98[" + outPoolUsage098 +
+			"]0.99[" + outPoolUsage099 + "]StdDev[" + df.format(outPoolUsageStdDev) + "]" +
 			" Latency min[" + latencyMin + "]max[" + latencyMax + "]mean[" + latencyMean +
 			"]0.5[" + latencyQuantile05 + "]0.99[" + latencyQuantile099 + "] StdDev[" + df.format(latencyStdDev) + "]" +
-			"IN_prev[" + this.numRecordsInPerSecondPrev + "] IN[" + this.numRecordsInPerSecond +
-			"] OUT[" + this.numRecordsOutPerSecond + "] threshold[" + this.currentCapacity + "]" +
+			"IN_prev[" + df.format(this.numRecordsInPerSecondPrev) + "] IN[" + df.format(this.numRecordsInPerSecond) +
+			"] OUT[" + df.format(this.numRecordsOutPerSecond) + "] threshold[" + df.format(this.currentCapacity) + "]" +
 			" K" + label + ": " + currentMinCount + "->" + newMinCount;
 		System.out.println(msg);
 
+		// Update the previous input throughput of the operator
 		this.numRecordsInPerSecondPrev = this.numRecordsInPerSecond;
 
+		// Update parameters to Prometheus+Grafana
 		this.preAggParamGauge.updateValue(newMinCount);
 		this.preAggLatencyMeanGauge.updateValue(latencyMean);
-		// if (!this.enableController || currentMinCount != newMinCount) {
+
 		return newMinCount;
 	}
 
