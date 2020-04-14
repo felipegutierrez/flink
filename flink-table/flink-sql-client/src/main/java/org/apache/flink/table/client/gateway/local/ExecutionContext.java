@@ -19,7 +19,6 @@
 package org.apache.flink.table.client.gateway.local;
 
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.time.Time;
 import org.apache.flink.api.dag.Pipeline;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.client.ClientUtils;
@@ -34,10 +33,7 @@ import org.apache.flink.client.deployment.ClusterSpecification;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.BatchQueryConfig;
 import org.apache.flink.table.api.EnvironmentSettings;
-import org.apache.flink.table.api.QueryConfig;
-import org.apache.flink.table.api.StreamQueryConfig;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableEnvironment;
@@ -84,7 +80,6 @@ import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.table.module.Module;
 import org.apache.flink.table.module.ModuleManager;
-import org.apache.flink.table.planner.delegation.ExecutorBase;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.util.FlinkException;
@@ -247,18 +242,6 @@ public class ExecutionContext<ClusterID> {
 		}
 	}
 
-	public QueryConfig getQueryConfig() {
-		if (streamExecEnv != null) {
-			final StreamQueryConfig config = new StreamQueryConfig();
-			final long minRetention = environment.getExecution().getMinStateRetention();
-			final long maxRetention = environment.getExecution().getMaxStateRetention();
-			config.withIdleStateRetentionTime(Time.milliseconds(minRetention), Time.milliseconds(maxRetention));
-			return config;
-		} else {
-			return new BatchQueryConfig();
-		}
-	}
-
 	public TableEnvironment getTableEnvironment() {
 		return tableEnv;
 	}
@@ -272,25 +255,14 @@ public class ExecutionContext<ClusterID> {
 	}
 
 	public Pipeline createPipeline(String name) {
-		if (streamExecEnv != null) {
-			// special case for Blink planner to apply batch optimizations
-			// note: it also modifies the ExecutionConfig!
-			if (isBlinkPlanner(executor.getClass())) {
-				return ((ExecutorBase) executor).getStreamGraph(name);
+		return wrapClassLoader(() -> {
+			if (streamExecEnv != null) {
+				StreamTableEnvironmentImpl streamTableEnv = (StreamTableEnvironmentImpl) tableEnv;
+				return streamTableEnv.getPipeline(name);
+			} else {
+				return execEnv.createProgramPlan(name);
 			}
-			return streamExecEnv.getStreamGraph(name);
-		} else {
-			return execEnv.createProgramPlan(name);
-		}
-	}
-
-	private boolean isBlinkPlanner(Class<? extends Executor> executorClass) {
-		try {
-			return ExecutorBase.class.isAssignableFrom(executorClass);
-		} catch (NoClassDefFoundError ignore) {
-			// blink planner might not be on the class path
-			return false;
-		}
+		});
 	}
 
 	/** Returns a builder for this {@link ExecutionContext}. */

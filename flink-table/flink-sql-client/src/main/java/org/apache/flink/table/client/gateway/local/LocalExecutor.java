@@ -35,12 +35,9 @@ import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.core.plugin.PluginUtils;
-import org.apache.flink.table.api.QueryConfig;
-import org.apache.flink.table.api.StreamQueryConfig;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.api.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.client.SqlClientException;
 import org.apache.flink.table.client.config.Environment;
@@ -573,14 +570,15 @@ public class LocalExecutor implements Executor {
 			String sessionId,
 			ExecutionContext<C> context,
 			String statement) {
-		applyUpdate(context, context.getTableEnvironment(), context.getQueryConfig(), statement);
+
+		applyUpdate(context, statement);
 
 		//Todo: we should refactor following condition after TableEnvironment has support submit job directly.
 		if (!INSERT_SQL_PATTERN.matcher(statement.trim()).matches()) {
 			return null;
 		}
 
-		// create job graph with dependencies
+		// create pipeline
 		final String jobName = sessionId + ": " + statement;
 		final Pipeline pipeline;
 		try {
@@ -624,9 +622,7 @@ public class LocalExecutor implements Executor {
 			// writing to a sink requires an optimization step that might reference UDFs during code compilation
 			context.wrapClassLoader(() -> {
 				context.getTableEnvironment().registerTableSink(tableName, result.getTableSink());
-				table.insertInto(
-						context.getQueryConfig(),
-						tableName);
+				table.insertInto(tableName);
 			});
 			pipeline = context.createPipeline(jobName);
 		} catch (Throwable t) {
@@ -663,7 +659,8 @@ public class LocalExecutor implements Executor {
 		return new ResultDescriptor(
 				resultId,
 				removeTimeAttributes(table.getSchema()),
-				result.isMaterialized());
+				result.isMaterialized(),
+				context.getEnvironment().getExecution().isTableauMode());
 	}
 
 	/**
@@ -682,16 +679,10 @@ public class LocalExecutor implements Executor {
 	/**
 	 * Applies the given update statement to the given table environment with query configuration.
 	 */
-	private <C> void applyUpdate(ExecutionContext<C> context, TableEnvironment tableEnv, QueryConfig queryConfig, String updateStatement) {
-		// parse and validate statement
+	private <C> void applyUpdate(ExecutionContext<C> context, String updateStatement) {
+		final TableEnvironment tableEnv = context.getTableEnvironment();
 		try {
-			context.wrapClassLoader(() -> {
-				if (tableEnv instanceof StreamTableEnvironment) {
-					((StreamTableEnvironment) tableEnv).sqlUpdate(updateStatement, (StreamQueryConfig) queryConfig);
-				} else {
-					tableEnv.sqlUpdate(updateStatement);
-				}
-			});
+			context.wrapClassLoader(() -> tableEnv.sqlUpdate(updateStatement));
 		} catch (Throwable t) {
 			// catch everything such that the statement does not crash the executor
 			throw new SqlExecutionException("Invalid SQL update statement.", t);

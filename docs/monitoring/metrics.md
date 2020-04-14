@@ -767,6 +767,7 @@ Parameters:
 - `tags` - (optional) the global tags that will be applied to metrics when sending to Datadog. Tags should be separated by comma only
 - `proxyHost` - (optional) The proxy host to use when sending to Datadog.
 - `proxyPort` - (optional) The proxy port to use when sending to Datadog, defaults to 8080.
+- `dataCenter` - (optional) The data center (`EU`/`US`) to connect to, defaults to `US`.
 
 Example configuration:
 
@@ -777,6 +778,7 @@ metrics.reporter.dghttp.apikey: xxx
 metrics.reporter.dghttp.tags: myflinkapp,prod
 metrics.reporter.dghttp.proxyHost: my.web.proxy.com
 metrics.reporter.dghttp.proxyPort: 8080
+metrics.reporter.dhhttp.dataCenter: US
 
 {% endhighlight %}
 
@@ -1439,6 +1441,11 @@ Certain RocksDB native metrics are available but disabled by default, you can fi
       <td>isBackPressured</td>
       <td>Whether the task is back-pressured.</td>
       <td>Gauge</td>
+    </tr>
+    <tr>
+      <td>idleTimeMsPerSecond</td>
+      <td>The time (in milliseconds) this task is idle (either has no data to process or it is back pressured) per second.</td>
+      <td>Meter</td>
     </tr>
     <tr>
       <th rowspan="6"><strong>Task/Operator</strong></th>

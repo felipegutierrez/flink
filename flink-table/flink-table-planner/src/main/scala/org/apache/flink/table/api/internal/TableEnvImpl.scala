@@ -387,10 +387,11 @@ abstract class TableEnvImpl(
             tableSource,
             table.getTableSink.get,
             isBatchTable)
+          catalogManager.dropTemporaryTable(objectIdentifier)
           catalogManager.createTemporaryTable(
             sourceAndSink,
             objectIdentifier,
-            true)
+            false)
         }
 
       // no table is registered
@@ -421,10 +422,11 @@ abstract class TableEnvImpl(
             table.getTableSource.get,
             tableSink,
             isBatchTable)
+          catalogManager.dropTemporaryTable(objectIdentifier)
           catalogManager.createTemporaryTable(
             sourceAndSink,
             objectIdentifier,
-            true)
+            false)
         }
 
       // no table is registered
@@ -499,13 +501,15 @@ abstract class TableEnvImpl(
   override def dropTemporaryTable(path: String): Boolean = {
     val parser = planningConfigurationBuilder.createCalciteParser()
     val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(path).names: _*)
-    catalogManager.dropTemporaryTable(unresolvedIdentifier)
+    val identifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
+    catalogManager.dropTemporaryTable(identifier)
   }
 
   override def dropTemporaryView(path: String): Boolean = {
     val parser = planningConfigurationBuilder.createCalciteParser()
     val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(path).names: _*)
-    catalogManager.dropTemporaryView(unresolvedIdentifier)
+    val identifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
+    catalogManager.dropTemporaryView(identifier)
   }
 
   override def listUserDefinedFunctions(): Array[String] = functionCatalog.getUserDefinedFunctions

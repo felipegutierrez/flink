@@ -95,6 +95,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -286,8 +287,8 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 		AllocationID slotAllocationId,
 		int subtaskIndex,
 		int attemptNumber,
-		Collection<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors,
-		Collection<InputGateDeploymentDescriptor> inputGateDeploymentDescriptors,
+		List<ResultPartitionDeploymentDescriptor> resultPartitionDeploymentDescriptors,
+		List<InputGateDeploymentDescriptor> inputGateDeploymentDescriptors,
 		int targetSlotNumber,
 		MemoryManager memManager,
 		IOManager ioManager,
@@ -751,6 +752,8 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 			// an exception was thrown as a side effect of cancelling
 			// ----------------------------------------------------------------
 
+			t = ExceptionUtils.enrichTaskManagerOutOfMemoryError(t);
+
 			try {
 				// check if the exception is unrecoverable
 				if (ExceptionUtils.isJvmFatalError(t) ||
@@ -820,7 +823,7 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 				this.invokable = null;
 
 				// free the network resources
-				releaseNetworkResources();
+				releaseResources();
 
 				// free memory resources
 				if (invokable != null) {
@@ -873,10 +876,10 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 	}
 
 	/**
-	 * Releases network resources before task exits. We should also fail the partition to release if the task
+	 * Releases resources before task exits. We should also fail the partition to release if the task
 	 * has failed, is canceled, or is being canceled at the moment.
 	 */
-	private void releaseNetworkResources() {
+	private void releaseResources() {
 		LOG.debug("Release task {} network resources (state: {}).", taskNameWithSubtask, getExecutionState());
 
 		for (ResultPartitionWriter partitionWriter : consumableNotifyingPartitionWriters) {
@@ -887,6 +890,11 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 		}
 
 		closeNetworkResources();
+		try {
+			taskStateManager.close();
+		} catch (Exception e) {
+			LOG.error("Failed to close task state manager for task {}.", taskNameWithSubtask, e);
+		}
 	}
 
 	/**
@@ -1054,7 +1062,7 @@ public class Task implements Runnable, TaskSlotPayload, TaskActions, PartitionPr
 						// case the canceling could not continue
 
 						// The canceller calls cancel and interrupts the executing thread once
-						Runnable canceler = new TaskCanceler(LOG, this :: closeNetworkResources, invokable, executingThread, taskNameWithSubtask);
+						Runnable canceler = new TaskCanceler(LOG, this::closeNetworkResources, invokable, executingThread, taskNameWithSubtask);
 
 						Thread cancelThread = new Thread(
 								executingThread.getThreadGroup(),

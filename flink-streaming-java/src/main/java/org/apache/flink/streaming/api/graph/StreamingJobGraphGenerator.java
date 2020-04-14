@@ -25,7 +25,6 @@ import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.IllegalConfigurationException;
-import org.apache.flink.optimizer.plantranslate.JobGraphGenerator;
 import org.apache.flink.runtime.checkpoint.CheckpointRetentionPolicy;
 import org.apache.flink.runtime.checkpoint.MasterTriggerRestoreHook;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
@@ -34,6 +33,7 @@ import org.apache.flink.runtime.jobgraph.InputOutputFormatContainer;
 import org.apache.flink.runtime.jobgraph.InputOutputFormatVertex;
 import org.apache.flink.runtime.jobgraph.JobEdge;
 import org.apache.flink.runtime.jobgraph.JobGraph;
+import org.apache.flink.runtime.jobgraph.JobGraphUtils;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -84,6 +84,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguration.MINIMAL_CHECKPOINT_TIME;
+import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
@@ -182,7 +183,7 @@ public class StreamingJobGraphGenerator {
 
 		jobGraph.setSavepointRestoreSettings(streamGraph.getSavepointRestoreSettings());
 
-		JobGraphGenerator.addUserArtifactEntries(streamGraph.getUserArtifacts(), jobGraph);
+		JobGraphUtils.addUserArtifactEntries(streamGraph.getUserArtifacts(), jobGraph);
 
 		// set the ExecutionConfig last when it has been finalized
 		try {
@@ -516,16 +517,11 @@ public class StreamingJobGraphGenerator {
 
 		config.setStateBackend(streamGraph.getStateBackend());
 		config.setCheckpointingEnabled(checkpointCfg.isCheckpointingEnabled());
-		if (checkpointCfg.isCheckpointingEnabled()) {
-			config.setCheckpointMode(checkpointCfg.getCheckpointingMode());
+		config.setCheckpointMode(getCheckpointingMode(checkpointCfg));
+
+		for (int i = 0; i < vertex.getStatePartitioners().length; i++) {
+			config.setStatePartitioner(i, vertex.getStatePartitioners()[i]);
 		}
-		else {
-			// the "at-least-once" input handler is slightly cheaper (in the absence of checkpoints),
-			// so we use that one if checkpointing is not enabled
-			config.setCheckpointMode(CheckpointingMode.AT_LEAST_ONCE);
-		}
-		config.setStatePartitioner(0, vertex.getStatePartitioner1());
-		config.setStatePartitioner(1, vertex.getStatePartitioner2());
 		config.setStateKeySerializer(vertex.getStateKeySerializer());
 
 		Class<? extends AbstractInvokable> vertexClass = vertex.getJobVertexClass();
@@ -537,6 +533,21 @@ public class StreamingJobGraphGenerator {
 		}
 
 		vertexConfigs.put(vertexID, config);
+	}
+
+	private CheckpointingMode getCheckpointingMode(CheckpointConfig checkpointConfig) {
+		CheckpointingMode checkpointingMode = checkpointConfig.getCheckpointingMode();
+
+		checkArgument(checkpointingMode == CheckpointingMode.EXACTLY_ONCE ||
+			checkpointingMode == CheckpointingMode.AT_LEAST_ONCE, "Unexpected checkpointing mode.");
+
+		if (checkpointConfig.isCheckpointingEnabled()) {
+			return checkpointingMode;
+		} else {
+			// the "at-least-once" input handler is slightly cheaper (in the absence of checkpoints),
+			// so we use that one if checkpointing is not enabled
+			return CheckpointingMode.AT_LEAST_ONCE;
+		}
 	}
 
 	private void connect(Integer headOfChain, StreamEdge edge) {
@@ -880,19 +891,6 @@ public class StreamingJobGraphGenerator {
 			retentionAfterTermination = CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION;
 		}
 
-		CheckpointingMode mode = cfg.getCheckpointingMode();
-
-		boolean isExactlyOnce;
-		if (mode == CheckpointingMode.EXACTLY_ONCE) {
-			isExactlyOnce = true;
-		} else if (mode == CheckpointingMode.AT_LEAST_ONCE) {
-			isExactlyOnce = false;
-		} else {
-			throw new IllegalStateException("Unexpected checkpointing mode. " +
-				"Did not expect there to be another checkpointing mode besides " +
-				"exactly-once or at-least-once.");
-		}
-
 		//  --- configure the master-side checkpoint hooks ---
 
 		final ArrayList<MasterTriggerRestoreHook.Factory> hooks = new ArrayList<>();
@@ -950,7 +948,7 @@ public class StreamingJobGraphGenerator {
 				cfg.getMinPauseBetweenCheckpoints(),
 				cfg.getMaxConcurrentCheckpoints(),
 				retentionAfterTermination,
-				isExactlyOnce,
+				getCheckpointingMode(cfg) == CheckpointingMode.EXACTLY_ONCE,
 				cfg.isPreferCheckpointForRecovery(),
 				cfg.getTolerableCheckpointFailureNumber()),
 			serializedStateBackend,

@@ -126,12 +126,12 @@ $ echo 'stop' | ./bin/kubernetes-session.sh -Dkubernetes.cluster-id=<ClusterId> 
 
 #### Manual Resource Cleanup
 
-Flink uses [Kubernetes ownerReference's](https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/) to cleanup all cluster components.
-All the Flink created resources, including `ConfigMap`, `Service`, `Deployment`, `Pod`, have been set the ownerReference to `service/<ClusterId>`. 
-When the service is deleted, all other resource will be deleted automatically. 
+Flink uses [Kubernetes OwnerReference's](https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/) to cleanup all cluster components.
+All the Flink created resources, including `ConfigMap`, `Service`, `Pod`, have been set the OwnerReference to `deployment/<ClusterId>`. 
+When the deployment is deleted, all other resources will be deleted automatically. 
 
 {% highlight bash %}
-$ kubectl delete service/<ClusterID>
+$ kubectl delete deployment/<ClusterID>
 {% endhighlight %}
 
 ## Log Files
@@ -153,6 +153,32 @@ appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p %-60c %x - %m
 {% endhighlight %}
 
 If the pod is running, you can use `kubectl exec -it <PodName> bash` to tunnel in and view the logs or debug the process. 
+
+## Using plugins
+
+As described in the [plugins]({{ site.baseurl }}/ops/plugins.html) documentation page: in order to use plugins they must be
+copied to the correct location in the flink installation for them to work.
+
+The simplest way to enable plugins for use on Kubernetes is to modify the provided official Flink docker images by adding
+an additional layer. This does however assume you have a docker registry available where you can push images to and
+that is accessible by your Kubernetes cluster.
+
+How this can be done is described on the [Docker Setup]({{ site.baseurl }}/ops/deployment/docker.html#using-plugins) page.
+
+With such an image created you can now start your Kubernetes based Flink session cluster with the additional parameter
+`kubernetes.container.image` which must specify the image that was created: `docker.example.nl/flink:{{ site.version }}-2.12-s3`
+
+Extending the above example command to start the session cluster makes it this:
+
+{% highlight bash %}
+./bin/kubernetes-session.sh \
+  -Dkubernetes.cluster-id=<ClusterId> \
+  -Dtaskmanager.memory.process.size=4096m \
+  -Dkubernetes.taskmanager.cpu=2 \
+  -Dtaskmanager.numberOfTaskSlots=4 \
+  -Dresourcemanager.taskmanager-timeout=3600000 \
+  -Dkubernetes.container.image=docker.example.nl/flink:{{ site.version }}-2.12-s3
+{% endhighlight %}
 
 ## Kubernetes concepts
 

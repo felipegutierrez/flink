@@ -22,6 +22,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.python.PythonFunctionRunner;
 import org.apache.flink.python.env.PythonEnvironmentManager;
+import org.apache.flink.python.metric.FlinkMetricContainer;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.python.PythonFunctionInfo;
 import org.apache.flink.table.runtime.arrow.ArrowUtils;
@@ -36,6 +37,8 @@ import org.apache.beam.runners.fnexecution.control.OutputReceiverFactory;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.util.WindowedValue;
 
+import java.util.Map;
+
 /**
  * Abstract {@link PythonFunctionRunner} used to execute Arrow Python {@link ScalarFunction}s.
  *
@@ -45,6 +48,18 @@ import org.apache.beam.sdk.util.WindowedValue;
 public abstract class AbstractArrowPythonScalarFunctionRunner<IN> extends AbstractPythonScalarFunctionRunner<IN> {
 
 	private static final String SCHEMA_ARROW_CODER_URN = "flink:coder:schema:scalar_function:arrow:v1";
+
+	static {
+		// Arrow requires the property io.netty.tryReflectionSetAccessible to
+		// be set to true for JDK >= 9. Please refer to ARROW-5412 for more details.
+		if (System.getProperty("io.netty.tryReflectionSetAccessible") == null) {
+			System.setProperty("io.netty.tryReflectionSetAccessible", "true");
+		} else if (!io.netty.util.internal.PlatformDependent.hasDirectBufferNoCleanerConstructor()) {
+			throw new RuntimeException("Vectorized Python UDF depends on " +
+				"DirectByteBuffer.<init>(long, int) which is not available. Please set the " +
+				"system property 'io.netty.tryReflectionSetAccessible' to 'true'.");
+		}
+	}
 
 	/**
 	 * Max number of elements to include in an arrow batch.
@@ -85,8 +100,10 @@ public abstract class AbstractArrowPythonScalarFunctionRunner<IN> extends Abstra
 		PythonEnvironmentManager environmentManager,
 		RowType inputType,
 		RowType outputType,
-		int maxArrowBatchSize) {
-		super(taskName, resultReceiver, scalarFunctions, environmentManager, inputType, outputType);
+		int maxArrowBatchSize,
+		Map<String, String> jobOptions,
+		FlinkMetricContainer flinkMetricContainer) {
+		super(taskName, resultReceiver, scalarFunctions, environmentManager, inputType, outputType, jobOptions, flinkMetricContainer);
 		this.maxArrowBatchSize = maxArrowBatchSize;
 	}
 
@@ -162,6 +179,7 @@ public abstract class AbstractArrowPythonScalarFunctionRunner<IN> extends Abstra
 	private void finishCurrentBatch() throws Exception {
 		if (currentBatchCount > 0) {
 			arrowWriter.finish();
+			// the batch of elements sent out as one row should be serialized into one arrow batch
 			arrowStreamWriter.writeBatch();
 			arrowWriter.reset();
 

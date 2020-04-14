@@ -1,6 +1,6 @@
 package org.apache.flink.streaming.api.operators;
 
-import com.codahale.metrics.SlidingTimeWindowReservoir;
+import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
 import org.apache.flink.metrics.Gauge;
@@ -78,7 +78,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	public void open() throws Exception {
 		super.open();
 
-		int reservoirWindowSize = 25;
+		int reservoirWindow = 30;
 		this.numOfElements = 0;
 		this.collector = new TimestampedCollector<>(output);
 
@@ -89,13 +89,11 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		this.subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
 		this.elapsedTime = System.currentTimeMillis();
 
-		// new SlidingTimeWindowReservoir(30, TimeUnit.SECONDS);
-		// new SlidingWindowReservoir(reservoirWindowSize);
 		// create histogram metrics
-		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingTimeWindowReservoir(30, TimeUnit.SECONDS));
+		com.codahale.metrics.Histogram dropwizardLatencyHistogram = new com.codahale.metrics.Histogram(new SlidingTimeWindowArrayReservoir(reservoirWindow, TimeUnit.SECONDS));
 		Histogram latencyHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_LATENCY_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardLatencyHistogram));
-		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingTimeWindowReservoir(30, TimeUnit.SECONDS));
+		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingTimeWindowArrayReservoir(reservoirWindow, TimeUnit.SECONDS));
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardOutPoolBufferHistogram));
 		PreAggParamGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggParamGauge());

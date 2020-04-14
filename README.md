@@ -8,9 +8,11 @@ origin	git@github.com:felipegutierrez/flink.git (push)
 upstream	https://github.com/apache/flink.git (fetch)
 upstream	https://github.com/apache/flink.git (push)
 // From original github repository
-$ git remote fetch
+$ git fetch upstream
+$ git merge upstream/master
 // From my own github repository
 $ git pull
+// Open IntelliJ, update the project, and commit the new changes on my local repository
 ```
 
 ## Compiling
