@@ -110,55 +110,36 @@ public class PreAggregateController extends Thread implements Serializable {
 
 		if (this.enableController) {
 			int percent05 = (int) Math.ceil(currentMinCount * 0.05);
-                        int percent50 = (int) Math.ceil(currentMinCount * 0.5);
-			
+			int percent30 = (int) Math.ceil(currentMinCount * 0.3);
+
 			// Update the parameter K of the Pre-aggregation operator
 			if (outPoolUsageMean >= 27.0 && outPoolUsage099 >= 50.0) {
 				// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
 				if (outPoolUsageMin == 100 && outPoolUsageMax == 100) {
-					// Update the current capacity of the output channel to 95% of the maximum capacity
-                                	if (this.currentCapacity == 0.0 || this.numRecordsOutPerSecond > this.currentCapacity) {
-                                        	this.currentCapacity = this.numRecordsOutPerSecond * 0.95;
-                                	}
 					if (currentMinCount < 20) {
-                                        	newMinCount = currentMinCount * 2;
+						newMinCount = currentMinCount * 2;
 						label = "+++";
 					} else {
-						newMinCount = currentMinCount + percent50;
+						newMinCount = currentMinCount + percent30;
 						label = "++";
 					}
 				} else {
 					newMinCount = currentMinCount + percent05;
 					label = "+";
 				}
+				this.currentCapacity = this.numRecordsOutPerSecond;
 			} else if (outPoolUsageMean < 27.0 && outPoolUsage075 < 31.0 && outPoolUsage095 < 37.0) {
-				// Update the current capacity of the output channel to 95% of the maximum capacity
-				if (outPoolUsageMin == 25 && outPoolUsage075 == 25.0 && this.numRecordsOutPerSecond > this.currentCapacity) {
-                                	this.currentCapacity = this.numRecordsOutPerSecond * 0.95;
-                        	}
 				// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
 				if (outPoolUsageMin == 25 && outPoolUsageMax == 25) {
-					newMinCount = currentMinCount - percent50;
+					newMinCount = currentMinCount - percent30;
 					label = "--";
 				} else {
-					if (this.numRecordsOutPerSecond < this.currentCapacity) {
+					// if the output throughput is greater than the capacity we don't decrease the parameter K
+					if (this.currentCapacity == 0 || this.numRecordsOutPerSecond < this.currentCapacity) {
 						newMinCount = currentMinCount - percent05;
 						label = "-";
 					}
 				}
-				//if (this.numRecordsOutPerSecond > this.currentCapacity) {
-				//	// The current throughput did not reach the full capacity of the channel yet
-				//	this.currentCapacity = this.numRecordsOutPerSecond;
-				//	newMinCount = currentMinCount - percent05;
-				//	label = "--";
-				//} else if (this.numRecordsInPerSecond < this.numRecordsInPerSecondPrev) {
-				//	// The current output throughput is updated in order to keep decreasing the parameter K w.r.t. the output throughput
-				//	this.currentCapacity = this.numRecordsOutPerSecond;
-				//	newMinCount = currentMinCount - percent05;
-				//	label = "---";
-				//} else {
-				//	label = "!-";
-				//}
 			}
 		}
 
@@ -167,9 +148,9 @@ public class PreAggregateController extends Thread implements Serializable {
 			"]0.5[" + outPoolUsage05 + "]0.75[" + outPoolUsage075 + "]0.95[" + outPoolUsage095 + "]0.98[" + outPoolUsage098 +
 			"]0.99[" + outPoolUsage099 + "]StdDev[" + df.format(outPoolUsageStdDev) + "]" +
 			" Latency min[" + latencyMin + "]max[" + latencyMax + "]mean[" + latencyMean +
-			"]0.5[" + latencyQuantile05 + "]0.99[" + latencyQuantile099 + "] StdDev[" + df.format(latencyStdDev) + "]" +
-			"IN_prev[" + df.format(this.numRecordsInPerSecondPrev) + "] IN[" + df.format(this.numRecordsInPerSecond) +
-			"] OUT[" + df.format(this.numRecordsOutPerSecond) + "] threshold[" + df.format(this.currentCapacity) + "]" +
+			"]0.5[" + latencyQuantile05 + "]0.99[" + latencyQuantile099 + "]StdDev[" + df.format(latencyStdDev) + "]" +
+			" IN_prev[" + df.format(this.numRecordsInPerSecondPrev) + "]IN[" + df.format(this.numRecordsInPerSecond) +
+			"] OUT[" + df.format(this.numRecordsOutPerSecond) + "]threshold[" + df.format(this.currentCapacity) + "]" +
 			" K" + label + ": " + currentMinCount + "->" + newMinCount;
 		System.out.println(msg);
 

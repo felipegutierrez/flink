@@ -22,7 +22,15 @@ import java.util.Random;
  *     -port [1883] \
  *     -maxCount [Long.MAX_VALUE] \
  *     -qtdSensors [50] \
- *     -qtdMetrics [200]
+ *     -qtdMetrics [200] \
+ *     -delay [1000]
+ *
+ * 	   Description of the parameters
+ *     -qtdSensors: number of sensors that is generating values. In order to produce a skew workload set this value to 1
+ *     and it will generate different values with respect to the -qtdMetrics parameter.
+ *     -qtdMetrics: number of metrics generated per sensor
+ *     -delay: time in milliseconds that defines the frequency to produce data
+ *
  *
  * Consume data from this producer:
  *     mosquitto_sub -h 127.0.0.1 -p 1883 -t topic-data-source
@@ -44,43 +52,45 @@ public class MqttDataProducer extends Thread {
 	private static final String MAX_COUNT = "maxCount";
 	private static final String QTD_SENSORS = "qtdSensors";
 	private static final String QTD_METRICS = "qtdMetrics";
+	private static final String DELAY = "delay";
 
-	private Random random;
-	private double sensorRangeMin;
-	private double sensorRangeMax;
+	private final Random random;
+	private final double sensorRangeMin;
+	private final double sensorRangeMax;
+	private final String host;
+	private final int port;
+	private final int numberOfSensors;
+	private final int qtdOfMetrics;
+	private final long maxCount;
+	private final String topicToPublish;
+	private final String topicFrequencyParameter;
+	private final MqttDataType mqttDataType;
 	private FutureConnection connection;
 	private CallbackConnection connectionSideParameter;
 	private URL url;
 	private MQTT mqtt;
-	private String host;
-	private int port;
 	private int delay;
-	private int numberOfSensors;
-	private int monitoredTimes;
 	private long count;
-	private long maxCount;
 	private boolean running = false;
 	private boolean offlineData;
-	private String topicToPublish;
-	private String topicFrequencyParameter;
 	private String resource;
-	private MqttDataType mqttDataType;
 
 	public MqttDataProducer(MqttDataType mqttDataType, String resource, String host, int port, long maxCount) throws MalformedURLException {
-		this(mqttDataType, resource, host, port, maxCount, 50, 200);
+		this(mqttDataType, resource, host, port, maxCount, 50, 200, 10000);
 	}
 
-	public MqttDataProducer(MqttDataType mqttDataType, String resource, String host, int port, long maxCount, int numberOfSensors, int monitoredTimes) throws MalformedURLException {
+	public MqttDataProducer(MqttDataType mqttDataType, String resource, String host, int port, long maxCount,
+							int numberOfSensors, int qtdOfMetrics, int delay) throws MalformedURLException {
 		this.random = new Random();
 		this.sensorRangeMin = -20.0;
 		this.sensorRangeMax = 60.0;
 		this.mqttDataType = mqttDataType;
 		this.host = host;
 		this.port = port;
-		this.delay = 10000;
+		this.delay = delay;
 		this.running = true;
 		this.numberOfSensors = numberOfSensors;
-		this.monitoredTimes = monitoredTimes;
+		this.qtdOfMetrics = qtdOfMetrics;
 
 		this.maxCount = maxCount;
 		this.topicToPublish = TOPIC_DATA_SOURCE;
@@ -114,6 +124,7 @@ public class MqttDataProducer extends Thread {
 		long maxCount = params.getLong(MAX_COUNT, Long.MAX_VALUE);
 		int qtdSensors = params.getInt(QTD_SENSORS, 50);
 		int qtdMetrics = params.getInt(QTD_METRICS, 200);
+		int delay = params.getInt(DELAY, 1000);
 
 		if (SOURCE_DATA_HAMLET.equalsIgnoreCase(input)) {
 			producer = new MqttDataProducer(MqttDataType.HAMLET, "", host, port, maxCount);
@@ -122,7 +133,7 @@ public class MqttDataProducer extends Thread {
 		} else if (SOURCE_DATA_DICTIONARY.equalsIgnoreCase(input)) {
 			producer = new MqttDataProducer(MqttDataType.DICTIONARY, "", host, port, maxCount);
 		} else if (SOURCE_SENSOR_DATA.equalsIgnoreCase(input)) {
-			producer = new MqttDataProducer(MqttDataType.SOURCE_SENSOR_DATA, "", host, port, maxCount, qtdSensors, qtdMetrics);
+			producer = new MqttDataProducer(MqttDataType.SOURCE_SENSOR_DATA, "", host, port, maxCount, qtdSensors, qtdMetrics, delay);
 		} else if (!Strings.isNullOrEmpty(input)) {
 			producer = new MqttDataProducer(MqttDataType.OFFLINE_FILE, input, host, port, maxCount);
 		} else if (Strings.isNullOrEmpty(input)) {
@@ -257,16 +268,26 @@ public class MqttDataProducer extends Thread {
 			return new FileInputStream(new File(this.resource));
 		} else if (MqttDataType.SOURCE_SENSOR_DATA == this.mqttDataType) {
 			String value = "";
-			for (int sensorId = 1; sensorId <= numberOfSensors; sensorId++) {
-				double sensorValue = sensorRangeMin + (sensorRangeMax - sensorRangeMin) * random.nextDouble();
-				value = value + sensorId + ";" + sensorValue + "|";
-			}
 			String result = "";
-			for (int i = 0; i < monitoredTimes; i++) {
-				result = result + value;
+			if (numberOfSensors == 1) {
+				// create a skew workload based only in one sensorID
+				int sensorId = 1;
+				for (int i = 0; i < qtdOfMetrics; i++) {
+					double sensorValue = sensorRangeMin + (sensorRangeMax - sensorRangeMin) * random.nextDouble();
+					value = value + sensorId + ";" + sensorValue + "|";
+				}
+				result = value;
+			} else {
+				// create a workload based on a normal distribution
+				for (int sensorId = 1; sensorId <= numberOfSensors; sensorId++) {
+					double sensorValue = sensorRangeMin + (sensorRangeMax - sensorRangeMin) * random.nextDouble();
+					value = value + sensorId + ";" + sensorValue + "|";
+				}
+				for (int i = 0; i < qtdOfMetrics; i++) {
+					result = result + value;
+				}
 			}
-			InputStream is = new ByteArrayInputStream(StandardCharsets.UTF_8.encode(result).array());
-			return is;
+			return new ByteArrayInputStream(StandardCharsets.UTF_8.encode(result).array());
 		} else {
 			throw new Exception("DataSourceType is NULL!");
 		}
@@ -295,8 +316,8 @@ public class MqttDataProducer extends Thread {
 		System.out.println("mosquitto_pub -h " + host + " -p " + port + " -t " + topicFrequencyParameter + " -m \"miliseconds\"");
 		System.out.println("delay [milliseconds]: " + this.delay);
 		System.out.println("number of sensors: " + this.numberOfSensors);
-		System.out.println("quantity of metrics: " + this.monitoredTimes);
-		System.out.println("number of records every " + this.delay + " milliseconds: " + (this.numberOfSensors * this.monitoredTimes));
+		System.out.println("quantity of metrics: " + this.qtdOfMetrics);
+		System.out.println("number of records every " + this.delay + " milliseconds: " + (this.numberOfSensors * this.qtdOfMetrics));
 		System.out.println();
 		// @formatter:on
 	}
