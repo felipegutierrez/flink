@@ -1280,7 +1280,6 @@ public class DataStream<T> {
 														  int preAggWindowCount,
 														  PreAggregateStrategy preAggregateStrategy,
 														  int controllerFrequencySec) {
-
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
@@ -1303,6 +1302,10 @@ public class DataStream<T> {
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  int preAggWindowCount) {
 		return preAggregate(preAggregateFunction, preAggWindowCount, PreAggregateStrategy.GLOBAL, 60);
+	}
+
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
+		return preAggregate(preAggregateFunction, 100, PreAggregateStrategy.GLOBAL, 60);
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(

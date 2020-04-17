@@ -4,20 +4,20 @@ import org.apache.flink.util.Preconditions;
 
 public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
-	private PreAggregateStrategy preAggregateStrategy;
-	private int minCount;
+	private final PreAggregateStrategy preAggregateStrategy;
+	private int maxCount;
 	private transient int count = 0;
 	private transient PreAggregateTriggerCallback callback;
 
-	public PreAggregateTriggerFunction(int minCount) {
-		Preconditions.checkArgument(minCount > 0, "periodMilliseconds must be greater than 0");
-		this.minCount = minCount;
+	public PreAggregateTriggerFunction(int maxCount) {
+		Preconditions.checkArgument(maxCount > 0, "periodMilliseconds must be greater than 0");
+		this.maxCount = maxCount;
 		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
 	}
 
-	public PreAggregateTriggerFunction(int minCount, PreAggregateStrategy preAggregateStrategy) {
-		Preconditions.checkArgument(minCount > 0, "periodMilliseconds must be greater than 0");
-		this.minCount = minCount;
+	public PreAggregateTriggerFunction(int maxCount, PreAggregateStrategy preAggregateStrategy) {
+		Preconditions.checkArgument(maxCount > 0, "periodMilliseconds must be greater than 0");
+		this.maxCount = maxCount;
 		this.preAggregateStrategy = preAggregateStrategy;
 	}
 
@@ -29,7 +29,7 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	@Override
 	public void onElement(T element) throws Exception {
 		this.count++;
-		if (this.count >= this.minCount) {
+		if (this.count >= this.maxCount) {
 			this.callback.collect();
 			reset();
 		}
@@ -42,28 +42,28 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
 	@Override
 	public String explain() {
-		return "minCount [" + this.minCount + "]";
+		return "maxCount [" + this.maxCount + "]";
 	}
 
 	@Override
 	public int getMaxCount() {
-		return this.minCount;
+		return this.maxCount;
 	}
 
 	@Override
-	public void setMaxCount(int minCount, int subtaskIndex) {
-		if (minCount > -1) {
+	public void setMaxCount(int maxCount, int subtaskIndex) {
+		if (maxCount > -1) {
 			if (subtaskIndex == -1) {
-				System.out.println("Subtask[all] - new maxCount set: " + minCount);
+				System.out.println("Subtask[all] - new maxCount set: " + maxCount);
 			} else {
-				System.out.println("Subtask[" + subtaskIndex + "] - new maxCount set: " + minCount);
+				System.out.println("Subtask[" + subtaskIndex + "] - new maxCount set: " + maxCount);
 			}
-			this.minCount = minCount;
+			this.maxCount = maxCount;
 		} else {
 			if (subtaskIndex == -1) {
-				System.out.println("Warning: attempt to set maxCount failed[" + minCount + "] for Subtask[all]");
+				System.out.println("Warning: attempt to set maxCount failed[" + maxCount + "] for Subtask[all]");
 			} else {
-				System.out.println("Warning: attempt to set maxCount failed[" + minCount + "] for Subtask[" + subtaskIndex + "]");
+				System.out.println("Warning: attempt to set maxCount failed[" + maxCount + "] for Subtask[" + subtaskIndex + "]");
 			}
 		}
 	}

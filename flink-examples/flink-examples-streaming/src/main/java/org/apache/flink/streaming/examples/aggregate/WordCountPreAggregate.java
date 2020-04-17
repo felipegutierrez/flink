@@ -56,7 +56,7 @@ import java.util.Map;
  *        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
  *        -simulateSkew [false] \
- *        -controller [false] \
+ *        -controller [60] \
  *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
