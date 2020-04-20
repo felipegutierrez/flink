@@ -4,10 +4,18 @@ import org.apache.flink.metrics.Histogram;
 import org.apache.flink.streaming.util.functions.PreAggLatencyMeanGauge;
 import org.apache.flink.streaming.util.functions.PreAggParamGauge;
 import org.apache.flink.util.Preconditions;
+import org.fusesource.hawtbuf.AsciiBuffer;
+import org.fusesource.hawtbuf.Buffer;
+import org.fusesource.hawtbuf.UTF8Buffer;
+import org.fusesource.mqtt.client.Future;
+import org.fusesource.mqtt.client.FutureConnection;
+import org.fusesource.mqtt.client.MQTT;
+import org.fusesource.mqtt.client.QoS;
 
 import java.io.Serializable;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.util.LinkedList;
 
 public class PreAggregateController extends Thread implements Serializable {
 
@@ -25,6 +33,14 @@ public class PreAggregateController extends Thread implements Serializable {
 	private final Histogram outPoolUsageHistogram;
 	private final PreAggParamGauge preAggParamGauge;
 	private final PreAggLatencyMeanGauge preAggLatencyMeanGauge;
+	/**
+	 * MQTT broker is used to set the parameter K to all PreAgg operators
+	 */
+	private MQTT mqtt;
+	private FutureConnection connection;
+	private String host;
+	private int port;
+
 	private boolean running = false;
 	private double numRecordsOutPerSecond;
 	private double numRecordsInPerSecond;
@@ -61,6 +77,15 @@ public class PreAggregateController extends Thread implements Serializable {
 		this.subtaskIndex = subtaskIndex;
 		this.running = true;
 		this.currentCapacity = 0.0;
+
+		// TODO: All instances of PreAggregateController has to be placed on the same node because we use the host 127.0.0.1 to publish the GLOBAL paramater K
+		try {
+			this.host = "127.0.0.1";
+			this.port = 1883;
+			this.connect();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		this.disclaimer();
 	}
 
@@ -69,18 +94,55 @@ public class PreAggregateController extends Thread implements Serializable {
 			+ "] scheduled to every " + this.controllerFrequencySec + " seconds.");
 	}
 
+	private void connect() throws Exception {
+		mqtt = new MQTT();
+		mqtt.setHost(host, port);
+
+		connection = mqtt.futureConnection();
+		connection.connect().await();
+	}
+
+	private void disconnect() throws Exception {
+		connection.disconnect().await();
+	}
+
 	public void run() {
 		try {
 			while (running) {
 				Thread.sleep(controllerFrequencySec * 1000);
 
+				// new estimated PreAgg parameter K
 				int newMaxCountPreAggregate = this.computePreAggregateParameter(this.preAggregateTriggerFunction.getMaxCount());
+
 				if (this.enableController) {
-					this.preAggregateTriggerFunction.setMaxCount(newMaxCountPreAggregate, this.subtaskIndex);
+					if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.GLOBAL)) {
+						// GLOBAL strategy: MQTT global trigger for all operators
+						this.publish(newMaxCountPreAggregate);
+					} else if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.LOCAL)) {
+						// LOCAL strategy: each PreAgg operator receives a different parameter K
+						this.preAggregateTriggerFunction.setMaxCount(newMaxCountPreAggregate, this.subtaskIndex, this.preAggregateTriggerFunction.getPreAggregateStrategy());
+					} else {
+						System.out.println("ERROR: PreAggregateStrategy [" + this.preAggregateTriggerFunction.getPreAggregateStrategy().getValue() + "] not implemented.");
+					}
+				} else {
+					System.out.println("PreAgg autonomous controller is not enabled. Manual adjustment is still enable.");
 				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+	}
+
+	private void publish(int newMaxCountPreAggregate) throws Exception {
+		final LinkedList<Future<Void>> queue = new LinkedList<Future<Void>>();
+		UTF8Buffer topic = new UTF8Buffer(PreAggregateTriggerFunction.TOPIC_PRE_AGGREGATE_PARAMETER);
+		Buffer msg = new AsciiBuffer(Integer.toString(newMaxCountPreAggregate));
+
+		// Send the publish without waiting for it to complete. This allows us to send multiple message without blocking.
+		queue.add(connection.publish(topic, msg, QoS.AT_LEAST_ONCE, false));
+
+		while (!queue.isEmpty()) {
+			queue.removeFirst().await();
 		}
 	}
 

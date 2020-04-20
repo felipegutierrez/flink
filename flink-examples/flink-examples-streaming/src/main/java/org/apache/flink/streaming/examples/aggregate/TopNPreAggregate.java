@@ -188,7 +188,7 @@ public class TopNPreAggregate {
 		// Combine the stream
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
-			.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controllerFrequencySec)
+			.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -251,7 +251,7 @@ public class TopNPreAggregate {
 	private static class TopNPreAggregateFunction
 		extends PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> {
 		private final Double MIN_VALUE = -999999.9;
-		private int topN;
+		private final int topN;
 
 		public TopNPreAggregateFunction(int topN) {
 			this.topN = topN;
@@ -290,7 +290,7 @@ public class TopNPreAggregate {
 	}
 
 	private static class TopNReduceFunction implements ReduceFunction<Tuple2<Integer, Double[]>> {
-		private int topN;
+		private final int topN;
 
 		public TopNReduceFunction(int topN) {
 			this.topN = topN;

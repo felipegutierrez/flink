@@ -184,7 +184,7 @@ public class AveragePreAggregate {
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>, Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction =
 			new SumPreAggregateFunction();
 		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues
-			.preAggregate(sumPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controllerFrequencySec)
+			.preAggregate(sumPreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"

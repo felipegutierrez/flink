@@ -99,13 +99,13 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		PreAggParamGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggParamGauge());
 		PreAggLatencyMeanGauge preAgglatencyMeanGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_LATENCY_MEAN, new PreAggLatencyMeanGauge());
 
-		// initiate the PI Controller with the histogram metrics
+		// initiate the Controller with the histogram metrics
 		this.preAggregateController = new PreAggregateController(this.preAggregateTrigger, latencyHistogram,
 			outPoolUsageHistogram, preAggParamGauge, preAgglatencyMeanGauge, this.subtaskIndex, this.controllerFrequencySec);
 
 		try {
 			if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.GLOBAL) {
-				this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger);
+				this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger, this.subtaskIndex);
 			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.LOCAL) {
 				this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger, this.subtaskIndex);
 			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.PER_KEY) {

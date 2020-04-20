@@ -241,7 +241,7 @@ public class WordCountPreAggregate {
 			preAggregatedStream = skewed;
 		} else {
 			preAggregatedStream = skewed
-				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, preAggregateStrategy, controllerFrequencySec)
+				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 
