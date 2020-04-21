@@ -166,7 +166,6 @@ public class WordCountPreAggregate {
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
-		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
 		System.out.println("window [seconds]                         : " + window);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
 		System.out.println("Synthetic delay [milliseconds]           : " + delay);
@@ -264,7 +263,7 @@ public class WordCountPreAggregate {
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			resultStream
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
 				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		} else if (output.equalsIgnoreCase(SINK_LOG)) {
 			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);

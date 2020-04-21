@@ -87,8 +87,12 @@ under the License.
             <artifactId>flink-statebackend-rocksdb_${scala.binary.version}</artifactId>
             <version>${project.version}</version>
         </dependency>
+		<dependency>
+			<groupId>joda-time</groupId>
+			<artifactId>joda-time</artifactId>
+		</dependency>
 
-    </dependencies>
+	</dependencies>
 
 	<build>
 		<plugins>
@@ -323,6 +327,37 @@ under the License.
 						</configuration>
 					</execution>
 
+					<!-- TaxiRideCountPreAggregate -->
+					<execution>
+						<id>TaxiRideCountPreAggregate</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>TaxiRideCountPreAggregate</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideCountPreAggregate</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
+								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
+							</includes>
+						</configuration>
+					</execution>
+
 					<!-- MqttDataProducer -->
 					<execution>
 						<id>MqttDataProducer</id>
@@ -395,7 +430,7 @@ under the License.
 
 							<includes>
 								<include>org/apache/flink/streaming/examples/aggregate/AveragePreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/AveragePreAggregate*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/AveragePreAggregate$*.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateVariationSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/WordCountPreAggregateData.class</include>
@@ -670,6 +705,7 @@ under the License.
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WindowJoin.jar" tofile="${project.basedir}/target/WindowJoin.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCount.jar" tofile="${project.basedir}/target/WordCount.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountPreAggregate.jar" tofile="${project.basedir}/target/WordCountPreAggregate.jar" />
+								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideCountPreAggregate.jar" tofile="${project.basedir}/target/TaxiRideCountPreAggregate.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-MqttDataProducer.jar" tofile="${project.basedir}/target/MqttDataProducer.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TopNPreAggregate.jar" tofile="${project.basedir}/target/TopNPreAggregate.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-AveragePreAggregate.jar" tofile="${project.basedir}/target/AveragePreAggregate.jar" />
