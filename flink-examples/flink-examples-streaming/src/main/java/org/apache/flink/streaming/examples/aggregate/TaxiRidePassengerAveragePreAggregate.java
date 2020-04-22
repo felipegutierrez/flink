@@ -3,7 +3,7 @@ package org.apache.flink.streaming.examples.aggregate;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -19,13 +19,14 @@ import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Random;
 
-public class TaxiRideCountPreAggregate {
+public class TaxiRidePassengerAveragePreAggregate {
 	private static final String OPERATOR_SOURCE = "source";
 	private static final String OPERATOR_TOKENIZER = "tokenizer";
-	private static final String OPERATOR_SUM = "sum";
+	private static final String OPERATOR_AVG = "average-reducer";
 	private static final String OPERATOR_SINK = "sink";
-	private static final String OPERATOR_PRE_AGGREGATE = "pre-aggregate";
+	private static final String OPERATOR_PRE_AGGREGATE = "sum-pre-aggregate";
 	private static final String SLOT_GROUP_LOCAL = "local-group";
 	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
 	private static final String SINK_DATA_MQTT = "mqtt";
@@ -90,76 +91,114 @@ public class TaxiRideCountPreAggregate {
 
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor))
 			.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TokenizerMap())
+		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap())
 			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
 
-		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
-		if (preAggregationWindowCount == 0) {
-			// NO PRE_AGGREGATE
-			preAggregatedStream = tuples;
-		} else {
-			preAggregatedStream = tuples
-				.preAggregate(taxiRidePreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
-				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
-		}
-		KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream.keyBy(0);
+		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Long>>, Tuple2<Integer, Double>,
+			Tuple2<Integer, Tuple2<Double, Long>>> taxiRidePreAggregateFunction = new TaxiRidePassengerSumPreAggregateFunction();
+		DataStream<Tuple2<Integer, Tuple2<Double, Long>>> preAggregatedStream = tuples
+			.preAggregate(taxiRidePreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
+			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
-		DataStream<Tuple2<Long, Long>> rideCounts = keyedByDriverId.reduce(new SumReduceFunction())
-			.name(OPERATOR_SUM).uid(OPERATOR_SUM).slotSharingGroup(slotSharingGroup02);
+		KeyedStream<Tuple2<Integer, Tuple2<Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
+
+		DataStream<Tuple2<Integer, Tuple2<Double, Long>>> averagePassengers = keyedByRandomDriver
+			.reduce(new AveragePassengersReducer())
+			.name(OPERATOR_AVG).uid(OPERATOR_AVG).slotSharingGroup(slotSharingGroup02);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
-			rideCounts
+			averagePassengers
 				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
 				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		} else {
-			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			averagePassengers
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
-		env.execute(TaxiRideCountPreAggregate.class.getSimpleName());
+		env.execute(TaxiRidePassengerAveragePreAggregate.class.getSimpleName());
 	}
 
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
-	private static class TokenizerMap implements MapFunction<TaxiRide, Tuple2<Long, Long>> {
+	private static class TokenizerMap implements MapFunction<TaxiRide, Tuple2<Integer, Double>> {
+		private final Random random;
+
+		public TokenizerMap() {
+			random = new Random();
+		}
+
 		@Override
-		public Tuple2<Long, Long> map(TaxiRide ride) {
-			return new Tuple2<Long, Long>(ride.driverId, 1L);
+		public Tuple2<Integer, Double> map(TaxiRide ride) {
+			// create random keys from 0 to 10 in order to average the passengers of all taxi drivers
+			int low = 0;
+			int high = 10;
+			Integer result = random.nextInt(high - low) + low;
+			return Tuple2.of(result, Double.valueOf(ride.passengerCnt));
 		}
 	}
 
-	private static class TaxiRideCountPreAggregateFunction
-		extends PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> {
+	/**
+	 * Count the number of values and sum them.
+	 * Key (Integer): random-key
+	 * Value (Integer, Double, Long): random-key, passengerCnt.sum, random-key.count
+	 * Input (Integer, Double): random-key, passengerCnt
+	 * Output (Integer, Double, Long): random-key, passengerCnt.sum, random-key.count
+	 */
+	private static class TaxiRidePassengerSumPreAggregateFunction
+		extends PreAggregateFunction<Integer,
+		Tuple2<Integer, Tuple2<Double, Long>>,
+		Tuple2<Integer, Double>,
+		Tuple2<Integer, Tuple2<Double, Long>>> {
+
 		@Override
-		public Long addInput(@Nullable Long value, Tuple2<Long, Long> input) throws Exception {
+		public Tuple2<Integer, Tuple2<Double, Long>> addInput(@Nullable Tuple2<Integer, Tuple2<Double, Long>> value, Tuple2<Integer, Double> input) throws Exception {
+			Integer randomKey = input.f0;
 			if (value == null) {
-				return input.f1;
+				Double passengersSum = input.f1;
+				return Tuple2.of(randomKey, Tuple2.of(passengersSum, 1L));
 			} else {
-				return value + input.f1;
+				Double passengersSum = input.f1 + value.f1.f0;
+				Long driverIdCount = value.f1.f1 + 1;
+				return Tuple2.of(randomKey, Tuple2.of(passengersSum, driverIdCount));
 			}
 		}
 
 		@Override
-		public void collect(Map<Long, Long> buffer, Collector<Tuple2<Long, Long>> out) throws Exception {
-			for (Map.Entry<Long, Long> entry : buffer.entrySet()) {
-				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
+		public void collect(Map<Integer, Tuple2<Integer, Tuple2<Double, Long>>> buffer, Collector<Tuple2<Integer, Tuple2<Double, Long>>> out) throws Exception {
+			for (Map.Entry<Integer, Tuple2<Integer, Tuple2<Double, Long>>> entry : buffer.entrySet()) {
+				Double passengerSum = entry.getValue().f1.f0;
+				Long driverIdCount = entry.getValue().f1.f1;
+				out.collect(Tuple2.of(entry.getKey(), Tuple2.of(passengerSum, driverIdCount)));
 			}
 		}
 	}
 
-	private static class SumReduceFunction implements ReduceFunction<Tuple2<Long, Long>> {
+	private static class RandomDriverKeySelector implements KeySelector<Tuple2<Integer, Tuple2<Double, Long>>, Integer> {
 		@Override
-		public Tuple2<Long, Long> reduce(Tuple2<Long, Long> value1, Tuple2<Long, Long> value2) {
-			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
+		public Integer getKey(Tuple2<Integer, Tuple2<Double, Long>> value) throws Exception {
+			return value.f0;
 		}
 	}
 
-	private static class FlatOutputMap implements MapFunction<Tuple2<Long, Long>, String> {
+	private static class AveragePassengersReducer implements ReduceFunction<Tuple2<Integer, Tuple2<Double, Long>>> {
 		@Override
-		public String map(Tuple2<Long, Long> value) {
-			return value.f0 + " - " + value.f1;
+		public Tuple2<Integer, Tuple2<Double, Long>> reduce(Tuple2<Integer, Tuple2<Double, Long>> value1,
+															Tuple2<Integer, Tuple2<Double, Long>> value2) throws Exception {
+			Integer randomKey = value1.f0;
+			Double sum = value1.f1.f0 + value2.f1.f0;
+			Long count = value1.f1.f1 + value2.f1.f1;
+			Double avg = sum / count;
+			return Tuple2.of(randomKey, Tuple2.of(avg, 1L));
+		}
+	}
+
+	private static class FlatOutputMap implements MapFunction<Tuple2<Integer, Tuple2<Double, Long>>, String> {
+		@Override
+		public String map(Tuple2<Integer, Tuple2<Double, Long>> value) {
+			return "Average passengers[" + value.f1.f0 + "]";
 		}
 	}
 }

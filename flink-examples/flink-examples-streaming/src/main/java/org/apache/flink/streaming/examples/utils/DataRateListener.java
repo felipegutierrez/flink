@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 
 public class DataRateListener extends Thread implements Serializable {
 
-	private final String DATA_RATE_FILE = "/tmp/datarate.txt";
+	public static final String DATA_RATE_FILE = "/home/flink/tmp/datarate.txt";
 	private long delay;
 	private boolean running;
 
@@ -19,7 +19,7 @@ public class DataRateListener extends Thread implements Serializable {
 		System.out.println(DataRateListener.class.getSimpleName() + " class to read data rate from file [" + DATA_RATE_FILE + "] in milliseconds.");
 		System.out.println("This listener reads every 60 seconds only the first line from the data rate file.");
 		System.out.println("Use the following command to change the millisecond data rate:");
-		System.out.println("echo \"10\" > /tmp/datarate.txt");
+		System.out.println("echo \"10\" > /home/flink/tmp/datarate.txt");
 		System.out.println();
 	}
 

@@ -105,26 +105,14 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 	private void generateTaxiRideArray(SourceContext<TaxiRide> sourceContext) throws Exception {
 		gzipStream = new GZIPInputStream(new FileInputStream(dataFilePath));
 		reader = new BufferedReader(new InputStreamReader(gzipStream, StandardCharsets.UTF_8));
-
-		// read first ride and insert it into emit schedule
-		// List<TaxiRide> rideList = new ArrayList<TaxiRide>();
 		String line;
 		TaxiRide taxiRide;
-
 		while (reader.ready() && (line = reader.readLine()) != null) {
 			taxiRide = TaxiRide.fromString(line);
 			sourceContext.collectWithTimestamp(taxiRide, getEventTime(taxiRide));
 
 			Thread.sleep(this.dataRateListener.getDelay());
-			// rideList.add();
-			// extract starting timestamp
-			// dataStartTime = getEventTime(ride);
-			// get delayed time
-			// long delayedEventTime = dataStartTime + getNormalDelayMsecs(rand);
 		}
-		// TaxiRide[] taxiRideArray = new TaxiRide[rideList.size()];
-		// rideList.toArray(taxiRideArray);
-		// return taxiRideArray;
 	}
 
 	public long getEventTime(TaxiRide ride) {

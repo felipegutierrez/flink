@@ -181,8 +181,8 @@ public class AveragePreAggregate {
 			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
 
 		// Combine the stream
-		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>, Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction =
-			new SumPreAggregateFunction();
+		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>,
+			Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction = new SensorValuesSumPreAggregateFunction();
 		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues
 			.preAggregate(sumPreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
@@ -246,9 +246,16 @@ public class AveragePreAggregate {
 
 	/**
 	 * Count the number of values and sum them.
+	 * Key (Integer): sensorID
+	 * Value (Integer, <Double, Integer>): sensorID, <sensorValue.sum, sensor.count>
+	 * Input (Integer, Double): sensorID, sensorValue
+	 * Output (Integer, <Double, Integer>): sensorID, <sensorValue.sum, sensor.count>
 	 */
-	private static class SumPreAggregateFunction
-		extends PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>, Tuple2<Integer, Tuple2<Double, Integer>>> {
+	private static class SensorValuesSumPreAggregateFunction
+		extends PreAggregateFunction<Integer,
+		Tuple2<Integer, Tuple2<Double, Integer>>,
+		Tuple2<Integer, Double>,
+		Tuple2<Integer, Tuple2<Double, Integer>>> {
 
 		@Override
 		public Tuple2<Integer, Tuple2<Double, Integer>> addInput(@Nullable Tuple2<Integer, Tuple2<Double, Integer>> value, Tuple2<Integer, Double> input) throws Exception {
@@ -274,7 +281,7 @@ public class AveragePreAggregate {
 			Double sum = value1.f1.f0 + value2.f1.f0;
 			Integer qtd = value1.f1.f1 + value2.f1.f1;
 			Double average = sum / qtd;
-			return Tuple2.of(value1.f0, Tuple2.of(average, qtd));
+			return Tuple2.of(value1.f0, Tuple2.of(average, 1));
 		}
 	}
 

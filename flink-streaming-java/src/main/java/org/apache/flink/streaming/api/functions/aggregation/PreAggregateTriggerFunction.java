@@ -16,7 +16,7 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	}
 
 	public PreAggregateTriggerFunction(int maxCount, PreAggregateStrategy preAggregateStrategy) {
-		Preconditions.checkArgument(maxCount > 0, "periodMilliseconds must be greater than 0");
+		Preconditions.checkArgument(maxCount > 0, "pre-aggregation count must be greater than 0");
 		this.maxCount = maxCount;
 		this.preAggregateStrategy = preAggregateStrategy;
 		this.previousTime = System.currentTimeMillis();
