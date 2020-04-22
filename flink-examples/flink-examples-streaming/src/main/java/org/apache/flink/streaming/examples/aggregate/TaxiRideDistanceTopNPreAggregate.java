@@ -22,10 +22,10 @@ import java.util.Random;
 public class TaxiRideDistanceTopNPreAggregate {
 	private static final String OPERATOR_SOURCE = "source";
 	private static final String OPERATOR_TOKENIZER = "tokenizer";
-	private static final String OPERATOR_AVG = "average-reducer";
-	private static final String TOP_N = "topN";
+	private static final String OPERATOR_REDUCER = "TopN-reducer";
+	private static final String OPERATOR_PRE_AGGREGATE = "TopN-pre-aggregate";
 	private static final String OPERATOR_SINK = "sink";
-	private static final String OPERATOR_PRE_AGGREGATE = "sum-pre-aggregate";
+	private static final String TOP_N = "topN";
 	private static final String SLOT_GROUP_LOCAL = "local-group";
 	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
 	private static final String SINK_DATA_MQTT = "mqtt";
@@ -105,7 +105,7 @@ public class TaxiRideDistanceTopNPreAggregate {
 
 		DataStream<Tuple2<Integer, Double[]>> taxiRideTopNDistances = keyedByRandomDriver
 			.reduce(new TaxiRideDistanceTopNReduce(topN))
-			.name(OPERATOR_AVG).uid(OPERATOR_AVG).slotSharingGroup(slotSharingGroup02);
+			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotSharingGroup02);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			taxiRideTopNDistances
