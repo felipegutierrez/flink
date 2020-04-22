@@ -154,7 +154,6 @@ public class TopNPreAggregate {
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		System.out.println("topN                                     : " + topN);
-		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
 		System.out.println("Changing pooling frequency of the data source:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
