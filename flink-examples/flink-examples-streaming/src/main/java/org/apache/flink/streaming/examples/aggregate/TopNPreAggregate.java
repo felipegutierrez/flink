@@ -39,6 +39,8 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Map;
 
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
+
 /**
  * This is a dynamic pre-aggregator of items to be placed before the shuffle phase in a DAG. There are three types of use
  * case to test in this class.
@@ -72,42 +74,7 @@ import java.util.Map;
  * </pre>
  */
 public class TopNPreAggregate {
-
-	private static final String TOPIC_DATA_SOURCE = "topic-data-source";
-	private static final String TOPIC_DATA_SINK = "topic-data-sink";
-	private static final String OPERATOR_SOURCE = "source";
-	private static final String OPERATOR_SINK = "sink";
-	private static final String OPERATOR_TOKENIZER = "tokenizer";
-	private static final String OPERATOR_PRE_AGGREGATE = "pre-aggregate";
-	private static final String OPERATOR_TOP_N = "topN";
-	private static final String OPERATOR_FLAT_OUTPUT = "flat-output";
-	private static final String SLOT_GROUP_LOCAL = "local-group";
-	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
-	private static final String SLOT_GROUP_SPLIT = "slotSplit";
-	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
-	private static final String CONTROLLER = "controller";
-
-	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
-	private static final String PRE_AGGREGATE_STRATEGY = "strategy";
-	private static final String BUFFER_TIMEOUT = "bufferTimeout";
-	private static final String TOP_N = "topN";
-	private static final String POOLING_FREQUENCY = "pooling";
-	private static final String SOURCE = "input";
-	private static final String SOURCE_DATA_MQTT = "mqtt";
-	private static final String SOURCE_HOST = "sourceHost";
-	private static final String SOURCE_PORT = "sourcePort";
-	private static final String SINK = "output";
-	private static final String SINK_DATA_MQTT = "mqtt";
-	private static final String SINK_HOST = "sinkHost";
-	private static final String SINK_PORT = "sinkPort";
-	private static final String SINK_LOG = "log";
-	private static final String SINK_TEXT = "text";
-
-	// *************************************************************************
-	// PROGRAM
-	// *************************************************************************
 	public static void main(String[] args) throws Exception {
-
 		// Checking input parameters
 		final ParameterTool params = ParameterTool.fromArgs(args);
 
@@ -195,7 +162,7 @@ public class TopNPreAggregate {
 			.keyBy(0);
 
 		DataStream<Tuple2<Integer, Double[]>> resultStream = keyedStream
-			.reduce(new TopNReduceFunction(topN)).name(OPERATOR_TOP_N).uid(OPERATOR_TOP_N).slotSharingGroup(slotSharingGroup02);
+			.reduce(new TopNReduceFunction(topN)).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotSharingGroup02);
 
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {

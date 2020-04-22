@@ -19,29 +19,10 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Random;
 
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
+
 public class TaxiRideDistanceTopNPreAggregate {
-	private static final String OPERATOR_SOURCE = "source";
-	private static final String OPERATOR_TOKENIZER = "tokenizer";
-	private static final String OPERATOR_REDUCER = "TopN-reducer";
-	private static final String OPERATOR_PRE_AGGREGATE = "TopN-pre-aggregate";
-	private static final String OPERATOR_SINK = "sink";
-	private static final String TOP_N = "topN";
-	private static final String SLOT_GROUP_LOCAL = "local-group";
-	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
-	private static final String SINK_DATA_MQTT = "mqtt";
-	private static final String TOPIC_DATA_SINK = "topic-data-sink";
-	private static final String OPERATOR_FLAT_OUTPUT = "flat-output";
-	private static final String SINK_HOST = "sinkHost";
-	private static final String SINK_PORT = "sinkPort";
-	private static final String SINK = "output";
-	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
-	private static final String PRE_AGGREGATE_STRATEGY = "strategy";
-	private static final String SLOT_GROUP_SPLIT = "slotSplit";
-	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
-	private static final String CONTROLLER = "controller";
-
 	public static void main(String[] args) throws Exception {
-
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get("input", ExerciseBase.pathToRideData);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");

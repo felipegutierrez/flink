@@ -19,28 +19,10 @@ import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Random;
 
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
+
 public class TaxiRideAveragePreAggregate {
-	private static final String OPERATOR_SOURCE = "source";
-	private static final String OPERATOR_TOKENIZER = "tokenizer";
-	private static final String OPERATOR_AVG = "average-reducer";
-	private static final String OPERATOR_SINK = "sink";
-	private static final String OPERATOR_PRE_AGGREGATE = "sum-pre-aggregate";
-	private static final String SLOT_GROUP_LOCAL = "local-group";
-	private static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
-	private static final String SINK_DATA_MQTT = "mqtt";
-	private static final String TOPIC_DATA_SINK = "topic-data-sink";
-	private static final String OPERATOR_FLAT_OUTPUT = "flat-output";
-	private static final String SINK_HOST = "sinkHost";
-	private static final String SINK_PORT = "sinkPort";
-	private static final String SINK = "output";
-	private static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
-	private static final String PRE_AGGREGATE_STRATEGY = "strategy";
-	private static final String SLOT_GROUP_SPLIT = "slotSplit";
-	private static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
-	private static final String CONTROLLER = "controller";
-
 	public static void main(String[] args) throws Exception {
-
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get("input", ExerciseBase.pathToRideData);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
@@ -104,7 +86,7 @@ public class TaxiRideAveragePreAggregate {
 		KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 
 		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> averagePassengers = keyedByRandomDriver.reduce(new AveragePassengersReducer())
-			.name(OPERATOR_AVG).uid(OPERATOR_AVG).slotSharingGroup(slotSharingGroup02);
+			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotSharingGroup02);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			averagePassengers
