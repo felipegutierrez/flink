@@ -110,10 +110,11 @@ public class PreAggregateController extends Thread implements Serializable {
 		try {
 			while (running) {
 				Thread.sleep(controllerFrequencySec * 1000);
-				if (this.enableController) {
-					// new estimated PreAgg parameter K
-					int newMaxCountPreAggregate = this.computePreAggregateParameter(this.preAggregateTriggerFunction.getMaxCount());
 
+				// new estimated PreAgg parameter K
+				int newMaxCountPreAggregate = this.computePreAggregateParameter(this.preAggregateTriggerFunction.getMaxCount());
+
+				if (this.enableController) {
 					if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.GLOBAL)) {
 						// GLOBAL strategy: MQTT global trigger for all operators
 						this.publish(newMaxCountPreAggregate);
