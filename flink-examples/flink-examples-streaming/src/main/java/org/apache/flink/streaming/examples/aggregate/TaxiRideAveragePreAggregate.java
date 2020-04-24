@@ -24,7 +24,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
 public class TaxiRideAveragePreAggregate {
 	public static void main(String[] args) throws Exception {
 		ParameterTool params = ParameterTool.fromArgs(args);
-		final String input = params.get("input", ExerciseBase.pathToRideData);
+		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
@@ -54,11 +54,13 @@ public class TaxiRideAveragePreAggregate {
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
-		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m \"100\"");
+		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
 		System.out.println(DataRateListener.class.getSimpleName() + " class to read data rate from file [" + DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
 		System.out.println("This listener reads every 60 seconds only the first line from the data rate file.");
-		System.out.println("Use the following command to change the millisecond data rate:");
-		System.out.println("echo \"10\" > " + DataRateListener.DATA_RATE_FILE);
+		System.out.println("Use the following command to change the nanoseconds data rate:");
+		System.out.println("1000000 nanoseconds = 1 millisecond");
+		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
+		System.out.println("echo \"1000000000\" > " + DataRateListener.DATA_RATE_FILE);
 
 		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
 		final int servingSpeedFactor = 600; // events of 10 minutes are served every second

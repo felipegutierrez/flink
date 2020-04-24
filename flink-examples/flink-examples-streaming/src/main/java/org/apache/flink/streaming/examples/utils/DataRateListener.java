@@ -6,11 +6,11 @@ import java.nio.charset.StandardCharsets;
 public class DataRateListener extends Thread implements Serializable {
 
 	public static final String DATA_RATE_FILE = "/home/flink/tmp/datarate.txt";
-	private long delay;
+	private long delayInNanoSeconds;
 	private boolean running;
 
 	public DataRateListener() {
-		this.delay = 1000;
+		this.delayInNanoSeconds = 1000000; // 1 millisecond = 1000000 nanoseconds
 		this.running = true;
 		this.disclaimer();
 	}
@@ -26,16 +26,19 @@ public class DataRateListener extends Thread implements Serializable {
 	public void run() {
 		while (running) {
 			File fileName = new File(DATA_RATE_FILE);
-
 			try (BufferedReader br = new BufferedReader(new InputStreamReader(
 				new FileInputStream(fileName), StandardCharsets.UTF_8))) {
 
 				String line;
 				while ((line = br.readLine()) != null) {
 					System.out.println(line);
-					if (isInteger(line)) {
-						System.out.println("Reading new frequency to generate Taxi data: " + line + " milliseconds.");
-						delay = Integer.parseInt(line);
+					if (isNumeric(line)) {
+						if (Long.parseLong(line) > 0) {
+							System.out.println("Reading new frequency to generate Taxi data: " + line + " nanoseconds.");
+							delayInNanoSeconds = Long.parseLong(line);
+						} else {
+							System.out.println("ERROR: new frequency must be greater or equal to 1.");
+						}
 					} else if ("SHUTDOWN".equalsIgnoreCase(line)) {
 						running = false;
 					} else {
@@ -53,26 +56,24 @@ public class DataRateListener extends Thread implements Serializable {
 		}
 	}
 
-	public long getDelay() {
-		return delay;
+	public long getDelayInNanoSeconds() {
+		return delayInNanoSeconds;
 	}
 
-	private boolean isInteger(String s) {
-		return isInteger(s, 10);
+	public void busySleep() {
+		final long startTime = System.nanoTime();
+		while (System.nanoTime() - startTime < this.delayInNanoSeconds) ;
 	}
 
-	private boolean isInteger(String s, int radix) {
-		if (s.isEmpty())
+	public boolean isNumeric(final String str) {
+		// null or empty
+		if (str == null || str.length() == 0) {
 			return false;
-		for (int i = 0; i < s.length(); i++) {
-			if (i == 0 && s.charAt(i) == '-') {
-				if (s.length() == 1)
-					return false;
-				else
-					continue;
-			}
-			if (Character.digit(s.charAt(i), radix) < 0)
+		}
+		for (char c : str.toCharArray()) {
+			if (!Character.isDigit(c)) {
 				return false;
+			}
 		}
 		return true;
 	}

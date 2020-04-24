@@ -129,7 +129,7 @@ public class WordCountPreAggregate {
 		System.out.println("Changing pooling frequency of the data source:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
-		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m \"100\"");
+		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
 
 		if (bufferTimeout != -999) {
 			env.setBufferTimeout(bufferTimeout);

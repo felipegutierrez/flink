@@ -110,11 +110,10 @@ public class PreAggregateController extends Thread implements Serializable {
 		try {
 			while (running) {
 				Thread.sleep(controllerFrequencySec * 1000);
-
-				// new estimated PreAgg parameter K
-				int newMaxCountPreAggregate = this.computePreAggregateParameter(this.preAggregateTriggerFunction.getMaxCount());
-
 				if (this.enableController) {
+					// new estimated PreAgg parameter K
+					int newMaxCountPreAggregate = this.computePreAggregateParameter(this.preAggregateTriggerFunction.getMaxCount());
+
 					if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.GLOBAL)) {
 						// GLOBAL strategy: MQTT global trigger for all operators
 						this.publish(newMaxCountPreAggregate);
@@ -125,7 +124,7 @@ public class PreAggregateController extends Thread implements Serializable {
 						System.out.println("ERROR: PreAggregateStrategy [" + this.preAggregateTriggerFunction.getPreAggregateStrategy().getValue() + "] not implemented.");
 					}
 				} else {
-					System.out.println("PreAgg autonomous controller is not enabled. Manual adjustment is still enable.");
+					System.out.println("WARNING: PreAgg autonomous controller is not enabled. Manual adjustment is still enable.");
 				}
 			}
 		} catch (Exception e) {

@@ -111,7 +111,8 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 			taxiRide = TaxiRide.fromString(line);
 			sourceContext.collectWithTimestamp(taxiRide, getEventTime(taxiRide));
 
-			Thread.sleep(this.dataRateListener.getDelay());
+			// sleep in nanoseconds to have a reproducible data rate for the data source
+			this.dataRateListener.busySleep();
 		}
 	}
 
