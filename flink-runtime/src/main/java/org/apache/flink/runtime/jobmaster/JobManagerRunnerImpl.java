@@ -22,6 +22,7 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.concurrent.FutureUtils;
+import org.apache.flink.runtime.controller.PreAggregateControllerService;
 import org.apache.flink.runtime.execution.librarycache.LibraryCacheManager;
 import org.apache.flink.runtime.executiongraph.ArchivedExecutionGraph;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
@@ -37,12 +38,10 @@ import org.apache.flink.runtime.rpc.FatalErrorHandler;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.function.FunctionUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -62,16 +61,24 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 
 	// ------------------------------------------------------------------------
 
-	/** Lock to ensure that this runner can deal with leader election event and job completion notifies simultaneously. */
+	/**
+	 * Lock to ensure that this runner can deal with leader election event and job completion notifies simultaneously.
+	 */
 	private final Object lock = new Object();
 
-	/** The job graph needs to run. */
+	/**
+	 * The job graph needs to run.
+	 */
 	private final JobGraph jobGraph;
 
-	/** Used to check whether a job needs to be run. */
+	/**
+	 * Used to check whether a job needs to be run.
+	 */
 	private final RunningJobsRegistry runningJobsRegistry;
 
-	/** Leader election for this job. */
+	/**
+	 * Leader election for this job.
+	 */
 	private final LeaderElectionService leaderElectionService;
 
 	private final LibraryCacheManager libraryCacheManager;
@@ -85,12 +92,12 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	private final CompletableFuture<ArchivedExecutionGraph> resultFuture;
 
 	private final CompletableFuture<Void> terminationFuture;
-
+	private final PreAggregateControllerService preAggregateControllerService;
 	private CompletableFuture<Void> leadershipOperation;
-
-	/** flag marking the runner as shut down. */
+	/**
+	 * flag marking the runner as shut down.
+	 */
 	private volatile boolean shutdown;
-
 	private volatile CompletableFuture<JobMasterGateway> leaderGatewayFuture;
 
 	// ------------------------------------------------------------------------
@@ -103,12 +110,12 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	 *                   required services could not be started, or the Job could not be initialized.
 	 */
 	public JobManagerRunnerImpl(
-			final JobGraph jobGraph,
-			final JobMasterServiceFactory jobMasterFactory,
-			final HighAvailabilityServices haServices,
-			final LibraryCacheManager libraryCacheManager,
-			final Executor executor,
-			final FatalErrorHandler fatalErrorHandler) throws Exception {
+		final JobGraph jobGraph,
+		final JobMasterServiceFactory jobMasterFactory,
+		final HighAvailabilityServices haServices,
+		final LibraryCacheManager libraryCacheManager,
+		final Executor executor,
+		final FatalErrorHandler fatalErrorHandler) throws Exception {
 
 		this.resultFuture = new CompletableFuture<>();
 		this.terminationFuture = new CompletableFuture<>();
@@ -126,7 +133,7 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 			// libraries and class loader first
 			try {
 				libraryCacheManager.registerJob(
-						jobGraph.getJobID(), jobGraph.getUserJarBlobKeys(), jobGraph.getClasspaths());
+					jobGraph.getJobID(), jobGraph.getUserJarBlobKeys(), jobGraph.getClasspaths());
 			} catch (IOException e) {
 				throw new Exception("Cannot set up the user code libraries: " + e.getMessage(), e);
 			}
@@ -144,8 +151,11 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 
 			// now start the JobManager
 			this.jobMasterService = jobMasterFactory.createJobMasterService(jobGraph, this, userCodeLoader);
-		}
-		catch (Throwable t) {
+
+			this.preAggregateControllerService = new PreAggregateControllerService();
+			this.preAggregateControllerService.connect();
+			this.preAggregateControllerService.start();
+		} catch (Throwable t) {
 			terminationFuture.completeExceptionally(t);
 			resultFuture.completeExceptionally(t);
 
@@ -269,11 +279,10 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	private void unregisterJobFromHighAvailability() {
 		try {
 			runningJobsRegistry.setJobFinished(jobGraph.getJobID());
-		}
-		catch (Throwable t) {
+		} catch (Throwable t) {
 			log.error("Could not un-register from high-availability services job {} ({})." +
 					"Other JobManager's may attempt to recover it and re-execute it.",
-					jobGraph.getName(), jobGraph.getJobID(), t);
+				jobGraph.getName(), jobGraph.getJobID(), t);
 		}
 	}
 
@@ -362,9 +371,9 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	}
 
 	private void confirmLeaderSessionIdIfStillLeader(
-			UUID leaderSessionId,
-			String leaderAddress,
-			CompletableFuture<JobMasterGateway> currentLeaderGatewayFuture) {
+		UUID leaderSessionId,
+		String leaderAddress,
+		CompletableFuture<JobMasterGateway> currentLeaderGatewayFuture) {
 
 		if (leaderElectionService.hasLeadership(leaderSessionId)) {
 			currentLeaderGatewayFuture.complete(jobMasterService.getGateway());

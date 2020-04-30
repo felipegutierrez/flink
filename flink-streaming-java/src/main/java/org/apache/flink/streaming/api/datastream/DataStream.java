@@ -1278,7 +1278,7 @@ public class DataStream<T> {
 	 */
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  int preAggWindowCount,
-														  int controllerFrequencySec,
+														  boolean enableController,
 														  PreAggregateStrategy preAggregateStrategy) {
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
@@ -1290,16 +1290,16 @@ public class DataStream<T> {
 
 		return doTransform("PreAggregate", outType,
 			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
-				keySelector, controllerFrequencySec)));
+				keySelector, enableController)));
 	}
 
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  int preAggWindowCount) {
-		return preAggregate(preAggregateFunction, preAggWindowCount, 60, PreAggregateStrategy.GLOBAL);
+		return preAggregate(preAggregateFunction, preAggWindowCount, true, PreAggregateStrategy.GLOBAL);
 	}
 
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
-		return preAggregate(preAggregateFunction, 100, 60, PreAggregateStrategy.GLOBAL);
+		return preAggregate(preAggregateFunction, 100, true, PreAggregateStrategy.GLOBAL);
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(

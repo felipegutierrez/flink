@@ -39,7 +39,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 * The trigger that determines how many elements should be put into a bundle.
 	 */
 	private final PreAggregateTriggerFunction<IN> preAggregateTrigger;
-	private final int controllerFrequencySec;
+	private final boolean enableController;
 	/**
 	 * Output for stream records.
 	 */
@@ -48,11 +48,11 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	/**
 	 * A Mqtt topic to change the parameter K of pre-aggregating items
 	 */
-	private PreAggregateMqttListener preAggregateMqttListener;
+	private PreAggregateParameterListener preAggregateMqttListener;
 	/**
 	 * A Feedback loop Controller to find the optimal parameter K of pre-aggregating items
 	 */
-	private PreAggregateController preAggregateController;
+	private PreAggregateMonitor preAggregateMonitor;
 	private long elapsedTime;
 
 	/**
@@ -66,10 +66,10 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 */
 	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
 												 PreAggregateTriggerFunction<IN> preAggregateTrigger,
-												 int controllerFrequencySec) {
+												 boolean enableController) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;
-		this.controllerFrequencySec = controllerFrequencySec;
+		this.enableController = enableController;
 		this.bundle = new HashMap<>();
 		this.preAggregateTrigger = checkNotNull(preAggregateTrigger, "bundleTrigger is null");
 	}
@@ -100,14 +100,14 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		PreAggLatencyMeanGauge preAgglatencyMeanGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_LATENCY_MEAN, new PreAggLatencyMeanGauge());
 
 		// initiate the Controller with the histogram metrics
-		this.preAggregateController = new PreAggregateController(this.preAggregateTrigger, latencyHistogram,
-			outPoolUsageHistogram, preAggParamGauge, preAgglatencyMeanGauge, this.subtaskIndex, this.controllerFrequencySec);
+		this.preAggregateMonitor = new PreAggregateMonitor(this.preAggregateTrigger, latencyHistogram,
+			outPoolUsageHistogram, preAggParamGauge, preAgglatencyMeanGauge, this.subtaskIndex, this.enableController);
 
 		try {
 			if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.GLOBAL) {
-				this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger, this.subtaskIndex);
+				this.preAggregateMqttListener = new PreAggregateParameterListener(this.preAggregateTrigger, this.subtaskIndex);
 			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.LOCAL) {
-				this.preAggregateMqttListener = new PreAggregateMqttListener(this.preAggregateTrigger, this.subtaskIndex);
+				this.preAggregateMqttListener = new PreAggregateParameterListener(this.preAggregateTrigger, this.subtaskIndex);
 			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.PER_KEY) {
 				System.out.println("Pre-aggregate per-key strategy not implemented.");
 			} else {
@@ -118,7 +118,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		this.preAggregateController.start();
+		this.preAggregateMonitor.start();
 	}
 
 	@Override
@@ -152,7 +152,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		// update metrics to Prometheus+Grafana and reset latency elapsed
 		long latency = System.currentTimeMillis() - elapsedTime;
 		this.elapsedTime = System.currentTimeMillis();
-		this.preAggregateController.getLatencyHistogram().update(latency);
+		this.preAggregateMonitor.getLatencyHistogram().update(latency);
 
 		// update outPoolUsage size metrics to Prometheus+Grafana
 		float outPoolUsage = 0.0f;
@@ -162,12 +162,12 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		Gauge<Float> gaugeOutPoolUsage = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
 		if (gaugeOutPoolUsage != null && gaugeOutPoolUsage.getValue() != null) {
 			outPoolUsage = gaugeOutPoolUsage.getValue().floatValue();
-			this.preAggregateController.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
+			this.preAggregateMonitor.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
 		}
 
 		MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsOutPerSecond");
 		MeterView meterNumRecordsInPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsInPerSecond");
-		this.preAggregateController.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
-		this.preAggregateController.setNumRecordsInPerSecond(meterNumRecordsInPerSecond.getRate());
+		this.preAggregateMonitor.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
+		this.preAggregateMonitor.setNumRecordsInPerSecond(meterNumRecordsInPerSecond.getRate());
 	}
 }

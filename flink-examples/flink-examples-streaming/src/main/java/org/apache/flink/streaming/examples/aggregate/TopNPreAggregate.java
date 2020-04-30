@@ -94,7 +94,7 @@ public class TopNPreAggregate {
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
 		int topN = params.getInt(TOP_N, 10);
-		int controllerFrequencySec = params.getInt(CONTROLLER, -1);
+		boolean enableController = params.getBoolean(CONTROLLER, true);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
@@ -114,7 +114,7 @@ public class TopNPreAggregate {
 		System.out.println("data sink                                : " + output);
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
-		System.out.println("Feedback loop Controller                 : " + controllerFrequencySec);
+		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
@@ -154,7 +154,7 @@ public class TopNPreAggregate {
 		// Combine the stream
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
-			.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
+			.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"

@@ -13,8 +13,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
  * </pre>
  */
-public class PreAggregateMqttListener extends Thread implements Serializable {
+public class PreAggregateParameterListener extends Thread implements Serializable {
 
+	public static final String TOPIC_PRE_AGGREGATE_PARAMETER = "topic-pre-aggregate-parameter";
 	private final String topic;
 	private final String host;
 	private final int port;
@@ -24,23 +25,17 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 	private MQTT mqtt;
 	private boolean running = false;
 
-
-	public PreAggregateMqttListener(PreAggregateTriggerFunction preAggregateTriggerFunction, int subtaskIndex) {
+	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, int subtaskIndex) {
 		this(preAggregateTriggerFunction, "127.0.0.1", 1883, subtaskIndex);
 	}
 
-	public PreAggregateMqttListener(PreAggregateTriggerFunction preAggregateTriggerFunction, String host, int port, int subtaskIndex) {
+	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, String host, int port, int subtaskIndex) {
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
 		this.host = host;
 		this.port = port;
+		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER;
 		this.running = true;
-		this.topic = PreAggregateTriggerFunction.TOPIC_PRE_AGGREGATE_PARAMETER;
 		this.subtaskIndex = subtaskIndex;
-		// if (this.subtaskIndex == -1) {
-		// 	this.topic = PreAggregateTriggerFunction.TOPIC_PRE_AGGREGATE_PARAMETER;
-		// } else {
-		// 	this.topic = PreAggregateTriggerFunction.TOPIC_PRE_AGGREGATE_PARAMETER + "-" + this.subtaskIndex;
-		// }
 		this.disclaimer();
 	}
 
@@ -62,8 +57,7 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
 					if (isInteger(message)) {
-						this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue(), this.subtaskIndex, this.preAggregateTriggerFunction.getPreAggregateStrategy());
-						// this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue());
+						this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue(), this.subtaskIndex);
 					} else {
 						System.out.println("The parameter sent is not an integer: " + message);
 					}
@@ -100,7 +94,7 @@ public class PreAggregateMqttListener extends Thread implements Serializable {
 	}
 
 	private void disclaimer() {
-		System.out.println("This is the application [" + PreAggregateMqttListener.class.getSimpleName() + "].");
+		System.out.println("This is the application [" + PreAggregateParameterListener.class.getSimpleName() + "].");
 		System.out.println("It listens new frequency parameters from an MQTT broker.");
 		System.out.println("To publish in this broker use:");
 		System.out.println("mosquitto_pub -h " + this.host + " -p " + this.port + " -t " + this.topic + " -m \"MaxCount\"");

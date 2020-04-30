@@ -29,7 +29,7 @@ public class TaxiRideAveragePreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
-		int controllerFrequencySec = params.getInt(CONTROLLER, -1);
+		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
@@ -48,7 +48,7 @@ public class TaxiRideAveragePreAggregate {
 		System.out.println("data sink                                : " + output);
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
-		System.out.println("Feedback loop Controller                 : " + controllerFrequencySec);
+		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
@@ -82,7 +82,7 @@ public class TaxiRideAveragePreAggregate {
 			Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
 
 		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = tuples
-			.preAggregate(taxiRidePreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
+			.preAggregate(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 
 		KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());

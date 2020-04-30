@@ -92,10 +92,10 @@ public class WordCountPreAggregate {
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
-		int controllerFrequencySec = params.getInt(CONTROLLER, -1);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 		long latencyTrackingInterval = params.getLong(LATENCY_TRACKING_INTERVAL, 0);
+		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean simulateSkew = params.getBoolean(SIMULATE_SKEW, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
@@ -116,7 +116,7 @@ public class WordCountPreAggregate {
 		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
 		System.out.println("Simulating skew                          : " + simulateSkew);
-		System.out.println("Feedback loop Controller                 : " + controllerFrequencySec);
+		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
@@ -196,7 +196,7 @@ public class WordCountPreAggregate {
 			preAggregatedStream = skewed;
 		} else {
 			preAggregatedStream = skewed
-				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, controllerFrequencySec, preAggregateStrategy)
+				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
 		}
 

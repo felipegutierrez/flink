@@ -4,9 +4,8 @@ import org.apache.flink.util.Preconditions;
 
 public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
-	public static final String TOPIC_PRE_AGGREGATE_PARAMETER = "topic-pre-aggregate-parameter";
 	private final PreAggregateStrategy preAggregateStrategy;
-	private long previousTime;
+	private final long previousTime;
 	private int maxCount;
 	private transient int count = 0;
 	private transient PreAggregateTriggerCallback callback;
@@ -52,39 +51,16 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	}
 
 	@Override
-	public void setMaxCount(int newMaxCount, int subtaskIndex, PreAggregateStrategy strategy) {
-		if (newMaxCount > -1) {
-			if (PreAggregateStrategy.LOCAL.equals(strategy)) {
-				if (this.maxCount != newMaxCount) {
-					System.out.println("Subtask[" + subtaskIndex + "] - new maxCount set[" + strategy.getValue() + "]: " + newMaxCount);
-					this.maxCount = newMaxCount;
-				} else {
-					System.out.println("Subtask[" + subtaskIndex + "] - maxCount not changed[" + strategy.getValue() + "]: " + newMaxCount);
-				}
-			} else if (PreAggregateStrategy.GLOBAL.equals(strategy)) {
-				if (System.currentTimeMillis() - this.previousTime > 10000) {
-					// It has been more than 10 seconds that this method was called so we update the this.maxCount anyway
-					this.previousTime = System.currentTimeMillis();
-					if (this.maxCount != newMaxCount) {
-						System.out.println("New schedule - Subtask[" + subtaskIndex + "] - new maxCount set[" + strategy.getValue() + "]: " + newMaxCount);
-						this.maxCount = newMaxCount;
-					} else {
-						System.out.println("New schedule - Subtask[" + subtaskIndex + "] - maxCount not changed[" + strategy.getValue() + "]: " + newMaxCount);
-					}
-				} else {
-					// It has been less than 10 seconds that this method was called so we decide to update this.maCount only if the value is greater than the previous value
-					if (newMaxCount > this.maxCount) {
-						System.out.println("Subtask[" + subtaskIndex + "] - new maxCount set[" + strategy.getValue() + "]: " + newMaxCount);
-						this.maxCount = newMaxCount;
-					} else {
-						System.out.println("Subtask[" + subtaskIndex + "] - maxCount not changed[" + strategy.getValue() + "]: " + newMaxCount);
-					}
-				}
+	public void setMaxCount(int newMaxCount, int subtaskIndex) {
+		if (newMaxCount > 0) {
+			if (this.maxCount != newMaxCount) {
+				System.out.println("Subtask[" + subtaskIndex + "] - new maxCount: " + newMaxCount);
+				this.maxCount = newMaxCount;
 			} else {
-				System.out.println("ERROR: PreAggregateStrategy [" + strategy.getValue() + "] not implemented.");
+				System.out.println("Subtask[" + subtaskIndex + "] - maxCount not changed]: " + newMaxCount);
 			}
 		} else {
-			System.out.println("Warning: attempt to set maxCount failed[" + newMaxCount + "] for Subtask[all]");
+			System.out.println("Warning: attempt to set maxCount failed for Subtask[" + subtaskIndex + "]: " + newMaxCount);
 		}
 	}
 
