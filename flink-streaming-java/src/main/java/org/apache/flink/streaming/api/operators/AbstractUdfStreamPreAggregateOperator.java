@@ -115,10 +115,12 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 			}
 			this.preAggregateMqttListener.connect();
 			this.preAggregateMqttListener.start();
+
+			this.preAggregateMonitor.connect();
+			this.preAggregateMonitor.start();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		this.preAggregateMonitor.start();
 	}
 
 	@Override

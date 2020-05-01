@@ -10,6 +10,7 @@ import org.fusesource.mqtt.client.QoS;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.Map;
 
@@ -18,7 +19,7 @@ import java.util.Map;
  */
 public class PreAggregateControllerService extends Thread {
 
-	private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+	private final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
 	private final DecimalFormat df = new DecimalFormat("#.###");
 	private final String TOPIC_PRE_AGG_PARAMETER = "topic-pre-aggregate-parameter";
 	private final String TOPIC_PRE_AGG_STATE = "topic-pre-aggregate-state";
@@ -39,7 +40,7 @@ public class PreAggregateControllerService extends Thread {
 
 	public PreAggregateControllerService() throws Exception {
 		this.numRecordsOutPerSecondMax = 0.0;
-		this.controllerFrequencySec = 60;
+		this.controllerFrequencySec = 120;
 		this.running = true;
 		try {
 			// Job manager and taskManager have to be deployed on the same machine
@@ -73,8 +74,8 @@ public class PreAggregateControllerService extends Thread {
 	public void run() {
 		while (running) {
 			try {
-				publish(computePreAggregateParameter());
 				Thread.sleep(this.controllerFrequencySec * 1000);
+				publish(computePreAggregateParameter());
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			} catch (Exception e) {
@@ -90,8 +91,8 @@ public class PreAggregateControllerService extends Thread {
 	 */
 	private int computePreAggregateParameter() {
 		Integer preAggregateParameter = 0;
-		int countSubTasks = 0;
-		int minCountSum = 0;
+		MinCount minCount = new MinCount();
+
 		for (Map.Entry<Integer, PreAggregateState> entry : this.preAggregateListener.preAggregateState.entrySet()) {
 			String label = "";
 			Integer subtaskIndex = entry.getKey();
@@ -104,52 +105,53 @@ public class PreAggregateControllerService extends Thread {
 				// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
 				if (preAggregateState.getOutPoolUsageMin() == 100 && preAggregateState.getOutPoolUsageMax() == 100) {
 					if (preAggregateState.getMinCount() <= 20) {
-						minCountSum = minCountSum + preAggregateState.getMinCount() * 2;
-						countSubTasks++;
+						minCount.update(preAggregateState.getMinCount() * 2);
 						label = "+++";
 					} else {
-						minCountSum = minCountSum + (preAggregateState.getMinCount() + minCountPercent30);
-						countSubTasks++;
+						minCount.update(preAggregateState.getMinCount() + minCountPercent30);
 						label = "++";
 					}
 				} else {
-					minCountSum = minCountSum + (preAggregateState.getMinCount() + minCountPercent05);
-					countSubTasks++;
+					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
 					label = "+";
+					if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.9)) {
+						// If the input throughput is close to the max input throughput in 90 % invalidate the increase latency action
+						minCount.setValidate(false);
+					}
 				}
 				this.updateGlobalCapacity(preAggregateState.getNumRecordsInPerSecond(), preAggregateState.getNumRecordsOutPerSecond());
 			} else if (preAggregateState.getOutPoolUsageMean() <= 27.0 && preAggregateState.getOutPoolUsage075() < 31.0 &&
 				preAggregateState.getOutPoolUsage095() < 37.0) {
 				// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
 				if (preAggregateState.getOutPoolUsageMin() == 25 && preAggregateState.getOutPoolUsageMax() == 25) {
-					minCountSum = minCountSum + (preAggregateState.getMinCount() - minCountPercent30);
-					countSubTasks++;
+					minCount.update(preAggregateState.getMinCount() - minCountPercent30);
 					label = "--";
 				} else {
 					// if the output throughput is greater than the capacity we don't decrease the parameter K
 					if (this.numRecordsOutPerSecondMax == 0 || preAggregateState.getNumRecordsOutPerSecond() < this.numRecordsOutPerSecondMax) {
-						minCountSum = minCountSum + (preAggregateState.getMinCount() - minCountPercent05);
-						countSubTasks++;
+						minCount.update(preAggregateState.getMinCount() - minCountPercent05);
 						label = "-";
 					}
 				}
+			} else {
+				minCount.setValidate(false);
 			}
-
-			String msg = "Controller[" + subtaskIndex + "]" +
-				" OutPoolUsg min[" + preAggregateState.getOutPoolUsageMin() + "]max[" + preAggregateState.getOutPoolUsageMax() +
-				"]mean[" + preAggregateState.getOutPoolUsageMean() + "]0.5[" + preAggregateState.getOutPoolUsage05() +
-				"]0.75[" + preAggregateState.getOutPoolUsage075() + "]0.95[" + preAggregateState.getOutPoolUsage095() +
-				"]0.99[" + preAggregateState.getOutPoolUsage099() + "]StdDev[" + df.format(preAggregateState.getOutPoolUsageStdDev()) + "]" +
-				" Latency min[" + preAggregateState.getLatencyMin() + "]max[" + preAggregateState.getLatencyMax() +
-				"]mean[" + preAggregateState.getLatencyMean() + "]0.5[" + preAggregateState.getLatencyQuantile05() +
-				"]0.99[" + preAggregateState.getLatencyQuantile099() + "]StdDev[" + df.format(preAggregateState.getLatencyStdDev()) + "]" +
+			String msg = "Controller-" + subtaskIndex +
+				" outPool-min[" + preAggregateState.getOutPoolUsageMin() + "]max[" + preAggregateState.getOutPoolUsageMax() +
+				"]mean[" + preAggregateState.getOutPoolUsageMean() + "]50[" + preAggregateState.getOutPoolUsage05() +
+				"]75[" + preAggregateState.getOutPoolUsage075() + "]95[" + preAggregateState.getOutPoolUsage095() +
+				"]99[" + preAggregateState.getOutPoolUsage099() + "]StdDev[" + df.format(preAggregateState.getOutPoolUsageStdDev()) + "]" +
+				// " Latency-min[" + preAggregateState.getLatencyMin() + "]max[" + preAggregateState.getLatencyMax() +
+				// "]mean[" + preAggregateState.getLatencyMean() + "]50[" + preAggregateState.getLatencyQuantile05() +
+				// "]99[" + preAggregateState.getLatencyQuantile099() + "]StdDev[" + df.format(preAggregateState.getLatencyStdDev()) + "]" +
 				" IN[" + df.format(preAggregateState.getNumRecordsInPerSecond()) + "]max[" + df.format(this.numRecordsInPerSecondMax) + "]" +
 				" OUT[" + df.format(preAggregateState.getNumRecordsOutPerSecond()) + "]max[" + df.format(this.numRecordsOutPerSecondMax) + "]" +
-				" K" + label + ": " + preAggregateState.getMinCount();
+				" K" + label + ": " + preAggregateState.getMinCount() + "-[" + minCount.isValidate() + "]" +
+				" t:" + sdf.format(new Date(System.currentTimeMillis()));
 			System.out.println(msg);
 		}
-		if (countSubTasks > 0) {
-			preAggregateParameter = (int) Math.ceil(minCountSum / countSubTasks);
+		if (minCount.isValidate()) {
+			preAggregateParameter = minCount.getAverage();
 		}
 		System.out.println("Next global preAgg parameter K: " + preAggregateParameter);
 		return preAggregateParameter;
@@ -180,6 +182,45 @@ public class PreAggregateControllerService extends Thread {
 
 		while (!queue.isEmpty()) {
 			queue.removeFirst().await();
+		}
+	}
+
+	private class MinCount {
+		private Integer minimum;
+		private Integer maximum;
+		private boolean validate;
+
+		public MinCount() {
+			this.validate = true;
+		}
+
+		public void update(int minCount) {
+			if (this.minimum == null && this.maximum == null) {
+				this.minimum = Integer.valueOf(minCount);
+				this.maximum = Integer.valueOf(minCount);
+			} else {
+				if (this.minimum != null && minCount < this.minimum.intValue()) {
+					this.minimum = Integer.valueOf(minCount);
+				}
+				if (this.maximum != null && minCount > this.maximum.intValue()) {
+					this.maximum = Integer.valueOf(minCount);
+				}
+			}
+		}
+
+		public int getAverage() {
+			if (this.minimum == null || this.maximum == null) {
+				return 0;
+			}
+			return (this.minimum.intValue() + this.maximum.intValue()) / 2;
+		}
+
+		public boolean isValidate() {
+			return validate;
+		}
+
+		public void setValidate(boolean validate) {
+			this.validate = validate;
 		}
 	}
 }

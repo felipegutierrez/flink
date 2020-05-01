@@ -63,7 +63,7 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 							   PreAggParamGauge preAggParamGauge, PreAggLatencyMeanGauge preAggLatencyMeanGauge,
 							   int subtaskIndex, boolean enableController) {
 		this.enableController = enableController;
-		this.controllerFrequencySec = 30;
+		this.controllerFrequencySec = 60;
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
 		this.latencyHistogram = latencyHistogram;
 		this.outPoolUsageHistogram = outPoolUsageHistogram;
@@ -77,7 +77,6 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 		try {
 			this.host = "127.0.0.1";
 			this.port = 1883;
-			this.connect();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -89,7 +88,7 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 			+ "] scheduled to every " + this.controllerFrequencySec + " seconds.");
 	}
 
-	private void connect() throws Exception {
+	public void connect() throws Exception {
 		mqtt = new MQTT();
 		mqtt.setHost(host, port);
 
@@ -161,8 +160,9 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 		double outPoolUsageStdDev = this.outPoolUsageHistogram.getStatistics().getStdDev();
 		int minCountNew = minCountCurrent;
 		String label = "=";
+		String msg = "";
 
-		if (this.enableController) {
+		if (this.enableController && this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.LOCAL)) {
 			int percent05 = (int) Math.ceil(minCountCurrent * 0.05);
 			int percent30 = (int) Math.ceil(minCountCurrent * 0.3);
 
@@ -199,14 +199,15 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 				}
 			}
 		}
-
-		String msg = "";
+		
 		if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.GLOBAL)) {
 			msg = this.subtaskIndex + "|" +
 				outPoolUsageMin + "|" + outPoolUsageMax + "|" + outPoolUsageMean + "|" + outPoolUsage05 + "|" +
 				outPoolUsage075 + "|" + outPoolUsage095 + "|" + outPoolUsage099 + "|" + outPoolUsageStdDev + "|" +
 				latencyMin + "|" + latencyMax + "|" + latencyMean + "|" + latencyQuantile05 + "|" + latencyQuantile099 + "|" +
 				latencyStdDev + "|" + this.numRecordsInPerSecond + "|" + this.numRecordsOutPerSecond + "|" + minCountCurrent;
+			// Update parameters to Prometheus+Grafana
+			this.preAggParamGauge.updateValue(minCountCurrent);
 		} else if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.LOCAL)) {
 			msg = "Controller[" + this.subtaskIndex + "]" +
 				" OutPoolUsg min[" + outPoolUsageMin + "]max[" + outPoolUsageMax + "]mean[" + outPoolUsageMean +
@@ -217,13 +218,14 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 				"] OUT[" + df.format(this.numRecordsOutPerSecond) + "]threshold[" + df.format(this.currentCapacity) + "]" +
 				" K" + label + ": " + minCountCurrent + "->" + minCountNew;
 			System.out.println(msg);
+			// Update parameters to Prometheus+Grafana
+			this.preAggParamGauge.updateValue(minCountNew);
 		}
 
 		// Update the previous input throughput of the operator
 		this.numRecordsInPerSecondPrev = this.numRecordsInPerSecond;
 
 		// Update parameters to Prometheus+Grafana
-		this.preAggParamGauge.updateValue(minCountNew);
 		this.preAggLatencyMeanGauge.updateValue(latencyMean);
 		this.minCountPrev = minCountNew;
 

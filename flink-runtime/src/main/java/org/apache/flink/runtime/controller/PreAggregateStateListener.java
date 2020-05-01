@@ -51,10 +51,8 @@ public class PreAggregateStateListener extends Thread {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
 					if (message != null) {
-						System.out.println("PreAggregateListener message: " + message);
+						// System.out.println("PreAggregateListener message: " + message);
 						this.addState(message);
-						// this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue(), this.subtaskIndex, this.preAggregateTriggerFunction.getPreAggregateStrategy());
-						// this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue());
 					} else {
 						System.out.println("The parameter sent is null.");
 					}
