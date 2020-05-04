@@ -115,7 +115,7 @@ public class PreAggregateControllerService extends Thread {
 					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
 					label = "+";
 					if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
-						// If the input throughput is close to the max input throughput in 90 % invalidate the increase latency action
+						// If the input throughput is close to the max input throughput in 95% invalidate the increase latency action
 						minCount.setValidate(false);
 					}
 				}
@@ -131,6 +131,10 @@ public class PreAggregateControllerService extends Thread {
 					if (this.numRecordsOutPerSecondMax == 0 || preAggregateState.getNumRecordsOutPerSecond() < this.numRecordsOutPerSecondMax) {
 						minCount.update(preAggregateState.getMinCount() - minCountPercent05);
 						label = "-";
+						if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
+							// If the input throughput is close to the max input throughput in 95% invalidate the decrease latency action
+							minCount.setValidate(false);
+						}
 					}
 				}
 			} else {

@@ -10,7 +10,10 @@ public class DataRateListener extends Thread implements Serializable {
 	private boolean running;
 
 	public DataRateListener() {
-		this.delayInNanoSeconds = 1000000; // 1 millisecond = 1000000 nanoseconds
+		// 1 millisecond = 1.000.000 nanoseconds
+		// 1.000.000.000 = 1 second
+		// 1.000.000.000 / 1.000.000 = 1.000 records/second
+		this.delayInNanoSeconds = 1000000;
 		this.running = true;
 		this.disclaimer();
 	}
