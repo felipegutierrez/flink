@@ -114,7 +114,7 @@ public class PreAggregateControllerService extends Thread {
 				} else {
 					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
 					label = "+";
-					if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.9)) {
+					if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
 						// If the input throughput is close to the max input throughput in 90 % invalidate the increase latency action
 						minCount.setValidate(false);
 					}
