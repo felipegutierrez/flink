@@ -120,8 +120,8 @@ public class PreAggregateControllerService extends Thread {
 					}
 				}
 				this.updateGlobalCapacity(preAggregateState.getNumRecordsInPerSecond(), preAggregateState.getNumRecordsOutPerSecond());
-			} else if (preAggregateState.getOutPoolUsageMean() <= 27.0 && preAggregateState.getOutPoolUsage075() < 31.0 &&
-				preAggregateState.getOutPoolUsage095() < 37.0) {
+			} else if (preAggregateState.getOutPoolUsageMean() <= 33.0 && preAggregateState.getOutPoolUsage075() <= 33.0 &&
+				preAggregateState.getOutPoolUsage095() < 50.0) {
 				// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
 				if (preAggregateState.getOutPoolUsageMin() == 25 && preAggregateState.getOutPoolUsageMax() == 25) {
 					minCount.update(preAggregateState.getMinCount() - minCountPercent30);
@@ -138,7 +138,10 @@ public class PreAggregateControllerService extends Thread {
 					}
 				}
 			} else {
-				minCount.setValidate(false);
+				if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
+					// this is the same lock of increasing and decreasing latency
+					minCount.setValidate(false);
+				}
 			}
 			String msg = "Controller-" + subtaskIndex +
 				" outPool-min[" + preAggregateState.getOutPoolUsageMin() + "]max[" + preAggregateState.getOutPoolUsageMax() +
