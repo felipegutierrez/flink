@@ -99,7 +99,8 @@ public class PreAggregateControllerService extends Thread {
 			PreAggregateState preAggregateState = entry.getValue();
 
 			int minCountPercent05 = (int) Math.ceil(preAggregateState.getMinCount() * 0.05);
-			int minCountPercent30 = (int) Math.ceil(preAggregateState.getMinCount() * 0.3);
+			int minCountPercent20 = (int) Math.ceil(preAggregateState.getMinCount() * 0.2);
+			int minCountPercent40 = (int) Math.ceil(preAggregateState.getMinCount() * 0.4);
 
 			if (preAggregateState.getOutPoolUsageMean() > 33.0 && preAggregateState.getOutPoolUsage099() >= 50.0) {
 				// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
@@ -108,9 +109,17 @@ public class PreAggregateControllerService extends Thread {
 						minCount.update(preAggregateState.getMinCount() * 2);
 						label = "+++";
 					} else {
-						minCount.update(preAggregateState.getMinCount() + minCountPercent30);
+						// If it is the second time that we see a physical operator overloaded we increase the latency by 40%
+						if (!minCount.isOverloaded()) {
+							minCount.update(preAggregateState.getMinCount() + minCountPercent20);
+						} else {
+							minCount.update(preAggregateState.getMinCount() + minCountPercent40);
+						}
 						label = "++";
 					}
+					// If at least one physical operator is overloaded (100%) we consider to increase latency
+					// no matter the state of the any other physical operator
+					minCount.setOverloaded(true);
 				} else {
 					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
 					label = "+";
@@ -124,7 +133,7 @@ public class PreAggregateControllerService extends Thread {
 				preAggregateState.getOutPoolUsage095() < 50.0) {
 				// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
 				if (preAggregateState.getOutPoolUsageMin() == 25 && preAggregateState.getOutPoolUsageMax() == 25) {
-					minCount.update(preAggregateState.getMinCount() - minCountPercent30);
+					minCount.update(preAggregateState.getMinCount() - minCountPercent20);
 					label = "--";
 				} else {
 					// if the output throughput is greater than the capacity we don't decrease the parameter K
@@ -157,7 +166,7 @@ public class PreAggregateControllerService extends Thread {
 				" t:" + sdf.format(new Date(System.currentTimeMillis()));
 			System.out.println(msg);
 		}
-		if (minCount.isValidate()) {
+		if (minCount.isOverloaded() || minCount.isValidate()) {
 			preAggregateParameter = minCount.getAverage();
 		}
 		System.out.println("Next global preAgg parameter K: " + preAggregateParameter);
@@ -196,9 +205,11 @@ public class PreAggregateControllerService extends Thread {
 		private Integer minimum;
 		private Integer maximum;
 		private boolean validate;
+		private boolean overloaded;
 
 		public MinCount() {
 			this.validate = true;
+			this.overloaded = false;
 		}
 
 		public void update(int minCount) {
@@ -228,6 +239,14 @@ public class PreAggregateControllerService extends Thread {
 
 		public void setValidate(boolean validate) {
 			this.validate = validate;
+		}
+
+		public boolean isOverloaded() {
+			return this.overloaded;
+		}
+
+		public void setOverloaded(boolean overloaded) {
+			this.overloaded = overloaded;
 		}
 	}
 }
