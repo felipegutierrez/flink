@@ -88,10 +88,13 @@ public class WordCountPreAggregate {
 		int sourcePort = params.getInt(SOURCE_PORT, 1883);
 		String output = params.get(SINK, "");
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
+		String brokerServerHost = params.get(BROKER_SERVER_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int parallelismGroup01 = params.getInt(PARALLELISM_PRE_AGG, 0);
+		int parallelismGroup02 = params.getInt(PARALLELISM_REDUCER, 0);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		long delay = params.getLong(SYNTHETIC_DELAY, 0);
 		long latencyTrackingInterval = params.getLong(LATENCY_TRACKING_INTERVAL, 0);
@@ -119,8 +122,11 @@ public class WordCountPreAggregate {
 		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
+		System.out.println("pre-aggregate parallelism                : " + parallelismGroup01);
+		System.out.println("reducer parallelism                      : " + parallelismGroup02);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
+		System.out.println("Broker server host                       : " + brokerServerHost);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		System.out.println("window [seconds]                         : " + window);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
@@ -136,6 +142,12 @@ public class WordCountPreAggregate {
 		}
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
+		}
+		if (parallelismGroup01 == 0) {
+			parallelismGroup01 = env.getParallelism();
+		}
+		if (parallelismGroup02 == 0) {
+			parallelismGroup02 = env.getParallelism();
 		}
 		if (latencyTrackingInterval > 0) {
 			env.getConfig().setLatencyTrackingInterval(latencyTrackingInterval);
@@ -178,7 +190,7 @@ public class WordCountPreAggregate {
 
 		// split up the lines in pairs (2-tuples) containing: (word,1)
 		DataStream<Tuple2<String, Integer>> counts = text.flatMap(new Tokenizer())
-			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		DataStream<Tuple2<String, Integer>> skewed = null;
 		if (simulateSkew) {
@@ -196,8 +208,8 @@ public class WordCountPreAggregate {
 			preAggregatedStream = skewed;
 		} else {
 			preAggregatedStream = skewed
-				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
+				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy, brokerServerHost)
+				.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
@@ -208,26 +220,27 @@ public class WordCountPreAggregate {
 		if (window != 0) {
 			resultStream = keyedStream
 				.window(TumblingProcessingTimeWindows.of(Time.seconds(window)))
-				.reduce(new SumReduceFunction(delay))
-				.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotSharingGroup02);
+				.reduce(new SumReduceFunction(delay)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
 		} else {
 			resultStream = keyedStream
-				.reduce(new SumReduceFunction(delay))
-				.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotSharingGroup02);
+				.reduce(new SumReduceFunction(delay)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
 		}
 
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			resultStream
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
+				.name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
+				.name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (output.equalsIgnoreCase(SINK_LOG)) {
-			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream.print().setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
-			resultStream.writeAsText(params.get("output")).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream.writeAsText(params.get("output")).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
+				.name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
-			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+			resultStream.print().setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		}
 
 		System.out.println("Execution plan >>>");

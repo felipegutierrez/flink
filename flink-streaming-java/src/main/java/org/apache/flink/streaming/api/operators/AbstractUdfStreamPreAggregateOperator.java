@@ -60,6 +60,8 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 */
 	private int subtaskIndex;
 
+	private String mqttBrokerHost;
+
 	/**
 	 * @param function
 	 * @param preAggregateTrigger

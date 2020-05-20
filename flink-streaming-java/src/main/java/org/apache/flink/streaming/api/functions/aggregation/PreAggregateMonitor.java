@@ -73,9 +73,8 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 		this.running = true;
 		this.currentCapacity = 0.0;
 
-		// TODO: All instances of PreAggregateController has to be placed on the same node because we use the host 127.0.0.1 to publish the GLOBAL paramater K
 		try {
-			this.host = "127.0.0.1";
+			this.host = preAggregateTriggerFunction.getBrokerServerHost();
 			this.port = 1883;
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -199,7 +198,7 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 				}
 			}
 		}
-		
+
 		if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.GLOBAL)) {
 			msg = this.subtaskIndex + "|" +
 				outPoolUsageMin + "|" + outPoolUsageMax + "|" + outPoolUsageMean + "|" + outPoolUsage05 + "|" +

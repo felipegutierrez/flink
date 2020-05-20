@@ -1,5 +1,6 @@
 package org.apache.flink.runtime.controller;
 
+import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 import org.fusesource.hawtbuf.AsciiBuffer;
 import org.fusesource.hawtbuf.Buffer;
 import org.fusesource.hawtbuf.UTF8Buffer;
@@ -15,7 +16,8 @@ import java.util.LinkedList;
 import java.util.Map;
 
 /**
- * The PreAggregate controller listens to all preAggregation operators metrics and publish a global parameter K on the preAggregation operators.
+ * The PreAggregate controller listens to all preAggregation operators metrics and publish a global pre-aggregate parameter
+ * K on the preAggregation operators.
  */
 public class PreAggregateControllerService extends Thread {
 
@@ -39,12 +41,20 @@ public class PreAggregateControllerService extends Thread {
 	private double numRecordsOutPerSecondMax;
 
 	public PreAggregateControllerService() throws Exception {
+		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
+		this("127.0.0.1");
+	}
+
+	public PreAggregateControllerService(String brokerServerHost) throws Exception {
 		this.numRecordsOutPerSecondMax = 0.0;
 		this.controllerFrequencySec = 120;
 		this.running = true;
 		try {
-			// Job manager and taskManager have to be deployed on the same machine
-			this.host = "127.0.0.1";
+			if (Strings.isNullOrEmpty(brokerServerHost)) {
+				this.host = "127.0.0.1";
+			} else {
+				this.host = brokerServerHost;
+			}
 			this.port = 1883;
 		} catch (Exception e) {
 			e.printStackTrace();

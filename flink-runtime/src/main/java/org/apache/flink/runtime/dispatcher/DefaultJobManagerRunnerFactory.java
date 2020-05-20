@@ -18,6 +18,8 @@
 
 package org.apache.flink.runtime.dispatcher;
 
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.heartbeat.HeartbeatServices;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
@@ -63,6 +65,8 @@ public enum DefaultJobManagerRunnerFactory implements JobManagerRunnerFactory {
 		final SchedulerNGFactory schedulerNGFactory = SchedulerNGFactoryFactory.createSchedulerNGFactory(configuration, jobManagerServices.getRestartStrategyFactory());
 		final ShuffleMaster<?> shuffleMaster = ShuffleServiceLoader.loadShuffleServiceFactory(configuration).createShuffleMaster(configuration);
 
+		System.out.println("rpcService: " + rpcService.getAddress());
+		
 		final JobMasterServiceFactory jobMasterFactory = new DefaultJobMasterServiceFactory(
 			jobMasterConfiguration,
 			slotPoolFactory,
@@ -75,7 +79,7 @@ public enum DefaultJobManagerRunnerFactory implements JobManagerRunnerFactory {
 			fatalErrorHandler,
 			schedulerNGFactory,
 			shuffleMaster);
-
+		jobMasterFactory.getRpcServiceAddress();
 		return new JobManagerRunnerImpl(
 			jobGraph,
 			jobMasterFactory,

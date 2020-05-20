@@ -31,6 +31,8 @@ public class CommonParameters {
 	public static final String SINK_TEXT = "text";
 	public static final String TOPIC_DATA_SINK = "topic-data-sink";
 	// other parameters
+	public static final String PARALLELISM_PRE_AGG = "parallelism-pre-agg";
+	public static final String PARALLELISM_REDUCER = "parallelism-reducer";
 	public static final String SLOT_GROUP_LOCAL = "local-group";
 	public static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
 	public static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
@@ -45,4 +47,5 @@ public class CommonParameters {
 	public static final String BUFFER_TIMEOUT = "bufferTimeout";
 	public static final String POOLING_FREQUENCY = "pooling";
 	public static final String TOP_N = "topN";
+	public static final String BROKER_SERVER_HOST = "broker-server-host";
 }

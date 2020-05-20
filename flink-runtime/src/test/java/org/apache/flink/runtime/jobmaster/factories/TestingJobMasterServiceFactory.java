@@ -45,4 +45,9 @@ public class TestingJobMasterServiceFactory implements JobMasterServiceFactory {
 	public JobMasterService createJobMasterService(JobGraph jobGraph, OnCompletionActions jobCompletionActions, ClassLoader userCodeClassloader) {
 		return jobMasterServiceSupplier.get();
 	}
+
+	@Override
+	public String getRpcServiceAddress() {
+		return null;
+	}
 }

@@ -114,4 +114,8 @@ public class DefaultJobMasterServiceFactory implements JobMasterServiceFactory {
 				lookup
 			));
 	}
+
+	public String getRpcServiceAddress() {
+		return this.rpcService.getAddress();
+	}
 }

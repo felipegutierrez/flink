@@ -152,7 +152,10 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 			// now start the JobManager
 			this.jobMasterService = jobMasterFactory.createJobMasterService(jobGraph, this, userCodeLoader);
 
-			this.preAggregateControllerService = new PreAggregateControllerService();
+			System.out.println("jobMasterFactory.address: " + jobMasterFactory.getRpcServiceAddress());
+			System.out.println("jobMasterService.hostname: " + this.jobMasterService.getGateway().getHostname());
+
+			this.preAggregateControllerService = new PreAggregateControllerService(jobMasterFactory.getRpcServiceAddress());
 			this.preAggregateControllerService.connect();
 			this.preAggregateControllerService.start();
 		} catch (Throwable t) {

@@ -31,4 +31,6 @@ public interface JobMasterServiceFactory {
 		JobGraph jobGraph,
 		OnCompletionActions jobCompletionActions,
 		ClassLoader userCodeClassloader) throws Exception;
+
+	String getRpcServiceAddress();
 }

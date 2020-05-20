@@ -1279,18 +1279,26 @@ public class DataStream<T> {
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  int preAggWindowCount,
 														  boolean enableController,
-														  PreAggregateStrategy preAggregateStrategy) {
+														  PreAggregateStrategy preAggregateStrategy,
+														  String brokerServerHost) {
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount, preAggregateStrategy);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount, preAggregateStrategy, brokerServerHost);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType,
 			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
 				keySelector, enableController)));
+	}
+
+	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+														  int preAggWindowCount,
+														  boolean enableController,
+														  PreAggregateStrategy preAggregateStrategy) {
+		return preAggregate(preAggregateFunction, preAggWindowCount, enableController, preAggregateStrategy, "127.0.0.1");
 	}
 
 	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,

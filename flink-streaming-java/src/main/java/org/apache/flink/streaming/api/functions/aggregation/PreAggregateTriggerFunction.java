@@ -7,18 +7,20 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	private final PreAggregateStrategy preAggregateStrategy;
 	private final long previousTime;
 	private int maxCount;
+	private String brokerServerHost;
 	private transient int count = 0;
 	private transient PreAggregateTriggerCallback callback;
 
 	public PreAggregateTriggerFunction(int maxCount) {
-		this(maxCount, PreAggregateStrategy.GLOBAL);
+		this(maxCount, PreAggregateStrategy.GLOBAL, "127.0.0.1");
 	}
 
-	public PreAggregateTriggerFunction(int maxCount, PreAggregateStrategy preAggregateStrategy) {
+	public PreAggregateTriggerFunction(int maxCount, PreAggregateStrategy preAggregateStrategy, String brokerServerHost) {
 		Preconditions.checkArgument(maxCount > 0, "pre-aggregation count must be greater than 0");
 		this.maxCount = maxCount;
 		this.preAggregateStrategy = preAggregateStrategy;
 		this.previousTime = System.currentTimeMillis();
+		this.brokerServerHost = brokerServerHost;
 	}
 
 	@Override
@@ -67,5 +69,13 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	@Override
 	public PreAggregateStrategy getPreAggregateStrategy() {
 		return this.preAggregateStrategy;
+	}
+
+	public String getBrokerServerHost() {
+		return brokerServerHost;
+	}
+
+	public void setBrokerServerHost(String brokerServerHost) {
+		this.brokerServerHost = brokerServerHost;
 	}
 }

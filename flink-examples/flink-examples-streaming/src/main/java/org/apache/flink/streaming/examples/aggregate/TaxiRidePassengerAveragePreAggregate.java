@@ -30,7 +30,10 @@ public class TaxiRidePassengerAveragePreAggregate {
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
+		String brokerServerHost = params.get(BROKER_SERVER_HOST, "127.0.0.1");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int parallelismGroup01 = params.getInt(PARALLELISM_PRE_AGG, 0);
+		int parallelismGroup02 = params.getInt(PARALLELISM_REDUCER, 0);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
@@ -53,7 +56,10 @@ public class TaxiRidePassengerAveragePreAggregate {
 		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
+		System.out.println("pre-aggregate parallelism                : " + parallelismGroup01);
+		System.out.println("reducer parallelism                      : " + parallelismGroup02);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
+		System.out.println("Broker server host                       : " + brokerServerHost);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
@@ -72,32 +78,35 @@ public class TaxiRidePassengerAveragePreAggregate {
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
 		}
+		if (parallelismGroup01 == 0) {
+			parallelismGroup01 = env.getParallelism();
+		}
+		if (parallelismGroup02 == 0) {
+			parallelismGroup02 = env.getParallelism();
+		}
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor))
-			.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
-		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap())
-			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotSharingGroup01);
+		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).slotSharingGroup(slotSharingGroup01).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
+		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Long>>, Tuple2<Integer, Double>,
 			Tuple2<Integer, Tuple2<Double, Long>>> taxiRidePreAggregateFunction = new TaxiRidePassengerSumPreAggregateFunction();
 		DataStream<Tuple2<Integer, Tuple2<Double, Long>>> preAggregatedStream = tuples
-			.preAggregate(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotSharingGroup01);
+			.preAggregate(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy, brokerServerHost)
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		KeyedStream<Tuple2<Integer, Tuple2<Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 
 		DataStream<Tuple2<Integer, Tuple2<Double, Long>>> averagePassengers = keyedByRandomDriver
-			.reduce(new AveragePassengersReducer())
-			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotSharingGroup02);
+			.reduce(new AveragePassengersReducer()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			averagePassengers
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else {
 			averagePassengers
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotSharingGroup02)
-				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotSharingGroup02);
+				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.print().setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
