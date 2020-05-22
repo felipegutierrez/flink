@@ -28,7 +28,6 @@ public class TaxiRideAveragePreAggregate {
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
-		String brokerServerHost = params.get(BROKER_SERVER_HOST, "127.0.0.1");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
 		int parallelismGroup01 = params.getInt(PARALLELISM_PRE_AGG, 0);
 		int parallelismGroup02 = params.getInt(PARALLELISM_REDUCER, 0);
@@ -57,7 +56,6 @@ public class TaxiRideAveragePreAggregate {
 		System.out.println("pre-aggregate parallelism                : " + parallelismGroup01);
 		System.out.println("reducer parallelism                      : " + parallelismGroup02);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
-		System.out.println("Broker server host                       : " + brokerServerHost);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
@@ -96,7 +94,7 @@ public class TaxiRideAveragePreAggregate {
 			Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
 
 		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = tuples
-			.preAggregate(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy, brokerServerHost)
+			.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
 			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01)
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 

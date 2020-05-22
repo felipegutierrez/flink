@@ -88,7 +88,6 @@ public class WordCountPreAggregate {
 		int sourcePort = params.getInt(SOURCE_PORT, 1883);
 		String output = params.get(SINK, "");
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
-		String brokerServerHost = params.get(BROKER_SERVER_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
@@ -126,7 +125,6 @@ public class WordCountPreAggregate {
 		System.out.println("reducer parallelism                      : " + parallelismGroup02);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
-		System.out.println("Broker server host                       : " + brokerServerHost);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		System.out.println("window [seconds]                         : " + window);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
@@ -208,7 +206,7 @@ public class WordCountPreAggregate {
 			preAggregatedStream = skewed;
 		} else {
 			preAggregatedStream = skewed
-				.preAggregate(wordCountPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy, brokerServerHost)
+				.combiner(wordCountPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
 				.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 		}
 

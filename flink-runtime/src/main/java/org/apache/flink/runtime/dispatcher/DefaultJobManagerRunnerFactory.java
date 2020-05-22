@@ -64,8 +64,6 @@ public enum DefaultJobManagerRunnerFactory implements JobManagerRunnerFactory {
 		final SchedulerFactory schedulerFactory = DefaultSchedulerFactory.fromConfiguration(configuration);
 		final SchedulerNGFactory schedulerNGFactory = SchedulerNGFactoryFactory.createSchedulerNGFactory(configuration, jobManagerServices.getRestartStrategyFactory());
 		final ShuffleMaster<?> shuffleMaster = ShuffleServiceLoader.loadShuffleServiceFactory(configuration).createShuffleMaster(configuration);
-
-		System.out.println("rpcService: " + rpcService.getAddress());
 		
 		final JobMasterServiceFactory jobMasterFactory = new DefaultJobMasterServiceFactory(
 			jobMasterConfiguration,
@@ -79,7 +77,7 @@ public enum DefaultJobManagerRunnerFactory implements JobManagerRunnerFactory {
 			fatalErrorHandler,
 			schedulerNGFactory,
 			shuffleMaster);
-		jobMasterFactory.getRpcServiceAddress();
+
 		return new JobManagerRunnerImpl(
 			jobGraph,
 			jobMasterFactory,

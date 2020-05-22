@@ -89,7 +89,6 @@ public class TopNPreAggregate {
 		String sourceHost = params.get(SOURCE_HOST, "127.0.0.1");
 		int sourcePort = params.getInt(SOURCE_PORT, 1883);
 		String output = params.get(SINK, "");
-		String brokerServerHost = params.get(BROKER_SERVER_HOST, "127.0.0.1");
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
@@ -125,7 +124,6 @@ public class TopNPreAggregate {
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
-		System.out.println("Broker server host                       : " + brokerServerHost);
 		System.out.println("topN                                     : " + topN);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
 		System.out.println("Changing pooling frequency of the data source:");
@@ -165,7 +163,7 @@ public class TopNPreAggregate {
 		// Combine the stream
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
-			.preAggregate(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy, brokerServerHost)
+			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
 			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		// group by the tuple field "0" and sum up tuple field "1"

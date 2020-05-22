@@ -29,8 +29,4 @@ public interface PreAggregateTrigger<T> extends Serializable {
 	void setMaxCount(int minCount, int subtaskIndex);
 
 	PreAggregateStrategy getPreAggregateStrategy();
-
-	String getBrokerServerHost();
-
-	void setBrokerServerHost(String brokerServerHost);
 }

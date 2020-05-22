@@ -88,7 +88,6 @@ public class AveragePreAggregate {
 		int sourcePort = params.getInt(SOURCE_PORT, 1883);
 		String output = params.get(SINK, "");
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
-		String brokerServerHost = params.get(BROKER_SERVER_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
@@ -121,7 +120,6 @@ public class AveragePreAggregate {
 		System.out.println("reducer parallelism                      : " + parallelismGroup02);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
-		System.out.println("Broker server host                       : " + brokerServerHost);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
 		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
@@ -161,7 +159,7 @@ public class AveragePreAggregate {
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>,
 			Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction = new SensorValuesSumPreAggregateFunction();
 		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues
-			.preAggregate(sumPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy, brokerServerHost).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.combiner(sumPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		// group by the tuple field "0" and sum up tuple field "1"
 		KeyedStream<Tuple2<Integer, Tuple2<Double, Integer>>, Tuple> keyedStream = preAggregatedStream.keyBy(0);

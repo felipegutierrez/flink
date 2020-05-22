@@ -87,7 +87,7 @@ java -classpath ...MqttDataProducer -input sensorData -qtdSensors 50 -qtdMetrics
 
 
 
-## Pre-aggregate operator
+## Combiner operator operator
  - The example is implemented on the file [WordCountPreAggregate](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/WordCountPreAggregate.java).
  - This example aims to solve the issue [FLINK-7561: Add support for pre-aggregation in DataStream API](https://issues.apache.org/jira/browse/FLINK-7561).
  - We implemented a static and a dynamic pre-aggregator.
@@ -95,7 +95,7 @@ java -classpath ...MqttDataProducer -input sensorData -qtdSensors 50 -qtdMetrics
 ```
 DataStream<String> text = env.fromElements(WordCountCombinerData.WORDS_SKEW)
 	.flatMap(new Tokenizer())
-	.preAggregate(new PreAggregateFunction(), 10)
+	.combiner(new PreAggregateFunction(), 10)
 	.keyBy(0)
 	.sum(1)
 	.print();

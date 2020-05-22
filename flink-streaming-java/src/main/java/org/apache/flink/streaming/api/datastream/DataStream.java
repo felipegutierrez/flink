@@ -1276,17 +1276,16 @@ public class DataStream<T> {
 	 * @param <R>
 	 * @return The transformed {@link DataStream} constructed.
 	 */
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  int preAggWindowCount,
 														  boolean enableController,
-														  PreAggregateStrategy preAggregateStrategy,
-														  String brokerServerHost) {
+														  PreAggregateStrategy preAggregateStrategy) {
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount, preAggregateStrategy, brokerServerHost);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount, preAggregateStrategy);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType,
@@ -1294,20 +1293,13 @@ public class DataStream<T> {
 				keySelector, enableController)));
 	}
 
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-														  int preAggWindowCount,
-														  boolean enableController,
-														  PreAggregateStrategy preAggregateStrategy) {
-		return preAggregate(preAggregateFunction, preAggWindowCount, enableController, preAggregateStrategy, "127.0.0.1");
-	}
-
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  int preAggWindowCount) {
-		return preAggregate(preAggregateFunction, preAggWindowCount, true, PreAggregateStrategy.GLOBAL);
+		return combiner(preAggregateFunction, preAggWindowCount, true, PreAggregateStrategy.GLOBAL);
 	}
 
-	public <R> SingleOutputStreamOperator<R> preAggregate(PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
-		return preAggregate(preAggregateFunction, 100, true, PreAggregateStrategy.GLOBAL);
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
+		return combiner(preAggregateFunction, 100, true, PreAggregateStrategy.GLOBAL);
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(

@@ -2,6 +2,8 @@ package org.apache.flink.streaming.api.operators;
 
 import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
@@ -101,15 +103,21 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		PreAggParamGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggParamGauge());
 		PreAggLatencyMeanGauge preAgglatencyMeanGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_LATENCY_MEAN, new PreAggLatencyMeanGauge());
 
+		ConfigOption<String> restAddressOption = ConfigOptions
+			.key("rest.address")
+			.stringType()
+			.noDefaultValue();
+		String restAddress = this.getRuntimeContext().getTaskEnvironment().getTaskManagerInfo().getConfiguration().getValue(restAddressOption);
+
 		// initiate the Controller with the histogram metrics
 		this.preAggregateMonitor = new PreAggregateMonitor(this.preAggregateTrigger, latencyHistogram,
-			outPoolUsageHistogram, preAggParamGauge, preAgglatencyMeanGauge, this.subtaskIndex, this.enableController);
+			outPoolUsageHistogram, preAggParamGauge, preAgglatencyMeanGauge, restAddress, this.subtaskIndex, this.enableController);
 
 		try {
 			if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.GLOBAL) {
-				this.preAggregateMqttListener = new PreAggregateParameterListener(this.preAggregateTrigger, this.subtaskIndex);
+				this.preAggregateMqttListener = new PreAggregateParameterListener(this.preAggregateTrigger, restAddress, this.subtaskIndex);
 			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.LOCAL) {
-				this.preAggregateMqttListener = new PreAggregateParameterListener(this.preAggregateTrigger, this.subtaskIndex);
+				this.preAggregateMqttListener = new PreAggregateParameterListener(this.preAggregateTrigger, restAddress, this.subtaskIndex);
 			} else if (this.preAggregateTrigger.getPreAggregateStrategy() == PreAggregateStrategy.PER_KEY) {
 				System.out.println("Pre-aggregate per-key strategy not implemented.");
 			} else {

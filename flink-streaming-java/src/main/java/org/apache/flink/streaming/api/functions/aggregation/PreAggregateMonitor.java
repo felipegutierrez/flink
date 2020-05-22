@@ -55,13 +55,13 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 							   PreAggParamGauge preAggParamGauge, PreAggLatencyMeanGauge preAggLatencyMeanGauge,
 							   int subtaskIndex) {
 		this(preAggregateTriggerFunction, latencyHistogram, outPoolUsageHistogram, preAggParamGauge, preAggLatencyMeanGauge,
-			subtaskIndex, true);
+			"127.0.0.1", subtaskIndex, true);
 	}
 
 	public PreAggregateMonitor(PreAggregateTriggerFunction preAggregateTriggerFunction,
 							   Histogram latencyHistogram, Histogram outPoolUsageHistogram,
 							   PreAggParamGauge preAggParamGauge, PreAggLatencyMeanGauge preAggLatencyMeanGauge,
-							   int subtaskIndex, boolean enableController) {
+							   String host, int subtaskIndex, boolean enableController) {
 		this.enableController = enableController;
 		this.controllerFrequencySec = 60;
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
@@ -74,7 +74,7 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 		this.currentCapacity = 0.0;
 
 		try {
-			this.host = preAggregateTriggerFunction.getBrokerServerHost();
+			this.host = host;
 			this.port = 1883;
 		} catch (Exception e) {
 			e.printStackTrace();

@@ -240,4 +240,5 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 		return streamConfig.getBufferTimeout();
 	}
 
+	public Environment getTaskEnvironment() { return this.taskEnvironment; }
 }

@@ -27,14 +27,14 @@ public class PreAggregateParameterListener extends Thread implements Serializabl
 
 	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, int subtaskIndex) {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
-		this(preAggregateTriggerFunction, 1883, subtaskIndex);
+		this(preAggregateTriggerFunction, "127.0.0.1", subtaskIndex);
 	}
 
 
-	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, int port, int subtaskIndex) {
+	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, String host, int subtaskIndex) {
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
-		this.host = this.preAggregateTriggerFunction.getBrokerServerHost();
-		this.port = port;
+		this.host = host;
+		this.port = 1883;
 		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER;
 		this.running = true;
 		this.subtaskIndex = subtaskIndex;

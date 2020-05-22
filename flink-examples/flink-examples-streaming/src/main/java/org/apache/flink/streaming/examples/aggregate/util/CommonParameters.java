@@ -47,5 +47,4 @@ public class CommonParameters {
 	public static final String BUFFER_TIMEOUT = "bufferTimeout";
 	public static final String POOLING_FREQUENCY = "pooling";
 	public static final String TOP_N = "topN";
-	public static final String BROKER_SERVER_HOST = "broker-server-host";
 }
