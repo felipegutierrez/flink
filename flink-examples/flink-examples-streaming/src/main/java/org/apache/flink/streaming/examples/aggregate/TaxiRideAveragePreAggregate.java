@@ -96,7 +96,7 @@ public class TaxiRideAveragePreAggregate {
 
 		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = tuples
 			.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01)
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).disableChaining()
 			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());

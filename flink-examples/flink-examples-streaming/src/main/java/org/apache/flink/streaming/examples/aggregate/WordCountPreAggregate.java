@@ -207,7 +207,8 @@ public class WordCountPreAggregate {
 		} else {
 			preAggregatedStream = skewed
 				.combiner(wordCountPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-				.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+				.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).disableChaining()
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"

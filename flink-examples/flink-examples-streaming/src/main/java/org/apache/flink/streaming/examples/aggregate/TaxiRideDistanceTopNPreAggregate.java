@@ -91,7 +91,8 @@ public class TaxiRideDistanceTopNPreAggregate {
 			Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TaxiRidePassengerTopNPreAggregate(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = tuples
 			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).disableChaining()
+			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		KeyedStream<Tuple2<Integer, Double[]>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 

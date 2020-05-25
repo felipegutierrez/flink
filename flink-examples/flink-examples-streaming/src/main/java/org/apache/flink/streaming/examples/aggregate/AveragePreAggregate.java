@@ -153,13 +153,16 @@ public class AveragePreAggregate {
 		}
 
 		// split up the lines in pairs (2-tuples) containing: (word,1)
-		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer())
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		// Combine the stream
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>,
 			Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction = new SensorValuesSumPreAggregateFunction();
 		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues
-			.combiner(sumPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.combiner(sumPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).disableChaining()
+			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		// group by the tuple field "0" and sum up tuple field "1"
 		KeyedStream<Tuple2<Integer, Tuple2<Double, Integer>>, Tuple> keyedStream = preAggregatedStream.keyBy(0);

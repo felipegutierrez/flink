@@ -143,7 +143,7 @@ public class TopNPreAggregate {
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
-		
+
 		// get input data
 		DataStream<String> rawSensorValues;
 		if (Strings.isNullOrEmpty(input)) {
@@ -158,26 +158,31 @@ public class TopNPreAggregate {
 		}
 
 		// split up the lines in pairs (2-tuples) containing: (word,1)
-		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer())
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		// Combine the stream
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
 			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).disableChaining()
+			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		// group by the tuple field "0" and sum up tuple field "1"
 		KeyedStream<Tuple2<Integer, Double[]>, Tuple> keyedStream = preAggregatedStream
 			.keyBy(0);
 
 		DataStream<Tuple2<Integer, Double[]>> resultStream = keyedStream
-			.reduce(new TopNReduceFunction(topN)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
+			.reduce(new TopNReduceFunction(topN)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
+			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
 
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			resultStream
-				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
+				.name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
+				.name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (output.equalsIgnoreCase(SINK_LOG)) {
 			resultStream.print().setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
