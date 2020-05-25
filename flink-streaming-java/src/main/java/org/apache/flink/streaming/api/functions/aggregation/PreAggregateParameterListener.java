@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.api.functions.aggregation;
 
+import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 import org.fusesource.mqtt.client.*;
 
 import java.io.Serializable;
@@ -33,7 +34,11 @@ public class PreAggregateParameterListener extends Thread implements Serializabl
 
 	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, String host, int subtaskIndex) {
 		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
-		this.host = host;
+		if (Strings.isNullOrEmpty(host) || host.equalsIgnoreCase("localhost")) {
+			this.host = "127.0.0.1";
+		} else {
+			this.host = host;
+		}
 		this.port = 1883;
 		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER;
 		this.running = true;

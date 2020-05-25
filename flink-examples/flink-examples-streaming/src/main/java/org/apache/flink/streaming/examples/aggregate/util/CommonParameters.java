@@ -31,8 +31,8 @@ public class CommonParameters {
 	public static final String SINK_TEXT = "text";
 	public static final String TOPIC_DATA_SINK = "topic-data-sink";
 	// other parameters
-	public static final String PARALLELISM_PRE_AGG = "parallelism-pre-agg";
-	public static final String PARALLELISM_REDUCER = "parallelism-reducer";
+	public static final String PARALLELISM_PRE_AGG = "local-group-parallelism";
+	public static final String PARALLELISM_REDUCER = "shuffle-group-parallelism";
 	public static final String SLOT_GROUP_LOCAL = "local-group";
 	public static final String SLOT_GROUP_SHUFFLE = "shuffle-group";
 	public static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";

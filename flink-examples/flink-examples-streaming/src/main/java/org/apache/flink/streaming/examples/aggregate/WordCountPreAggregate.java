@@ -111,6 +111,22 @@ public class WordCountPreAggregate {
 			slotSharingGroup02 = SLOT_GROUP_SHUFFLE;
 		}
 
+		if (bufferTimeout != -999) {
+			env.setBufferTimeout(bufferTimeout);
+		}
+		if (disableOperatorChaining) {
+			env.disableOperatorChaining();
+		}
+		if (parallelismGroup01 == 0) {
+			parallelismGroup01 = env.getParallelism();
+		}
+		if (parallelismGroup02 == 0) {
+			parallelismGroup02 = env.getParallelism();
+		}
+		if (latencyTrackingInterval > 0) {
+			env.getConfig().setLatencyTrackingInterval(latencyTrackingInterval);
+		}
+
 		System.out.println("data source                              : " + input);
 		System.out.println("data source host:port                    : " + sourceHost + ":" + sourcePort);
 		System.out.println("data source topic                        : " + TOPIC_DATA_SOURCE);
@@ -134,22 +150,6 @@ public class WordCountPreAggregate {
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
-
-		if (bufferTimeout != -999) {
-			env.setBufferTimeout(bufferTimeout);
-		}
-		if (disableOperatorChaining) {
-			env.disableOperatorChaining();
-		}
-		if (parallelismGroup01 == 0) {
-			parallelismGroup01 = env.getParallelism();
-		}
-		if (parallelismGroup02 == 0) {
-			parallelismGroup02 = env.getParallelism();
-		}
-		if (latencyTrackingInterval > 0) {
-			env.getConfig().setLatencyTrackingInterval(latencyTrackingInterval);
-		}
 
 		// get input data
 		DataStream<String> text;

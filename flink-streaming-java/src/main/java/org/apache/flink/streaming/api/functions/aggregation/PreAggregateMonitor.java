@@ -2,6 +2,7 @@ package org.apache.flink.streaming.api.functions.aggregation;
 
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.metrics.Histogram;
+import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 import org.apache.flink.streaming.util.functions.PreAggLatencyMeanGauge;
 import org.apache.flink.streaming.util.functions.PreAggParamGauge;
 import org.fusesource.hawtbuf.AsciiBuffer;
@@ -53,9 +54,9 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 	public PreAggregateMonitor(PreAggregateTriggerFunction preAggregateTriggerFunction,
 							   Histogram latencyHistogram, Histogram outPoolUsageHistogram,
 							   PreAggParamGauge preAggParamGauge, PreAggLatencyMeanGauge preAggLatencyMeanGauge,
-							   int subtaskIndex) {
+							   int subtaskIndex, boolean enableController) {
 		this(preAggregateTriggerFunction, latencyHistogram, outPoolUsageHistogram, preAggParamGauge, preAggLatencyMeanGauge,
-			"127.0.0.1", subtaskIndex, true);
+			"127.0.0.1", subtaskIndex, enableController);
 	}
 
 	public PreAggregateMonitor(PreAggregateTriggerFunction preAggregateTriggerFunction,
@@ -74,7 +75,11 @@ public class PreAggregateMonitor extends Thread implements Serializable {
 		this.currentCapacity = 0.0;
 
 		try {
-			this.host = host;
+			if (Strings.isNullOrEmpty(host) || host.equalsIgnoreCase("localhost")) {
+				this.host = "127.0.0.1";
+			} else {
+				this.host = host;
+			}
 			this.port = 1883;
 		} catch (Exception e) {
 			e.printStackTrace();

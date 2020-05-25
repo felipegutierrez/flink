@@ -45,6 +45,22 @@ public class TaxiRidePassengerAveragePreAggregate {
 			slotSharingGroup01 = SLOT_GROUP_LOCAL;
 			slotSharingGroup02 = SLOT_GROUP_SHUFFLE;
 		}
+
+		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
+		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
+
+		// set up streaming execution environment
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		if (disableOperatorChaining) {
+			env.disableOperatorChaining();
+		}
+		if (parallelismGroup01 == 0) {
+			parallelismGroup01 = env.getParallelism();
+		}
+		if (parallelismGroup02 == 0) {
+			parallelismGroup02 = env.getParallelism();
+		}
+
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
@@ -67,21 +83,6 @@ public class TaxiRidePassengerAveragePreAggregate {
 		System.out.println("1000000 nanoseconds = 1 millisecond");
 		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
 		System.out.println("echo \"1000000000\" > " + DataRateListener.DATA_RATE_FILE);
-
-		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
-		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
-
-		// set up streaming execution environment
-		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		if (disableOperatorChaining) {
-			env.disableOperatorChaining();
-		}
-		if (parallelismGroup01 == 0) {
-			parallelismGroup01 = env.getParallelism();
-		}
-		if (parallelismGroup02 == 0) {
-			parallelismGroup02 = env.getParallelism();
-		}
 
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).slotSharingGroup(slotSharingGroup01).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
 		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);

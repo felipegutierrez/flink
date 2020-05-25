@@ -108,6 +108,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 			.stringType()
 			.noDefaultValue();
 		String restAddress = this.getRuntimeContext().getTaskEnvironment().getTaskManagerInfo().getConfiguration().getValue(restAddressOption);
+		System.out.println("rest.address: " + restAddress);
 
 		// initiate the Controller with the histogram metrics
 		this.preAggregateMonitor = new PreAggregateMonitor(this.preAggregateTrigger, latencyHistogram,

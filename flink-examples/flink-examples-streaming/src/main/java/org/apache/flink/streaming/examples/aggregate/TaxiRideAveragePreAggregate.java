@@ -43,6 +43,22 @@ public class TaxiRideAveragePreAggregate {
 			slotSharingGroup01 = SLOT_GROUP_LOCAL;
 			slotSharingGroup02 = SLOT_GROUP_SHUFFLE;
 		}
+
+		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
+		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
+
+		// set up streaming execution environment
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		if (disableOperatorChaining) {
+			env.disableOperatorChaining();
+		}
+		if (parallelismGroup01 == 0) {
+			parallelismGroup01 = env.getParallelism();
+		}
+		if (parallelismGroup02 == 0) {
+			parallelismGroup02 = env.getParallelism();
+		}
+
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
@@ -65,21 +81,6 @@ public class TaxiRideAveragePreAggregate {
 		System.out.println("1000000 nanoseconds = 1 millisecond");
 		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
 		System.out.println("echo \"1000000000\" > " + DataRateListener.DATA_RATE_FILE);
-
-		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
-		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
-
-		// set up streaming execution environment
-		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		if (disableOperatorChaining) {
-			env.disableOperatorChaining();
-		}
-		if (parallelismGroup01 == 0) {
-			parallelismGroup01 = env.getParallelism();
-		}
-		if (parallelismGroup02 == 0) {
-			parallelismGroup02 = env.getParallelism();
-		}
 
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor))
 			.slotSharingGroup(slotSharingGroup01)
