@@ -34,15 +34,6 @@ public class TaxiRideDistanceAveragePreAggregate {
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
-		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
-		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
-
-		// set up streaming execution environment
-		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-		if (disableOperatorChaining) {
-			env.disableOperatorChaining();
-		}
-
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
@@ -64,9 +55,19 @@ public class TaxiRideDistanceAveragePreAggregate {
 		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
 		System.out.println("echo \"1000000000\" > " + DataRateListener.DATA_RATE_FILE);
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor))
-			.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
-		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
+		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
+
+		// set up streaming execution environment
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		if (disableOperatorChaining) {
+			env.disableOperatorChaining();
+		}
+
+		DataStream<TaxiRide> rides01 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE + "-01").uid(OPERATOR_SOURCE + "-01");
+		DataStream<TaxiRide> rides02 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE + "-02").uid(OPERATOR_SOURCE + "-02");
+
+		DataStream<Tuple2<Integer, Double>> tuples = rides01.union(rides02).map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Long>>, Tuple2<Integer, Double>,
 			Tuple2<Integer, Tuple2<Double, Long>>> taxiRidePreAggregateFunction = new TaxiRidePassengerSumPreAggregateFunction();

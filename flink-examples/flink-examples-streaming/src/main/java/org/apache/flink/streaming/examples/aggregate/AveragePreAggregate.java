@@ -98,13 +98,6 @@ public class AveragePreAggregate {
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
-		if (bufferTimeout != -999) {
-			env.setBufferTimeout(bufferTimeout);
-		}
-		if (disableOperatorChaining) {
-			env.disableOperatorChaining();
-		}
-
 		System.out.println("data source                              : " + input);
 		System.out.println("data source host:port                    : " + sourceHost + ":" + sourcePort);
 		System.out.println("data source topic                        : " + TOPIC_DATA_SOURCE);
@@ -123,6 +116,13 @@ public class AveragePreAggregate {
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
+		
+		if (bufferTimeout != -999) {
+			env.setBufferTimeout(bufferTimeout);
+		}
+		if (disableOperatorChaining) {
+			env.disableOperatorChaining();
+		}
 
 		// get input data
 		DataStream<String> rawSensorValues;
