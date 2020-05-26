@@ -94,8 +94,6 @@ public class TopNPreAggregate {
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
 		int topN = params.getInt(TOP_N, 10);
-		int parallelismGroup01 = params.getInt(PARALLELISM_PRE_AGG, 0);
-		int parallelismGroup02 = params.getInt(PARALLELISM_REDUCER, 0);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
@@ -103,24 +101,11 @@ public class TopNPreAggregate {
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
-		String slotSharingGroup01 = null;
-		String slotSharingGroup02 = null;
-		if (slotSplit) {
-			slotSharingGroup01 = SLOT_GROUP_LOCAL;
-			slotSharingGroup02 = SLOT_GROUP_SHUFFLE;
-		}
-
 		if (bufferTimeout != -999) {
 			env.setBufferTimeout(bufferTimeout);
 		}
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
-		}
-		if (parallelismGroup01 == 0) {
-			parallelismGroup01 = env.getParallelism();
-		}
-		if (parallelismGroup02 == 0) {
-			parallelismGroup02 = env.getParallelism();
 		}
 
 		System.out.println("data source                              : " + input);
@@ -132,8 +117,6 @@ public class TopNPreAggregate {
 		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
-		System.out.println("pre-aggregate parallelism                : " + parallelismGroup01);
-		System.out.println("reducer parallelism                      : " + parallelismGroup02);
 		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
@@ -148,52 +131,47 @@ public class TopNPreAggregate {
 		DataStream<String> rawSensorValues;
 		if (Strings.isNullOrEmpty(input)) {
 			rawSensorValues = env.addSource(new DataRateSource(new String[0], poolingFrequency))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
 		} else if (SOURCE_DATA_MQTT.equalsIgnoreCase(input)) {
 			rawSensorValues = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE, sourceHost, sourcePort))
-				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+				.name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
 		} else {
 			// read the text file from given input path
-			rawSensorValues = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotSharingGroup01);
+			rawSensorValues = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
 		}
 
 		// split up the lines in pairs (2-tuples) containing: (word,1)
-		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer())
-			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		// Combine the stream
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
 			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).disableChaining()
-			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		// group by the tuple field "0" and sum up tuple field "1"
 		KeyedStream<Tuple2<Integer, Double[]>, Tuple> keyedStream = preAggregatedStream
 			.keyBy(0);
 
 		DataStream<Tuple2<Integer, Double[]>> resultStream = keyedStream
-			.reduce(new TopNReduceFunction(topN)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
-			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
+			.reduce(new TopNReduceFunction(topN)).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
 
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			resultStream
-				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
-				.name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02)
-				.name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (output.equalsIgnoreCase(SINK_LOG)) {
-			resultStream.print().setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
 			resultStream
-				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_FLAT_OUTPUT)
-				.writeAsText(params.get("output")).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.writeAsText(params.get("output")).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
 			resultStream
-				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_FLAT_OUTPUT)
-				.print().setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		}
 
 		System.out.println("Execution plan >>>");

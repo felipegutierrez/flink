@@ -29,21 +29,12 @@ public class TaxiRideDistanceTopNPreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
-		int parallelismGroup01 = params.getInt(PARALLELISM_PRE_AGG, 0);
-		int parallelismGroup02 = params.getInt(PARALLELISM_REDUCER, 0);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		int topN = params.getInt(TOP_N, 10);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
-
-		String slotSharingGroup01 = null;
-		String slotSharingGroup02 = null;
-		if (slotSplit) {
-			slotSharingGroup01 = SLOT_GROUP_LOCAL;
-			slotSharingGroup02 = SLOT_GROUP_SHUFFLE;
-		}
 
 		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
 		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
@@ -52,12 +43,6 @@ public class TaxiRideDistanceTopNPreAggregate {
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
-		}
-		if (parallelismGroup01 == 0) {
-			parallelismGroup01 = env.getParallelism();
-		}
-		if (parallelismGroup02 == 0) {
-			parallelismGroup02 = env.getParallelism();
 		}
 
 		System.out.println("Download data from:");
@@ -70,8 +55,6 @@ public class TaxiRideDistanceTopNPreAggregate {
 		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
-		System.out.println("pre-aggregate parallelism                : " + parallelismGroup01);
-		System.out.println("reducer parallelism                      : " + parallelismGroup02);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("topN                                     : " + topN);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
@@ -84,29 +67,28 @@ public class TaxiRideDistanceTopNPreAggregate {
 		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
 		System.out.println("echo \"1000000000\" > " + DataRateListener.DATA_RATE_FILE);
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).slotSharingGroup(slotSharingGroup01).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
-		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
+		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>,
 			Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TaxiRidePassengerTopNPreAggregate(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = tuples
 			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.setParallelism(parallelismGroup01).slotSharingGroup(slotSharingGroup01).disableChaining()
-			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
 
 		KeyedStream<Tuple2<Integer, Double[]>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 
 		DataStream<Tuple2<Integer, Double[]>> taxiRideTopNDistances = keyedByRandomDriver
-			.reduce(new TaxiRideDistanceTopNReduce(topN)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
+			.reduce(new TaxiRideDistanceTopNReduce(topN)).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			taxiRideTopNDistances
-				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else {
 			taxiRideTopNDistances
-				.map(new FlatOutputMap()).setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.print().setParallelism(parallelismGroup02).slotSharingGroup(slotSharingGroup02).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
