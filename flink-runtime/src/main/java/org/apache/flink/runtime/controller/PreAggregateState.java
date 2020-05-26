@@ -268,8 +268,22 @@ public class PreAggregateState {
 		return average(numRecordsInPerSecond);
 	}
 
+	public double getNumRecordsInPerSecond(int i) {
+		if (i >= 0 && i < numRecordsInPerSecond.length) {
+			return numRecordsInPerSecond[i];
+		}
+		return 0.0;
+	}
+
 	public double getNumRecordsOutPerSecond() {
 		return average(numRecordsOutPerSecond);
+	}
+
+	public double getNumRecordsOutPerSecond(int i) {
+		if (i >= 0 && i < numRecordsOutPerSecond.length) {
+			return numRecordsOutPerSecond[i];
+		}
+		return 0.0;
 	}
 
 	private int average(int[] values) {

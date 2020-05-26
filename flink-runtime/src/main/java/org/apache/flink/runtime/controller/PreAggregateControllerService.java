@@ -135,7 +135,15 @@ public class PreAggregateControllerService extends Thread {
 					label = "+";
 					if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
 						// If the input throughput is close to the max input throughput in 95% invalidate the increase latency action
+						System.out.println("invalidating increasing latency");
 						minCount.setValidate(false);
+					}
+					if (preAggregateState.getNumRecordsOutPerSecond(1) > preAggregateState.getNumRecordsOutPerSecond(0)) {
+						// If the previous OUT Throughput is greater than the current we can cancel the increase latency operation
+						minCount.setValidate(false);
+						// then we reset the global capacity with a real value
+						System.out.println("resetting global capacity: IN[" + preAggregateState.getNumRecordsInPerSecond(1) + "] OUT[" + preAggregateState.getNumRecordsOutPerSecond(1) + "]");
+						this.setGlobalCapacity(preAggregateState.getNumRecordsInPerSecond(1), preAggregateState.getNumRecordsOutPerSecond(1));
 					}
 				}
 				this.updateGlobalCapacity(preAggregateState.getNumRecordsInPerSecond(), preAggregateState.getNumRecordsOutPerSecond());
@@ -190,6 +198,11 @@ public class PreAggregateControllerService extends Thread {
 		if (numRecordsOutPerSecond > this.numRecordsOutPerSecondMax) {
 			this.numRecordsOutPerSecondMax = numRecordsOutPerSecond;
 		}
+	}
+
+	private void setGlobalCapacity(double numRecordsInPerSecond, double numRecordsOutPerSecond) {
+		this.numRecordsInPerSecondMax = numRecordsInPerSecond;
+		this.numRecordsOutPerSecondMax = numRecordsOutPerSecond;
 	}
 
 	/**
