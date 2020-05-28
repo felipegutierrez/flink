@@ -67,10 +67,8 @@ public class TaxiRideDistanceTopNPreAggregate {
 			env.disableOperatorChaining();
 		}
 
-		DataStream<TaxiRide> rides01 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE + "-01").uid(OPERATOR_SOURCE + "-01");
-		DataStream<TaxiRide> rides02 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE + "-02").uid(OPERATOR_SOURCE + "-02");
-
-		DataStream<Tuple2<Integer, Double>> tuples = rides01.union(rides02).map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
+		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
 
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>,
 			Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TaxiRidePassengerTopNPreAggregate(topN);
