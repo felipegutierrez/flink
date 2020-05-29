@@ -64,9 +64,15 @@ public class TaxiRideAveragePreAggregate {
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
 		}
+		String slotGroup01 = "default";
+		String slotGroup02 = "default";
+		if (slotSplit) {
+			slotGroup01 = SLOT_GROUP_01_01;
+			slotGroup02 = SLOT_GROUP_01_02;
+		}
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
-		DataStream<Tuple4<Integer, Double, Double, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<Tuple4<Integer, Double, Double, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		PreAggregateFunction<Integer,
 			Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
@@ -75,21 +81,21 @@ public class TaxiRideAveragePreAggregate {
 
 		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = tuples
 			.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 
 		KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 
 		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> averagePassengers = keyedByRandomDriver.reduce(new AveragePassengersReducer())
-			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
+			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			averagePassengers
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02);
 		} else {
 			averagePassengers
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02);
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
