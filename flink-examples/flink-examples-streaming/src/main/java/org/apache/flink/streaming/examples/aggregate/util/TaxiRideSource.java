@@ -107,12 +107,14 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 		reader = new BufferedReader(new InputStreamReader(gzipStream, StandardCharsets.UTF_8));
 		String line;
 		TaxiRide taxiRide;
+		long startTime;
 		while (reader.ready() && (line = reader.readLine()) != null) {
+			startTime = System.nanoTime();
 			taxiRide = TaxiRide.fromString(line);
 			sourceContext.collectWithTimestamp(taxiRide, getEventTime(taxiRide));
 
 			// sleep in nanoseconds to have a reproducible data rate for the data source
-			this.dataRateListener.busySleep();
+			this.dataRateListener.busySleep(startTime);
 		}
 	}
 

@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 
 public class DataRateListener extends Thread implements Serializable {
 
-	public static final String DATA_RATE_FILE = "/home/flink/tmp/datarate.txt";
+	public static final String DATA_RATE_FILE = "/tmp/datarate.txt";
 	private long delayInNanoSeconds;
 	private boolean running;
 
@@ -16,6 +16,18 @@ public class DataRateListener extends Thread implements Serializable {
 		this.delayInNanoSeconds = 1000000;
 		this.running = true;
 		this.disclaimer();
+	}
+
+	public static void main(String[] args) {
+		DataRateListener drl = new DataRateListener();
+		long start;
+		System.out.println("delay                        : " + drl.delayInNanoSeconds);
+		for (int i = 0; i < 100; i++) {
+			start = System.nanoTime();
+			System.out.print("start : " + start);
+			drl.busySleep(start);
+			System.out.println(" finish: " + (System.nanoTime() - start));
+		}
 	}
 
 	private void disclaimer() {
@@ -60,12 +72,12 @@ public class DataRateListener extends Thread implements Serializable {
 	}
 
 	public long getDelayInNanoSeconds() {
-		return delayInNanoSeconds;
+		return this.delayInNanoSeconds;
 	}
 
-	public void busySleep() {
-		final long startTime = System.nanoTime();
-		while (System.nanoTime() - startTime < this.delayInNanoSeconds) ;
+	public void busySleep(long startTime) {
+		long deadLine = startTime + this.delayInNanoSeconds;
+		while (System.nanoTime() < deadLine) ;
 	}
 
 	public boolean isNumeric(final String str) {

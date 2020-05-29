@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.examples.aggregate;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
@@ -22,7 +23,7 @@ import java.util.Map;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
-public class TaxiRideCountPreAggregate {
+public class TaxiRideCountPreAggregate2 {
 	public static void main(String[] args) throws Exception {
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
@@ -30,6 +31,8 @@ public class TaxiRideCountPreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int parallelisGroup01 = params.getInt(PARALLELISM_GROUP_01, ExecutionConfig.PARALLELISM_DEFAULT);
+		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
@@ -48,6 +51,8 @@ public class TaxiRideCountPreAggregate {
 		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
 		System.out.println("Feedback loop Controller                 : " + enableController);
 		System.out.println("Splitting into different slots           : " + slotSplit);
+		System.out.println("Parallelism group 01                     : " + parallelisGroup01);
+		System.out.println("Parallelism group 02                     : " + parallelisGroup02);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
@@ -65,42 +70,53 @@ public class TaxiRideCountPreAggregate {
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
 		}
-		String slotGroup01 = "default";
-		String slotGroup02 = "default";
+		String slotGroup01_1 = "default";
+		String slotGroup01_2 = "default";
+		String slotGroup02_1 = "default";
+		String slotGroup02_2 = "default";
 		if (slotSplit) {
-			slotGroup01 = SLOT_GROUP_01_01;
-			slotGroup02 = SLOT_GROUP_01_02;
+			slotGroup01_1 = SLOT_GROUP_01_01;
+			slotGroup01_2 = SLOT_GROUP_01_02;
+			slotGroup02_1 = SLOT_GROUP_02_01;
+			slotGroup02_2 = SLOT_GROUP_02_02;
 		}
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
-		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+		DataStream<TaxiRide> rides01 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_1);
+		DataStream<TaxiRide> rides02 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_2);
+		DataStream<Tuple2<Long, Long>> tuples01 = rides01.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_1);
+		DataStream<Tuple2<Long, Long>> tuples02 = rides02.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_2);
 
-		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
+		DataStream<Tuple2<Long, Long>> preAggregatedStream01 = null;
+		DataStream<Tuple2<Long, Long>> preAggregatedStream02 = null;
 		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
 		if (preAggregationWindowCount == 0) {
 			// NO PRE_AGGREGATE
-			preAggregatedStream = tuples;
+			preAggregatedStream01 = tuples01;
+			preAggregatedStream02 = tuples02;
 		} else {
-			preAggregatedStream = tuples
+			preAggregatedStream01 = tuples01
 				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
+				.name(OPERATOR_PRE_AGGREGATE).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_1);
+			preAggregatedStream02 = tuples02
+				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
+				.name(OPERATOR_PRE_AGGREGATE).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_2);
 		}
 
-		KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream.keyBy(0);
+		KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream01.union(preAggregatedStream02).keyBy(0);
 
 		DataStream<Tuple2<Long, Long>> rideCounts = keyedByDriverId
-			.reduce(new SumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02);
+			.reduce(new SumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).setParallelism(parallelisGroup02).slotSharingGroup(slotGroup02_1);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			rideCounts
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).setParallelism(parallelisGroup02).slotSharingGroup(slotGroup02_1)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).setParallelism(parallelisGroup02).slotSharingGroup(slotGroup02_1);
 		} else {
-			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02);
+			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).setParallelism(parallelisGroup02).slotSharingGroup(slotGroup02_1);
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
-		env.execute(TaxiRideCountPreAggregate.class.getSimpleName());
+		env.execute(TaxiRideCountPreAggregate2.class.getSimpleName());
 	}
 
 	// *************************************************************************

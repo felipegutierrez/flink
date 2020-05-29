@@ -11,7 +11,6 @@ import org.fusesource.mqtt.client.QoS;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.LinkedList;
 import java.util.Map;
 
@@ -39,6 +38,8 @@ public class PreAggregateControllerService extends Thread {
 	// global states
 	private double numRecordsInPerSecondMax;
 	private double numRecordsOutPerSecondMax;
+	private int monitorCount;
+	private boolean inputRecPerSecFlag;
 
 	public PreAggregateControllerService() throws Exception {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
@@ -46,6 +47,8 @@ public class PreAggregateControllerService extends Thread {
 	}
 
 	public PreAggregateControllerService(String brokerServerHost) throws Exception {
+		this.monitorCount = 0;
+		this.inputRecPerSecFlag = false;
 		this.numRecordsOutPerSecondMax = 0.0;
 		this.controllerFrequencySec = 120;
 		this.running = true;
@@ -102,53 +105,57 @@ public class PreAggregateControllerService extends Thread {
 	private int computePreAggregateParameter() {
 		Integer preAggregateParameter = 0;
 		MinCount minCount = new MinCount();
+		int preAggQtd = this.preAggregateListener.preAggregateState.size();
+		int preAggCount = 0;
+		this.inputRecPerSecFlag = false;
 
 		for (Map.Entry<Integer, PreAggregateState> entry : this.preAggregateListener.preAggregateState.entrySet()) {
+			preAggCount++;
 			String label = "";
 			Integer subtaskIndex = entry.getKey();
 			PreAggregateState preAggregateState = entry.getValue();
 
 			int minCountPercent05 = (int) Math.ceil(preAggregateState.getMinCount() * 0.05);
 			int minCountPercent20 = (int) Math.ceil(preAggregateState.getMinCount() * 0.2);
-			int minCountPercent40 = (int) Math.ceil(preAggregateState.getMinCount() * 0.4);
+			int minCountPercent50 = (int) Math.ceil(preAggregateState.getMinCount() * 0.5);
 
-			if (preAggregateState.getOutPoolUsageMean() > 33.0 && preAggregateState.getOutPoolUsage099() >= 50.0) {
+			if (preAggregateState.getOutPoolUsageMin() > 50.0 && preAggregateState.getOutPoolUsageMean() >= 60.0) {
 				// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
 				if (preAggregateState.getOutPoolUsageMin() == 100 && preAggregateState.getOutPoolUsageMax() == 100) {
 					if (preAggregateState.getMinCount() <= 20) {
 						minCount.update(preAggregateState.getMinCount() * 2);
 						label = "+++";
 					} else {
-						// If it is the second time that we see a physical operator overloaded we increase the latency by 40%
+						// minCount.update(preAggregateState.getMinCount() + minCountPercent20);
+						// If it is the second time that we see a physical operator overloaded we increase the latency by 50%
 						if (!minCount.isOverloaded()) {
 							minCount.update(preAggregateState.getMinCount() + minCountPercent20);
 						} else {
-							minCount.update(preAggregateState.getMinCount() + minCountPercent40);
+							minCount.update(preAggregateState.getMinCount() + minCountPercent50);
 						}
 						label = "++";
 					}
-					// If at least one physical operator is overloaded (100%) we consider to increase latency
-					// no matter the state of the any other physical operator
-					minCount.setOverloaded(true);
+					// If half of the physical operator are overloaded (100%) we consider to increase latency anyway
+					if (preAggCount > (preAggQtd / 2)) {
+						minCount.setOverloaded(true);
+					}
 				} else {
 					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
 					label = "+";
-					if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
-						// If the input throughput is close to the max input throughput in 95% invalidate the increase latency action
-						System.out.println("invalidating increasing latency");
-						minCount.setValidate(false);
-					}
-					if (preAggregateState.getNumRecordsOutPerSecond(1) > preAggregateState.getNumRecordsOutPerSecond(0)) {
-						// If the previous OUT Throughput is greater than the current we can cancel the increase latency operation
-						minCount.setValidate(false);
-						// then we reset the global capacity with a real value
-						System.out.println("resetting global capacity: IN[" + preAggregateState.getNumRecordsInPerSecond(1) + "] OUT[" + preAggregateState.getNumRecordsOutPerSecond(1) + "]");
-						this.setGlobalCapacity(preAggregateState.getNumRecordsInPerSecond(1), preAggregateState.getNumRecordsOutPerSecond(1));
-					}
+					//if (this.numRecordsInPerSecondMax != 0 && preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.975)) {
+					// If the input throughput is close to the max input throughput in 97,5% invalidate the increase latency action
+					//	System.out.println("Controller: invalidating increasing latency (input)");
+					//	minCount.setValidate(false);
+					//}
+				}
+				if (this.numRecordsOutPerSecondMax != 0 && preAggregateState.getNumRecordsOutPerSecond() <= (this.numRecordsOutPerSecondMax * 0.80)) {
+					// && (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.975))
+					// If the output throughput is lower than the 80% of the max input throughput invalidate the increase latency action
+					System.out.println("Controller: invalidating increasing latency (output)");
+					minCount.setValidate(false);
 				}
 				this.updateGlobalCapacity(preAggregateState.getNumRecordsInPerSecond(), preAggregateState.getNumRecordsOutPerSecond());
-			} else if (preAggregateState.getOutPoolUsageMean() <= 33.0 && preAggregateState.getOutPoolUsage075() <= 33.0 &&
-				preAggregateState.getOutPoolUsage095() < 50.0) {
+			} else if (preAggregateState.getOutPoolUsageMin() <= 50.0 && preAggregateState.getOutPoolUsageMean() < 60.0) {
 				// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
 				if (preAggregateState.getOutPoolUsageMin() == 25 && preAggregateState.getOutPoolUsageMax() == 25) {
 					minCount.update(preAggregateState.getMinCount() - minCountPercent20);
@@ -180,29 +187,32 @@ public class PreAggregateControllerService extends Thread {
 				// "]99[" + preAggregateState.getLatencyQuantile099() + "]StdDev[" + df.format(preAggregateState.getLatencyStdDev()) + "]" +
 				" IN[" + df.format(preAggregateState.getNumRecordsInPerSecond()) + "]max[" + df.format(this.numRecordsInPerSecondMax) + "]" +
 				" OUT[" + df.format(preAggregateState.getNumRecordsOutPerSecond()) + "]max[" + df.format(this.numRecordsOutPerSecondMax) + "]" +
-				" K" + label + ": " + preAggregateState.getMinCount() + "-[" + minCount.isValidate() + "]" +
-				" t:" + sdf.format(new Date(System.currentTimeMillis()));
+				" K" + label + ": " + preAggregateState.getMinCount() + "-[" + minCount.isValidate() + "]";
+			// " t:" + sdf.format(new Date(System.currentTimeMillis()));
 			System.out.println(msg);
 		}
-		if (minCount.isOverloaded() || minCount.isValidate()) {
+		if (minCount.isValidate()) {
 			preAggregateParameter = minCount.getAverage();
 		}
+		this.monitorCount++;
 		System.out.println("Next global preAgg parameter K: " + preAggregateParameter);
 		return preAggregateParameter;
 	}
 
 	private void updateGlobalCapacity(double numRecordsInPerSecond, double numRecordsOutPerSecond) {
-		if (numRecordsInPerSecond > this.numRecordsInPerSecondMax) {
-			this.numRecordsInPerSecondMax = numRecordsInPerSecond;
+		if (this.monitorCount >= 3) {
+			// update Input throughput
+			if (numRecordsInPerSecond > this.numRecordsInPerSecondMax) {
+				this.numRecordsInPerSecondMax = numRecordsInPerSecond;
+				this.inputRecPerSecFlag = true;
+				this.monitorCount = 0;
+			}
+			// update Output throughput. Only update output if the input was not updated because it could be a spike or
+			// a high data rate fluctuation on the channel
+			if (!this.inputRecPerSecFlag && numRecordsOutPerSecond > this.numRecordsOutPerSecondMax) {
+				this.numRecordsOutPerSecondMax = numRecordsOutPerSecond;
+			}
 		}
-		if (numRecordsOutPerSecond > this.numRecordsOutPerSecondMax) {
-			this.numRecordsOutPerSecondMax = numRecordsOutPerSecond;
-		}
-	}
-
-	private void setGlobalCapacity(double numRecordsInPerSecond, double numRecordsOutPerSecond) {
-		this.numRecordsInPerSecondMax = numRecordsInPerSecond;
-		this.numRecordsOutPerSecondMax = numRecordsOutPerSecond;
 	}
 
 	/**
