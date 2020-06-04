@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.examples.aggregate;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
@@ -29,8 +30,9 @@ public class TaxiRideAveragePreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
+		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
-		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
@@ -41,15 +43,16 @@ public class TaxiRideAveragePreAggregate {
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
-		System.out.println("data source                              : " + input);
-		System.out.println("data sink                                : " + output);
-		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
-		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
-		System.out.println("Feedback loop Controller                 : " + enableController);
-		System.out.println("Splitting into different slots           : " + slotSplit);
-		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
-		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
-		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
+		System.out.println("data source                                             : " + input);
+		System.out.println("data sink                                               : " + output);
+		System.out.println("data sink host:port                                     : " + sinkHost + ":" + sinkPort);
+		System.out.println("data sink topic                                         : " + TOPIC_DATA_SINK);
+		System.out.println("Feedback loop Controller                                : " + enableController);
+		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
+		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
+		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate strategy                                  : " + preAggregateStrategy.getValue());
+		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
 		System.out.println(DataRateListener.class.getSimpleName() + " class to read data rate from file [" + DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
@@ -64,9 +67,15 @@ public class TaxiRideAveragePreAggregate {
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
 		}
-		String slotGroup01 = "default";
-		String slotGroup02 = "default";
-		if (slotSplit) {
+		String slotGroup01 = SLOT_GROUP_DEFAULT;
+		String slotGroup02 = SLOT_GROUP_DEFAULT;
+		if (slotSplit == 0) {
+			slotGroup01 = SLOT_GROUP_DEFAULT;
+			slotGroup02 = SLOT_GROUP_DEFAULT;
+		} else if (slotSplit == 1) {
+			slotGroup01 = SLOT_GROUP_01_01;
+			slotGroup02 = SLOT_GROUP_DEFAULT;
+		} else if (slotSplit == 2) {
 			slotGroup01 = SLOT_GROUP_01_01;
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
@@ -86,16 +95,16 @@ public class TaxiRideAveragePreAggregate {
 		KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 
 		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> averagePassengers = keyedByRandomDriver.reduce(new AveragePassengersReducer())
-			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02);
+			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			averagePassengers
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 		} else {
 			averagePassengers
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02)
-				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());

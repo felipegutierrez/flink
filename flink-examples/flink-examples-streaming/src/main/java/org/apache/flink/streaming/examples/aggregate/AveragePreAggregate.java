@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.examples.aggregate;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
@@ -91,84 +92,96 @@ public class AveragePreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
+		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
+		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
-		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
-		System.out.println("data source                              : " + input);
-		System.out.println("data source host:port                    : " + sourceHost + ":" + sourcePort);
-		System.out.println("data source topic                        : " + TOPIC_DATA_SOURCE);
-		System.out.println("data sink                                : " + output);
-		System.out.println("data sink host:port                      : " + sinkHost + ":" + sinkPort);
-		System.out.println("data sink topic                          : " + TOPIC_DATA_SINK);
-		System.out.println("Feedback loop Controller                 : " + enableController);
-		System.out.println("Splitting into different slots           : " + slotSplit);
-		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
-		System.out.println("pooling frequency [milliseconds]         : " + poolingFrequency);
-		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
-		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
-		// System.out.println("pre-aggregate max items                  : " + maxToPreAggregate);
-		System.out.println("BufferTimeout [milliseconds]             : " + bufferTimeout);
+		System.out.println("data source                                             : " + input);
+		System.out.println("data source host:port                                   : " + sourceHost + ":" + sourcePort);
+		System.out.println("data source topic                                       : " + TOPIC_DATA_SOURCE);
+		System.out.println("data sink                                               : " + output);
+		System.out.println("data sink host:port                                     : " + sinkHost + ":" + sinkPort);
+		System.out.println("data sink topic                                         : " + TOPIC_DATA_SINK);
+		System.out.println("Feedback loop Controller                                : " + enableController);
+		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
+		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
+		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
+		System.out.println("pooling frequency [milliseconds]                        : " + poolingFrequency);
+		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate strategy                                  : " + preAggregateStrategy.getValue());
+		System.out.println("BufferTimeout [milliseconds]                            : " + bufferTimeout);
 		System.out.println("Changing pooling frequency of the data source:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
-		
+
 		if (bufferTimeout != -999) {
 			env.setBufferTimeout(bufferTimeout);
 		}
 		if (disableOperatorChaining) {
 			env.disableOperatorChaining();
 		}
+		String slotGroup01 = SLOT_GROUP_DEFAULT;
+		String slotGroup02 = SLOT_GROUP_DEFAULT;
+		if (slotSplit == 0) {
+			slotGroup01 = SLOT_GROUP_DEFAULT;
+			slotGroup02 = SLOT_GROUP_DEFAULT;
+		} else if (slotSplit == 1) {
+			slotGroup01 = SLOT_GROUP_01_01;
+			slotGroup02 = SLOT_GROUP_DEFAULT;
+		} else if (slotSplit == 2) {
+			slotGroup01 = SLOT_GROUP_01_01;
+			slotGroup02 = SLOT_GROUP_01_02;
+		}
 
 		// get input data
 		DataStream<String> rawSensorValues;
 		if (Strings.isNullOrEmpty(input)) {
-			rawSensorValues = env.addSource(new DataRateSource(new String[0], poolingFrequency)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
+			rawSensorValues = env.addSource(new DataRateSource(new String[0], poolingFrequency)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		} else if (SOURCE_DATA_MQTT.equalsIgnoreCase(input)) {
-			rawSensorValues = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE, sourceHost, sourcePort)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
+			rawSensorValues = env.addSource(new MqttDataSource(TOPIC_DATA_SOURCE, sourceHost, sourcePort)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		} else {
 			// read the text file from given input path
-			rawSensorValues = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
+			rawSensorValues = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
 		// split up the lines in pairs (2-tuples) containing: (word,1)
-		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer())
-			.name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER);
+		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		// Combine the stream
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>,
 			Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction = new SensorValuesSumPreAggregateFunction();
 		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues
 			.combiner(sumPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE);
+			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"
 		KeyedStream<Tuple2<Integer, Tuple2<Double, Integer>>, Tuple> keyedStream = preAggregatedStream.keyBy(0);
 
 		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> resultStream = keyedStream.reduce(new AverageReduceFunction())
-			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER);
+			.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 
 		// emit result
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			resultStream
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 		} else if (output.equalsIgnoreCase(SINK_LOG)) {
-			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
+			resultStream.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
 			resultStream
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-				.writeAsText(params.get("output")).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+				.writeAsText(params.get("output")).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 		} else {
 			System.out.println("Printing result to stdout. Use --output to specify output path.");
 		}
 		resultStream
-			.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT)
-			.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
+			.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+			.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 
 		System.out.println("Execution plan >>>");
 		System.err.println(env.getExecutionPlan());
