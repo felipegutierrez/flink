@@ -33,6 +33,7 @@ public class CommonParameters {
 	// other parameters
 	public static final String PARALLELISM_GROUP_01 = "parallelism-group-01";
 	public static final String PARALLELISM_GROUP_02 = "parallelism-group-02";
+	public static final String SLOT_GROUP_DEFAULT = "default";
 	public static final String SLOT_GROUP_01_01 = "group-01-01";
 	public static final String SLOT_GROUP_01_02 = "group-01-02";
 	public static final String SLOT_GROUP_02_01 = "group-02-01";

@@ -96,10 +96,10 @@ public class TaxiRideCountPreAggregate2 {
 		} else {
 			preAggregatedStream01 = tuples01
 				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-				.name(OPERATOR_PRE_AGGREGATE).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_1);
+				.name(OPERATOR_PRE_AGGREGATE).disableChaining().setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_1);
 			preAggregatedStream02 = tuples02
 				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-				.name(OPERATOR_PRE_AGGREGATE).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_2);
+				.name(OPERATOR_PRE_AGGREGATE).disableChaining().setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_2);
 		}
 
 		KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream01.union(preAggregatedStream02).keyBy(0);
