@@ -148,9 +148,9 @@ public class PreAggregateControllerService extends Thread {
 					//	minCount.setValidate(false);
 					//}
 				}
-				if (this.numRecordsOutPerSecondMax != 0 && preAggregateState.getNumRecordsOutPerSecond() <= (this.numRecordsOutPerSecondMax * 0.80)) {
+				if (this.numRecordsOutPerSecondMax != 0 && preAggregateState.getNumRecordsOutPerSecond() <= (this.numRecordsOutPerSecondMax * 0.90)) {
 					// && (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.975))
-					// If the output throughput is lower than the 80% of the max input throughput invalidate the increase latency action
+					// If the output throughput is lower than the 85% of the max input throughput invalidate the increase latency action
 					System.out.println("Controller: invalidating increasing latency (output)");
 					minCount.setValidate(false);
 				}
