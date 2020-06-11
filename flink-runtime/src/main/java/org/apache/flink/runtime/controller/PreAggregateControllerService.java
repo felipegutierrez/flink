@@ -166,6 +166,10 @@ public class PreAggregateControllerService extends Thread {
 					if (this.numRecordsOutPerSecondMax == 0 || preAggregateState.getNumRecordsOutPerSecond() < this.numRecordsOutPerSecondMax) {
 						minCount.update(preAggregateState.getMinCount() - minCountPercent05);
 						label = "-";
+						if (preAggregateState.getNumRecordsOutPerSecond() >= (this.numRecordsOutPerSecondMax * 0.85)) {
+							// If the output throughput is greater than the max output throughput in 85% invalidate the decrease latency action
+							minCount.setValidate(false);
+						}
 						if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
 							// If the input throughput is close to the max input throughput in 95% invalidate the decrease latency action
 							minCount.setValidate(false);
