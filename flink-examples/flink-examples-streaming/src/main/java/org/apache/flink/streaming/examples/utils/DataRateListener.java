@@ -49,7 +49,7 @@ public class DataRateListener extends Thread implements Serializable {
 					System.out.println(line);
 					if (isNumeric(line)) {
 						if (Long.parseLong(line) > 0) {
-							System.out.println("Reading new frequency to generate Taxi data: " + line + " nanoseconds.");
+							System.out.println("Reading new frequency to generate data: " + line + " nanoseconds.");
 							delayInNanoSeconds = Long.parseLong(line);
 						} else {
 							System.out.println("ERROR: new frequency must be greater or equal to 1.");

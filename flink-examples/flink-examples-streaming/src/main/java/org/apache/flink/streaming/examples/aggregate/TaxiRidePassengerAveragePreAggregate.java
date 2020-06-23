@@ -61,9 +61,6 @@ public class TaxiRidePassengerAveragePreAggregate {
 		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
 		System.out.println("echo \"1000000000\" > " + DataRateListener.DATA_RATE_FILE);
 
-		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
-		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
-
 		// set up streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		if (disableOperatorChaining) {
@@ -82,7 +79,7 @@ public class TaxiRidePassengerAveragePreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Long>>, Tuple2<Integer, Double>,

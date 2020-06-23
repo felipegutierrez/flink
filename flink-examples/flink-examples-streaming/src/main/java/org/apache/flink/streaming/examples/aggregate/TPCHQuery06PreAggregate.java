@@ -1,32 +1,25 @@
 package org.apache.flink.streaming.examples.aggregate;
 
+import io.airlift.tpch.LineItem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
-import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
-import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
-import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
-import org.apache.flink.streaming.examples.aggregate.util.TaxiRideSource;
+import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
 import org.apache.flink.streaming.examples.utils.DataRateListener;
-import org.apache.flink.util.Collector;
-
-import javax.annotation.Nullable;
-import java.util.Map;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
-public class TaxiRideCountPreAggregate {
+/**
+ * 6 Q6 - Forecasting Revenue Change Query
+ * https://docs.deistercloud.com/content/Databases.30/TPCH%20Benchmark.90/Sample%20querys.20.xml
+ */
+public class TPCHQuery06PreAggregate {
 	public static void main(String[] args) throws Exception {
 		ParameterTool params = ParameterTool.fromArgs(args);
-		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
+		final String input = params.get(SOURCE, LINE_ITEM_DATA);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
@@ -39,8 +32,7 @@ public class TaxiRideCountPreAggregate {
 			PreAggregateStrategy.GLOBAL.toString()));
 
 		System.out.println("Download data from:");
-		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
-		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
+		System.out.println("https://docs.deistercloud.com/content/Databases.30/TPCH%20Benchmark.90/Data%20generation%20tool.30.xml");
 		System.out.println("data source                                             : " + input);
 		System.out.println("data sink                                               : " + output);
 		System.out.println("data sink host:port                                     : " + sinkHost + ":" + sinkPort);
@@ -83,42 +75,29 @@ public class TaxiRideCountPreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
-		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+		DataStream<LineItem> lineItems = env.addSource(new LineItemSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 
-		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
-		if (preAggregationWindowCount == 0) {
-			// NO PRE_AGGREGATE
-			preAggregatedStream = tuples;
-		} else {
-			preAggregatedStream = tuples
-				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
-				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-		}
-
-		KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream.keyBy(0);
-
-		DataStream<Tuple2<Long, Long>> rideCounts = keyedByDriverId
-			.reduce(new SumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
-			rideCounts
-				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+			lineItems
+				.map(new LineItemsOutMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
-			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+			lineItems
+				.map(new LineItemsOutMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 		} else {
 			System.out.println("discarding output");
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
-		env.execute(TaxiRideCountPreAggregate.class.getSimpleName());
+		env.execute(TPCHQuery06PreAggregate.class.getSimpleName());
 	}
 
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
+	/*
 	private static class TokenizerMap implements MapFunction<TaxiRide, Tuple2<Long, Long>> {
 		@Override
 		public Tuple2<Long, Long> map(TaxiRide ride) {
@@ -151,11 +130,17 @@ public class TaxiRideCountPreAggregate {
 			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
 		}
 	}
+	*/
 
-	private static class FlatOutputMap implements MapFunction<Tuple2<Long, Long>, String> {
+	private static class LineItemsOutMap implements MapFunction<LineItem, String> {
 		@Override
-		public String map(Tuple2<Long, Long> value) {
-			return value.f0 + " - " + value.f1;
+		public String map(LineItem lineItem) {
+			return lineItem.getOrderKey() + "|" +
+				lineItem.getPartKey() + "|" + lineItem.getSupplierKey() + "|" + lineItem.getLineNumber() + "|" +
+				lineItem.getQuantity() + "|" + lineItem.getExtendedPrice() + "|" + lineItem.getDiscount() + "|" +
+				lineItem.getTax() + "|" + lineItem.getReturnFlag() + "|" + lineItem.getStatus() + "|" +
+				lineItem.getShipDate() + "|" + lineItem.getCommitDate() + "|" + lineItem.getReceiptDate() + "|" +
+				lineItem.getShipInstructions() + "|" + lineItem.getShipMode() + "|" + lineItem.getComment();
 		}
 	}
 }

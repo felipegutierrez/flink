@@ -39,9 +39,6 @@ public class TaxiRideCountPreAggregate2 {
 		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
 			PreAggregateStrategy.GLOBAL.toString()));
 
-		final int maxEventDelay = 60;       // events are out of order by max 60 seconds
-		final int servingSpeedFactor = 600; // events of 10 minutes are served every second
-
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
@@ -81,8 +78,8 @@ public class TaxiRideCountPreAggregate2 {
 			slotGroup02_2 = SLOT_GROUP_02_02;
 		}
 
-		DataStream<TaxiRide> rides01 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_1);
-		DataStream<TaxiRide> rides02 = env.addSource(new TaxiRideSource(input, maxEventDelay, servingSpeedFactor)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_2);
+		DataStream<TaxiRide> rides01 = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_1);
+		DataStream<TaxiRide> rides02 = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_2);
 		DataStream<Tuple2<Long, Long>> tuples01 = rides01.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_1);
 		DataStream<Tuple2<Long, Long>> tuples02 = rides02.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_2);
 

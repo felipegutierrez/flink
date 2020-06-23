@@ -10,6 +10,7 @@ public class CommonParameters {
 	public static final String OPERATOR_SINK = "sink";
 
 	// source parameters
+	public static final String LINE_ITEM_DATA = "/home/flink/tcph-data/lineitem.tbl";
 	public static final String SOURCE = "input";
 	public static final String TOPIC_DATA_SOURCE = "topic-data-source";
 	public static final String SOURCE_DATA_MQTT = "mqtt";
