@@ -10,7 +10,10 @@ public class CommonParameters {
 	public static final String OPERATOR_SINK = "sink";
 
 	// source parameters
-	public static final String LINE_ITEM_DATA = "/home/flink/tcph-data/lineitem.tbl";
+	public static final String TPCH_DATA_LINE_ITEM = "/home/flink/tpch-dbgen/data/lineitem.tbl";
+	public static final String TPCH_DATA_ORDER = "/home/flink/tpch-dbgen/data/orders.tbl";
+	public static final String TPCH_DATA_COSTUMER = "/home/flink/tpch-dbgen/data/customer.tbl";
+	public static final String TPCH_DATA_NATION = "/home/flink/tpch-dbgen/data/nation.tbl";
 	public static final String SOURCE = "input";
 	public static final String TOPIC_DATA_SOURCE = "topic-data-source";
 	public static final String SOURCE_DATA_MQTT = "mqtt";
@@ -40,6 +43,7 @@ public class CommonParameters {
 	public static final String SLOT_GROUP_02_01 = "group-02-01";
 	public static final String SLOT_GROUP_02_02 = "group-02-02";
 	public static final String SLOT_GROUP_02 = "group-02";
+	public static final String MAX_COUNT_SOURCE = "maxCount";
 	public static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
 	public static final String PRE_AGGREGATE_STRATEGY = "strategy";
 	public static final String SLOT_GROUP_SPLIT = "slotSplit";

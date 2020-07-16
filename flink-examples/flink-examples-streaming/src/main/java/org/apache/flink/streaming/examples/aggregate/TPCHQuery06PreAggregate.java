@@ -19,7 +19,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
 public class TPCHQuery06PreAggregate {
 	public static void main(String[] args) throws Exception {
 		ParameterTool params = ParameterTool.fromArgs(args);
-		final String input = params.get(SOURCE, LINE_ITEM_DATA);
+		final String input = params.get(SOURCE, TPCH_DATA_LINE_ITEM);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
@@ -75,7 +75,7 @@ public class TPCHQuery06PreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		DataStream<LineItem> lineItems = env.addSource(new LineItemSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<LineItem> lineItems = env.addSource(new LineItemSource()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {

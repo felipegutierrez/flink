@@ -528,6 +528,35 @@ under the License.
 						</configuration>
 					</execution>
 
+					<!-- TPCHQuery01PreAggregate -->
+					<execution>
+						<id>TPCHQuery01PreAggregate</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>TPCHQuery01PreAggregate</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.aggregate.TPCHQuery01PreAggregate</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>io/airlift/tpch/LineItem.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/LineItemSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/LineItemSource$*.class</include>
+								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
+							</includes>
+						</configuration>
+					</execution>
+
 					<!-- MqttDataProducer -->
 					<execution>
 						<id>MqttDataProducer</id>
@@ -855,6 +884,7 @@ under the License.
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideDistanceAveragePreAggregate.jar" tofile="${project.basedir}/target/TaxiRideDistanceAveragePreAggregate.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideAveragePreAggregate.jar" tofile="${project.basedir}/target/TaxiRideAveragePreAggregate.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideDistanceTopNPreAggregate.jar" tofile="${project.basedir}/target/TaxiRideDistanceTopNPreAggregate.jar" />
+								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TPCHQuery01PreAggregate.jar" tofile="${project.basedir}/target/TPCHQuery01PreAggregate.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-MqttDataProducer.jar" tofile="${project.basedir}/target/MqttDataProducer.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TopNPreAggregate.jar" tofile="${project.basedir}/target/TopNPreAggregate.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-AveragePreAggregate.jar" tofile="${project.basedir}/target/AveragePreAggregate.jar" />
