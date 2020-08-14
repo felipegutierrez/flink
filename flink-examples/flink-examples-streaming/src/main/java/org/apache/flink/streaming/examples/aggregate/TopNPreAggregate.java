@@ -30,7 +30,6 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.examples.aggregate.util.DataRateSource;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSource;
@@ -93,8 +92,6 @@ public class TopNPreAggregate {
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
-			PreAggregateStrategy.GLOBAL.toString()));
 
 		System.out.println("data source                                             : " + input);
 		System.out.println("data source host:port                                   : " + sourceHost + ":" + sourcePort);
@@ -108,7 +105,6 @@ public class TopNPreAggregate {
 		System.out.println("pooling frequency [milliseconds]                        : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
 		System.out.println("topN                                                    : " + topN);
-		System.out.println("pre-aggregate strategy                                  : " + preAggregateStrategy.getValue());
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("BufferTimeout [milliseconds]                            : " + bufferTimeout);
 		System.out.println("Changing pooling frequency of the data source:");
@@ -160,7 +156,7 @@ public class TopNPreAggregate {
 		// Combine the stream
 		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
-			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
+			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController)
 			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 
 		// group by the tuple field "0" and sum up tuple field "1"

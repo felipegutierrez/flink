@@ -1268,6 +1268,29 @@ public class DataStream<T> {
 	}
 
 	/**
+	 * The default combiner uses the autonomous PI controller and start pre-aggregating zero tuples.
+	 * It is only necessary to pass the pre-aggregation UDF.
+	 * @param preAggregateFunction
+	 * @param <R>
+	 * @return
+	 */
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
+		return combiner(preAggregateFunction, 1, true);
+	}
+
+	/**
+	 * It is possible to pass the number of tuples that the default combiner must start pre-aggregating.
+	 * @param preAggregateFunction
+	 * @param preAggWindowCount
+	 * @param <R>
+	 * @return
+	 */
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+													  int preAggWindowCount) {
+		return combiner(preAggregateFunction, preAggWindowCount, true);
+	}
+
+	/**
 	 * This is the static PreAggregate that group tuples until reach @maxToCombine counter.
 	 * If the @maxToCombine is not reach the secondsTimeout ensure to finish the combining.
 	 *
@@ -1278,28 +1301,18 @@ public class DataStream<T> {
 	 */
 	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
 														  int preAggWindowCount,
-														  boolean enableController,
-														  PreAggregateStrategy preAggregateStrategy) {
+														  boolean enableController) {
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
 			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount, preAggregateStrategy);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount);
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		return doTransform("PreAggregate", outType,
 			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
 				keySelector, enableController)));
-	}
-
-	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-														  int preAggWindowCount) {
-		return combiner(preAggregateFunction, preAggWindowCount, true, PreAggregateStrategy.GLOBAL);
-	}
-
-	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
-		return combiner(preAggregateFunction, 100, true, PreAggregateStrategy.GLOBAL);
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(

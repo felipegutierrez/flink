@@ -27,7 +27,6 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.examples.aggregate.util.*;
@@ -101,8 +100,6 @@ public class WordCountPreAggregate {
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean simulateSkew = params.getBoolean(SIMULATE_SKEW, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
-			PreAggregateStrategy.GLOBAL.toString()));
 
 		System.out.println("data source                                             : " + input);
 		System.out.println("data source host:port                                   : " + sourceHost + ":" + sourcePort);
@@ -117,7 +114,6 @@ public class WordCountPreAggregate {
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]                        : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
-		System.out.println("pre-aggregate strategy                                  : " + preAggregateStrategy.getValue());
 		System.out.println("window [seconds]                                        : " + window);
 		System.out.println("BufferTimeout [milliseconds]                            : " + bufferTimeout);
 		System.out.println("Synthetic delay [milliseconds]                          : " + delay);
@@ -194,7 +190,7 @@ public class WordCountPreAggregate {
 			preAggregatedStream = skewed;
 		} else {
 			preAggregatedStream = skewed
-				.combiner(wordCountPreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
+				.combiner(wordCountPreAggregateFunction, preAggregationWindowCount, enableController)
 				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		}
 

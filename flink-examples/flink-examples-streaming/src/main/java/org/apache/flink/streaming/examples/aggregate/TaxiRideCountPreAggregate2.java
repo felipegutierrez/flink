@@ -10,7 +10,6 @@ import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
@@ -36,8 +35,6 @@ public class TaxiRideCountPreAggregate2 {
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean slotSplit = params.getBoolean(SLOT_GROUP_SPLIT, false);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
-			PreAggregateStrategy.GLOBAL.toString()));
 
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
@@ -52,7 +49,6 @@ public class TaxiRideCountPreAggregate2 {
 		System.out.println("Parallelism group 02                     : " + parallelisGroup02);
 		System.out.println("Disable operator chaining                : " + disableOperatorChaining);
 		System.out.println("pre-aggregate window [count]             : " + preAggregationWindowCount);
-		System.out.println("pre-aggregate strategy                   : " + preAggregateStrategy.getValue());
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
 		System.out.println(DataRateListener.class.getSimpleName() + " class to read data rate from file [" + DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
@@ -92,10 +88,10 @@ public class TaxiRideCountPreAggregate2 {
 			preAggregatedStream02 = tuples02;
 		} else {
 			preAggregatedStream01 = tuples01
-				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
+				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
 				.name(OPERATOR_PRE_AGGREGATE).disableChaining().setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_1);
 			preAggregatedStream02 = tuples02
-				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
+				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
 				.name(OPERATOR_PRE_AGGREGATE).disableChaining().setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_2);
 		}
 

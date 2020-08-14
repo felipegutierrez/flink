@@ -1,7 +1,7 @@
 package org.apache.flink.streaming.api.functions.aggregation;
 
 /**
- * Strategies to pre-aggregate items.
+ * Strategies to pre-aggregate items. Only the GLOBAL strategy preserves semantic. The local strategy trigger the combiner in different times which loses the query result semantics.
  * <p>
  * GLOBAL: all the pre-aggregate operators use the same threshold parameter to decide when emit tuples to the shuffle phase.
  * LOCAL: each pre-aggregate operator can use a different threshold parameter to decide when emit tuples to the shuffle phase.

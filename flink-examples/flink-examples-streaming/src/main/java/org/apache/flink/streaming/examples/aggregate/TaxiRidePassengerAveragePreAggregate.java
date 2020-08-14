@@ -10,7 +10,6 @@ import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
@@ -36,8 +35,6 @@ public class TaxiRidePassengerAveragePreAggregate {
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-		PreAggregateStrategy preAggregateStrategy = PreAggregateStrategy.valueOf(params.get(PRE_AGGREGATE_STRATEGY,
-			PreAggregateStrategy.GLOBAL.toString()));
 
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
@@ -50,7 +47,6 @@ public class TaxiRidePassengerAveragePreAggregate {
 		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
-		System.out.println("pre-aggregate strategy                                  : " + preAggregateStrategy.getValue());
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
@@ -85,7 +81,7 @@ public class TaxiRidePassengerAveragePreAggregate {
 		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Long>>, Tuple2<Integer, Double>,
 			Tuple2<Integer, Tuple2<Double, Long>>> taxiRidePreAggregateFunction = new TaxiRidePassengerSumPreAggregateFunction();
 		DataStream<Tuple2<Integer, Tuple2<Double, Long>>> preAggregatedStream = tuples
-			.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController, preAggregateStrategy)
+			.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
 			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 
 		KeyedStream<Tuple2<Integer, Tuple2<Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());

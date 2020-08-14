@@ -11,13 +11,9 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	private transient PreAggregateTriggerCallback callback;
 
 	public PreAggregateTriggerFunction(int maxCount) {
-		this(maxCount, PreAggregateStrategy.GLOBAL);
-	}
-
-	public PreAggregateTriggerFunction(int maxCount, PreAggregateStrategy preAggregateStrategy) {
 		Preconditions.checkArgument(maxCount > 0, "pre-aggregation count must be greater than 0");
 		this.maxCount = maxCount;
-		this.preAggregateStrategy = preAggregateStrategy;
+		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
 		this.previousTime = System.currentTimeMillis();
 	}
 
