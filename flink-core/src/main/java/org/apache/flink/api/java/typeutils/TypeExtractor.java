@@ -206,6 +206,21 @@ public class TypeExtractor {
 			allowMissing);
 	}
 
+	@PublicEvolving
+	public static <IN, OUT> TypeInformation<OUT> getPreAggregateReturnTypes(PreAggregateConcurrentFunction<?, ?, IN, OUT> preAggregateInterface, TypeInformation<IN> inType,
+																			String functionName, boolean allowMissing)
+	{
+		return getUnaryOperatorReturnType(
+			(Function) preAggregateInterface,
+			PreAggregateConcurrentFunction.class,
+			2,
+			3,
+			new int[]{1, 0},
+			inType,
+			functionName,
+			allowMissing);
+	}
+
 	/**
 	 * @deprecated will be removed in a future version
 	 */

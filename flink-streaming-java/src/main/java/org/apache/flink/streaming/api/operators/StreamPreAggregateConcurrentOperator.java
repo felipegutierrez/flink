@@ -1,10 +1,10 @@
 package org.apache.flink.streaming.api.operators;
 
-import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 
-public class StreamPreAggregateOperator<K, V, IN, OUT> extends AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT> {
+public class StreamPreAggregateConcurrentOperator<K, V, IN, OUT> extends AbstractUdfStreamPreAggregateConcurrentOperator<K, V, IN, OUT> {
 	private static final long serialVersionUID = 1L;
 
 	/**
@@ -12,10 +12,10 @@ public class StreamPreAggregateOperator<K, V, IN, OUT> extends AbstractUdfStream
 	 */
 	private final KeySelector<IN, K> keySelector;
 
-	public StreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
-									  PreAggregateTriggerFunction<IN> preAggregateTriggerFunction,
-									  KeySelector<IN, K> keySelector,
-									  boolean enableController) {
+	public StreamPreAggregateConcurrentOperator(PreAggregateConcurrentFunction<K, V, IN, OUT> function,
+												PreAggregateTriggerFunction<IN> preAggregateTriggerFunction,
+												KeySelector<IN, K> keySelector,
+												boolean enableController) {
 		super(function, preAggregateTriggerFunction, enableController);
 		this.keySelector = keySelector;
 	}

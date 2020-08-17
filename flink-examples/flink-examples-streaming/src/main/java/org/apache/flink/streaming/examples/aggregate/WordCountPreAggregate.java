@@ -34,6 +34,7 @@ import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
@@ -54,12 +55,10 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
  *
  * usage: java WordCountPreAggregate \
  *        -pre-aggregate-window [>0 items] \
- *        -strategy [GLOBAL, LOCAL, PER_KEY] \
+ *        -pre-aggregate-window-timeout [>0 seconds] \
+ *        -controller [true] \
  *        -input [mqtt|hamlet|mobydick|dictionary|words|skew|few|variation] \
  *        -sourceHost [127.0.0.1] -sourcePort [1883] \
- *        -simulateSkew [false] \
- *        -controller [60] \
- *        -pooling 100 \ # pooling frequency from source if not using mqtt data source
  *        -output [mqtt|log|text] \
  *        -sinkHost [127.0.0.1] -sinkPort [1883] \
  *        -slotSplit [false] -disableOperatorChaining [false] \
@@ -67,7 +66,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
  *        -latencyTrackingInterval [0]
  *
  * Running on the IDE:
- * usage: java WordCountPreAggregate [parameters]
+ * usage: java WordCountPreAggregate -pre-aggregate-window-timeout 1 -controller false -output mqtt -sinkHost 127.0.0.1
  *
  * </pre>
  */
@@ -92,6 +91,7 @@ public class WordCountPreAggregate {
 		int window = params.getInt(WINDOW, 0);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
@@ -109,11 +109,12 @@ public class WordCountPreAggregate {
 		System.out.println("data sink topic                                         : " + TOPIC_DATA_SINK);
 		System.out.println("Simulating skew                                         : " + simulateSkew);
 		System.out.println("Feedback loop Controller                                : " + enableController);
+		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]                        : " + poolingFrequency);
-		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
 		System.out.println("window [seconds]                                        : " + window);
 		System.out.println("BufferTimeout [milliseconds]                            : " + bufferTimeout);
 		System.out.println("Synthetic delay [milliseconds]                          : " + delay);
@@ -183,12 +184,18 @@ public class WordCountPreAggregate {
 
 		// Combine the stream
 		DataStream<Tuple2<String, Integer>> preAggregatedStream = null;
-		PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
-
-		if (preAggregationWindowCount == 0) {
-			// NO PRE_AGGREGATE
+		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+			// no combiner
 			preAggregatedStream = skewed;
+		} else if (enableController == false && preAggregationWindowTimer > 0) {
+			// static combiner based on timeout
+			PreAggregateConcurrentFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateConcurrentFunction(delay);
+			preAggregatedStream = skewed
+				.combiner(wordCountPreAggregateFunction, preAggregationWindowTimer)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		} else {
+			// dynamic combiner with PI controller
+			PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
 			preAggregatedStream = skewed
 				.combiner(wordCountPreAggregateFunction, preAggregationWindowCount, enableController)
 				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
@@ -277,6 +284,32 @@ public class WordCountPreAggregate {
 
 		@Override
 		public void collect(Map<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) {
+			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
+				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
+			}
+		}
+	}
+
+	private static class WordCountPreAggregateConcurrentFunction
+		extends PreAggregateConcurrentFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
+		private long milliseconds = 0;
+
+		public WordCountPreAggregateConcurrentFunction(long milliseconds) {
+			this.milliseconds = milliseconds;
+		}
+
+		@Override
+		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) throws InterruptedException {
+			Thread.sleep(milliseconds);
+			if (value == null) {
+				return input.f1;
+			} else {
+				return value + input.f1;
+			}
+		}
+
+		@Override
+		public void collect(ConcurrentMap<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) {
 			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}

@@ -45,6 +45,7 @@ public class CommonParameters {
 	public static final String SLOT_GROUP_02 = "group-02";
 	public static final String MAX_COUNT_SOURCE = "maxCount";
 	public static final String PRE_AGGREGATE_WINDOW = "pre-aggregate-window";
+	public static final String PRE_AGGREGATE_WINDOW_TIMEOUT = "pre-aggregate-window-timeout";
 	public static final String PRE_AGGREGATE_STRATEGY = "strategy";
 	public static final String SLOT_GROUP_SPLIT = "slotSplit";
 	public static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";

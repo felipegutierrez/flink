@@ -1,7 +1,7 @@
 package org.apache.flink.streaming.api.operators;
 
 import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
@@ -16,14 +16,14 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.functions.PreAggLatencyMeanGauge;
 import org.apache.flink.streaming.util.functions.PreAggParamGauge;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
-	extends AbstractUdfStreamOperator<OUT, PreAggregateFunction<K, V, IN, OUT>>
+public abstract class AbstractUdfStreamPreAggregateConcurrentOperator<K, V, IN, OUT>
+	extends AbstractUdfStreamOperator<OUT, PreAggregateConcurrentFunction<K, V, IN, OUT>>
 	implements OneInputStreamOperator<IN, OUT>, PreAggregateTriggerCallback {
 
 	private static final long serialVersionUID = 1L;
@@ -35,7 +35,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	/**
 	 * The map in heap to store elements.
 	 */
-	private final Map<K, V> bundle;
+	private final ConcurrentMap<K, V> bundle;
 
 	/**
 	 * The trigger that determines how many elements should be put into a bundle.
@@ -70,13 +70,13 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	 * @param function
 	 * @param preAggregateTriggerFunction
 	 */
-	public AbstractUdfStreamPreAggregateOperator(PreAggregateFunction<K, V, IN, OUT> function,
-												 PreAggregateTriggerFunction<IN> preAggregateTriggerFunction,
-												 boolean enableController) {
+	public AbstractUdfStreamPreAggregateConcurrentOperator(PreAggregateConcurrentFunction<K, V, IN, OUT> function,
+														   PreAggregateTriggerFunction<IN> preAggregateTriggerFunction,
+														   boolean enableController) {
 		super(function);
 		this.chainingStrategy = ChainingStrategy.ALWAYS;
 		this.enableController = enableController;
-		this.bundle = new HashMap<>();
+		this.bundle = new ConcurrentHashMap<>();
 		this.preAggregateTriggerFunction = checkNotNull(preAggregateTriggerFunction, "bundleTrigger is null");
 	}
 

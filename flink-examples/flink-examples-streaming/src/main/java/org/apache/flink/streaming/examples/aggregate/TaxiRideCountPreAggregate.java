@@ -2,6 +2,7 @@ package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple;
@@ -19,6 +20,7 @@ import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
@@ -30,6 +32,7 @@ public class TaxiRideCountPreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
@@ -42,10 +45,11 @@ public class TaxiRideCountPreAggregate {
 		System.out.println("data sink                                               : " + output);
 		System.out.println("data sink host:port                                     : " + sinkHost + ":" + sinkPort);
 		System.out.println("data sink topic                                         : " + TOPIC_DATA_SINK);
-		System.out.println("Feedback loop Controller                                : " + enableController);
 		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
+		System.out.println("Feedback loop Controller                                : " + enableController);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
@@ -83,11 +87,18 @@ public class TaxiRideCountPreAggregate {
 		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
-		if (preAggregationWindowCount == 0) {
-			// NO PRE_AGGREGATE
+		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+			// no combiner
 			preAggregatedStream = tuples;
+		} else if (enableController == false && preAggregationWindowTimer > 0) {
+			// static combiner based on timeout
+			PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideCountPreAggregateConcurrentFunction();
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowTimer)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
 		} else {
+			// dynamic combiner with PI controller
+			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
 			preAggregatedStream = tuples
 				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
@@ -124,6 +135,7 @@ public class TaxiRideCountPreAggregate {
 
 	private static class TaxiRideCountPreAggregateFunction
 		extends PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> {
+
 		@Override
 		public Long addInput(@Nullable Long value, Tuple2<Long, Long> input) throws Exception {
 			if (value == null) {
@@ -134,7 +146,27 @@ public class TaxiRideCountPreAggregate {
 		}
 
 		@Override
-		public void collect(Map<Long, Long> buffer, Collector<Tuple2<Long, Long>> out) throws Exception {
+		public void collect(Map<Long, Long> buffer, Collector<Tuple2<Long, Long>> out) {
+			for (Map.Entry<Long, Long> entry : buffer.entrySet()) {
+				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
+			}
+		}
+	}
+
+	private static class TaxiRideCountPreAggregateConcurrentFunction
+		extends PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> {
+
+		@Override
+		public Long addInput(@Nullable Long value, Tuple2<Long, Long> input) throws Exception {
+			if (value == null) {
+				return input.f1;
+			} else {
+				return value + input.f1;
+			}
+		}
+
+		@Override
+		public void collect(ConcurrentMap<Long, Long> buffer, Collector<Tuple2<Long, Long>> out) {
 			for (Map.Entry<Long, Long> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}

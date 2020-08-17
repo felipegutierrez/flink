@@ -18,10 +18,7 @@
 package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -38,6 +35,7 @@ import org.apache.flink.util.Collector;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
@@ -86,6 +84,7 @@ public class TopNPreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
+		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int topN = params.getInt(TOP_N, 10);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
@@ -104,6 +103,7 @@ public class TopNPreAggregate {
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]                        : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("topN                                                    : " + topN);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("BufferTimeout [milliseconds]                            : " + bufferTimeout);
@@ -154,10 +154,22 @@ public class TopNPreAggregate {
 		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		// Combine the stream
-		PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
-		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = sensorValues
-			.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController)
-			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = null;
+		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+			// no combiner
+			// preAggregatedStream = sensorValues;
+		} else if (enableController == false && preAggregationWindowTimer > 0) {
+			// static combiner based on timeout
+			PreAggregateConcurrentFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateConcurrentFunction(topN);
+			preAggregatedStream = sensorValues
+				.combiner(topNPreAggregateFunction, preAggregationWindowTimer)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		} else {
+			PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TopNPreAggregateFunction(topN);
+			preAggregatedStream = sensorValues
+				.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
 		KeyedStream<Tuple2<Integer, Double[]>, Tuple> keyedStream = preAggregatedStream
@@ -250,6 +262,47 @@ public class TopNPreAggregate {
 
 		@Override
 		public void collect(Map<Integer, Double[]> buffer, Collector<Tuple2<Integer, Double[]>> out) throws Exception {
+			for (Map.Entry<Integer, Double[]> entry : buffer.entrySet()) {
+				Double[] values = entry.getValue();
+				out.collect(Tuple2.of(entry.getKey(), values));
+			}
+		}
+	}
+
+	private static class TopNPreAggregateConcurrentFunction
+		extends PreAggregateConcurrentFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> {
+		private final Double MIN_VALUE = -999999.9;
+		private final int topN;
+
+		public TopNPreAggregateConcurrentFunction(int topN) {
+			this.topN = topN;
+		}
+
+		@Override
+		public Double[] addInput(@Nullable Double[] value, Tuple2<Integer, Double> input) throws Exception {
+			if (value == null) {
+				value = new Double[this.topN];
+				for (int i = 0; i < this.topN; i++) {
+					if (i == this.topN - 1) {
+						value[i] = input.f1;
+					} else {
+						value[i] = MIN_VALUE;
+					}
+				}
+			} else {
+				Arrays.sort(value);
+				for (int i = this.topN - 1; i >= 0; i--) {
+					if (value[i] < input.f1) {
+						value[i] = input.f1;
+						break;
+					}
+				}
+			}
+			return value;
+		}
+
+		@Override
+		public void collect(ConcurrentMap<Integer, Double[]> buffer, Collector<Tuple2<Integer, Double[]>> out) throws Exception {
 			for (Map.Entry<Integer, Double[]> entry : buffer.entrySet()) {
 				Double[] values = entry.getValue();
 				out.collect(Tuple2.of(entry.getKey(), values));

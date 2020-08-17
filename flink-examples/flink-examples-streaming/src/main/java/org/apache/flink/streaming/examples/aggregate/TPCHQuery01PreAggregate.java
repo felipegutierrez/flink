@@ -3,6 +3,7 @@ package org.apache.flink.streaming.examples.aggregate;
 import io.airlift.tpch.LineItem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -18,6 +19,7 @@ import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
@@ -48,6 +50,11 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
  *        l_returnflag,
  *        l_linestatus;
  * </pre>
+ * <p>
+ * /bin/flink run TPCHQuery01PreAggregate.jar -pre-aggregate-window 1 -output mqtt -sinkHost 130.239.48.135
+ * /bin/flink run TPCHQuery01PreAggregate.jar -pre-aggregate-window 1 -output mqtt -sinkHost 130.239.48.135 -slotSplit 1 -parallelism-group-01 16 -parallelism-group-02 16
+ * /bin/flink run TPCHQuery01PreAggregate.jar -pre-aggregate-window 1 -output mqtt -sinkHost 130.239.48.135 -slotSplit 1 -parallelism-group-02 16
+ * /bin/flink run TPCHQuery01PreAggregate.jar -pre-aggregate-window 1 -output mqtt -sinkHost 130.239.48.135 -slotSplit 1 -parallelism-group-02 24
  */
 public class TPCHQuery01PreAggregate {
 	public static void main(String[] args) throws Exception {
@@ -58,6 +65,7 @@ public class TPCHQuery01PreAggregate {
 		String output = params.get(SINK, SINK_TEXT);
 		int maxCount = params.getInt(MAX_COUNT_SOURCE, -1);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
@@ -74,6 +82,7 @@ public class TPCHQuery01PreAggregate {
 		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
@@ -112,12 +121,26 @@ public class TPCHQuery01PreAggregate {
 		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemsMap = lineItems
 			.map(new LineItemToTuple11Map()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
-		PreAggregateFunction<String,
-			Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
-			Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
-			Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemPreAggUDF = new LineItemSumPreAgg();
-		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemsCombined = lineItemsMap
-			.combiner(lineItemPreAggUDF, preAggregationWindowCount, enableController).disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemsCombined = null;
+		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+			// no combiner
+			lineItemsCombined = lineItemsMap;
+		} else if (enableController == false && preAggregationWindowTimer > 0) {
+			// static combiner based on timeout
+			PreAggregateConcurrentFunction<String,
+				Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
+				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
+				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemPreAggUDF = new LineItemSumPreAggConcurrent();
+			lineItemsCombined = lineItemsMap
+				.combiner(lineItemPreAggUDF, preAggregationWindowTimer).disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		} else {
+			PreAggregateFunction<String,
+				Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
+				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
+				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemPreAggUDF = new LineItemSumPreAgg();
+			lineItemsCombined = lineItemsMap
+				.combiner(lineItemPreAggUDF, preAggregationWindowCount, enableController).disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		}
 
 		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> sumAndAvgLineItems = lineItemsCombined
 			.keyBy(new LineItemFlagAndStatusKeySelector())
@@ -213,6 +236,44 @@ public class TPCHQuery01PreAggregate {
 
 		@Override
 		public void collect(Map<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> buffer,
+							Collector<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> out) throws Exception {
+			for (Map.Entry<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> entry : buffer.entrySet()) {
+				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
+			}
+		}
+	}
+
+	private static class LineItemSumPreAggConcurrent extends PreAggregateConcurrentFunction<String,
+		Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
+		Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
+		Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> {
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long> addInput(
+			@Nullable Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long> value,
+			Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> input) throws Exception {
+			if (value == null) {
+				return input.f1;
+			} else {
+				String flag = input.f1.f0;
+				String status = input.f1.f1;
+				Long sumQty = input.f1.f2 + value.f2;
+				Double sumBasePrice = input.f1.f3 + value.f3;
+				Double sumDisc = input.f1.f4 + value.f4;
+				Double sumDiscPrice = input.f1.f5 + value.f5;
+				Double sumCharge = input.f1.f6 + value.f6;
+				Long avgQty = 0L;
+				Double avgBasePrice = 0.0;
+				Double avgDisc = 0.0;
+				Long count = input.f1.f10 + value.f10;
+
+				return Tuple11.of(flag, status, sumQty, sumBasePrice, sumDisc, sumDiscPrice, sumCharge, avgQty, avgBasePrice, avgDisc, count);
+			}
+		}
+
+		@Override
+		public void collect(ConcurrentMap<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> buffer,
 							Collector<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> out) throws Exception {
 			for (Map.Entry<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));

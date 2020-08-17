@@ -22,9 +22,13 @@ public interface PreAggregateTrigger<T> extends Serializable {
 	 */
 	void reset();
 
+	void timeTrigger() throws Exception;
+
 	String explain();
 
 	int getMaxCount();
+
+	long getMaxTime();
 
 	void setMaxCount(int minCount, int subtaskIndex);
 

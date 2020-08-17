@@ -5,16 +5,27 @@ import org.apache.flink.util.Preconditions;
 public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
 	private final PreAggregateStrategy preAggregateStrategy;
-	private final long previousTime;
+	private final long maxTime;
 	private int maxCount;
 	private transient int count = 0;
 	private transient PreAggregateTriggerCallback callback;
 
+	public PreAggregateTriggerFunction() {
+		this(1);
+	}
+
 	public PreAggregateTriggerFunction(int maxCount) {
-		Preconditions.checkArgument(maxCount > 0, "pre-aggregation count must be greater than 0");
+		Preconditions.checkArgument(maxCount > 0, "when pre-aggregation time is not considered the pre-aggregation count must be greater than 0");
 		this.maxCount = maxCount;
+		this.maxTime = -1L;
 		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
-		this.previousTime = System.currentTimeMillis();
+	}
+
+	public PreAggregateTriggerFunction(long maxTime) {
+		Preconditions.checkArgument(maxTime > 0, "when pre-aggregation is static maxTime must be greater than 0.");
+		this.maxCount = -1;
+		this.maxTime = maxTime;
+		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
 	}
 
 	@Override
@@ -24,11 +35,17 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
 	@Override
 	public void onElement(T element) throws Exception {
-		this.count++;
-		if (this.count >= this.maxCount) {
-			this.callback.collect();
-			reset();
+		if (this.maxCount > 0) {
+			this.count++;
+			if (this.count >= this.maxCount) {
+				this.callback.collect();
+				reset();
+			}
 		}
+	}
+
+	public void timeTrigger() throws Exception {
+		this.callback.collect();
 	}
 
 	@Override
@@ -44,6 +61,11 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	@Override
 	public int getMaxCount() {
 		return this.maxCount;
+	}
+
+	@Override
+	public long getMaxTime() {
+		return this.maxTime;
 	}
 
 	@Override

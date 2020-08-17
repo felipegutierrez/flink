@@ -18,10 +18,7 @@
 package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.*;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
@@ -37,6 +34,7 @@ import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
@@ -91,6 +89,7 @@ public class AveragePreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		int poolingFrequency = params.getInt(POOLING_FREQUENCY, 0);
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
+		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		long bufferTimeout = params.getLong(BUFFER_TIMEOUT, -999);
@@ -109,6 +108,7 @@ public class AveragePreAggregate {
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("pooling frequency [milliseconds]                        : " + poolingFrequency);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("BufferTimeout [milliseconds]                            : " + bufferTimeout);
 		System.out.println("Changing pooling frequency of the data source:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-data-source -m \"100\"");
@@ -149,11 +149,25 @@ public class AveragePreAggregate {
 		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		// Combine the stream
-		PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>,
-			Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction = new SensorValuesSumPreAggregateFunction();
-		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = sensorValues
-			.combiner(sumPreAggregateFunction, preAggregationWindowCount, enableController)
-			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		DataStream<Tuple2<Integer, Tuple2<Double, Integer>>> preAggregatedStream = null;
+		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+			// no combiner
+			preAggregatedStream = sensorValues.map(new SensorMapFunction());
+		} else if (enableController == false && preAggregationWindowTimer > 0) {
+			// static combiner based on timeout
+			PreAggregateConcurrentFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>,
+				Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction = new SensorValuesSumPreAggregateConcurrentFunction();
+			preAggregatedStream = sensorValues
+				.combiner(sumPreAggregateFunction, preAggregationWindowTimer)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		} else {
+			// dynamic combiner with PI controller
+			PreAggregateFunction<Integer, Tuple2<Integer, Tuple2<Double, Integer>>, Tuple2<Integer, Double>,
+				Tuple2<Integer, Tuple2<Double, Integer>>> sumPreAggregateFunction = new SensorValuesSumPreAggregateFunction();
+			preAggregatedStream = sensorValues
+				.combiner(sumPreAggregateFunction, preAggregationWindowCount, enableController)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
 		KeyedStream<Tuple2<Integer, Tuple2<Double, Integer>>, Tuple> keyedStream = preAggregatedStream.keyBy(0);
@@ -208,6 +222,13 @@ public class AveragePreAggregate {
 		}
 	}
 
+	private static class SensorMapFunction implements MapFunction<Tuple2<Integer, Double>, Tuple2<Integer, Tuple2<Double, Integer>>> {
+		@Override
+		public Tuple2<Integer, Tuple2<Double, Integer>> map(Tuple2<Integer, Double> value) throws Exception {
+			return Tuple2.of(value.f0, Tuple2.of(value.f1, 1));
+		}
+	}
+
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
@@ -236,6 +257,29 @@ public class AveragePreAggregate {
 
 		@Override
 		public void collect(Map<Integer, Tuple2<Integer, Tuple2<Double, Integer>>> buffer, Collector<Tuple2<Integer, Tuple2<Double, Integer>>> out) throws Exception {
+			for (Map.Entry<Integer, Tuple2<Integer, Tuple2<Double, Integer>>> entry : buffer.entrySet()) {
+				out.collect(Tuple2.of(entry.getKey(), Tuple2.of(entry.getValue().f1.f0, entry.getValue().f1.f1)));
+			}
+		}
+	}
+
+	private static class SensorValuesSumPreAggregateConcurrentFunction
+		extends PreAggregateConcurrentFunction<Integer,
+		Tuple2<Integer, Tuple2<Double, Integer>>,
+		Tuple2<Integer, Double>,
+		Tuple2<Integer, Tuple2<Double, Integer>>> {
+
+		@Override
+		public Tuple2<Integer, Tuple2<Double, Integer>> addInput(@Nullable Tuple2<Integer, Tuple2<Double, Integer>> value, Tuple2<Integer, Double> input) throws Exception {
+			if (value == null) {
+				return Tuple2.of(input.f0, Tuple2.of(input.f1, 1));
+			} else {
+				return Tuple2.of(input.f0, Tuple2.of(value.f1.f0 + input.f1, value.f1.f1 + 1));
+			}
+		}
+
+		@Override
+		public void collect(ConcurrentMap<Integer, Tuple2<Integer, Tuple2<Double, Integer>>> buffer, Collector<Tuple2<Integer, Tuple2<Double, Integer>>> out) throws Exception {
 			for (Map.Entry<Integer, Tuple2<Integer, Tuple2<Double, Integer>>> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), Tuple2.of(entry.getValue().f1.f0, entry.getValue().f1.f1)));
 			}

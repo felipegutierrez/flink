@@ -2,6 +2,7 @@ package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -18,6 +19,7 @@ import org.apache.flink.util.Collector;
 import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
@@ -29,6 +31,7 @@ public class TaxiRideAveragePreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
@@ -45,6 +48,7 @@ public class TaxiRideAveragePreAggregate {
 		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
@@ -76,14 +80,30 @@ public class TaxiRideAveragePreAggregate {
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		DataStream<Tuple4<Integer, Double, Double, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
-		PreAggregateFunction<Integer,
-			Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
-			Tuple4<Integer, Double, Double, Double>,
-			Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
+		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = null;
+		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+			// no combiner
+			// preAggregatedStream = tuples;
+		} else if (enableController == false && preAggregationWindowTimer > 0) {
+			// static combiner based on timeout
+			PreAggregateConcurrentFunction<Integer,
+				Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
+				Tuple4<Integer, Double, Double, Double>,
+				Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateConcurrentFunction();
 
-		DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = tuples
-			.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
-			.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateFunction, preAggregationWindowTimer)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		} else {
+			PreAggregateFunction<Integer,
+				Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
+				Tuple4<Integer, Double, Double, Double>,
+				Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
+
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+		}
 
 		KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 
@@ -165,6 +185,41 @@ public class TaxiRideAveragePreAggregate {
 
 		@Override
 		public void collect(Map<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> buffer, Collector<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> out) throws Exception {
+			for (Map.Entry<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> entry : buffer.entrySet()) {
+				Double passengers = entry.getValue().f1.f0;
+				Double distances = entry.getValue().f1.f1;
+				Double elapsedTimeMinutes = entry.getValue().f1.f2;
+				Long driverIdCount = entry.getValue().f1.f3;
+				out.collect(Tuple2.of(entry.getKey(), Tuple4.of(passengers, distances, elapsedTimeMinutes, driverIdCount)));
+			}
+		}
+	}
+
+	private static class TaxiRideSumPreAggregateConcurrentFunction
+		extends PreAggregateConcurrentFunction<Integer,
+		Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
+		Tuple4<Integer, Double, Double, Double>,
+		Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> {
+
+		@Override
+		public Tuple2<Integer, Tuple4<Double, Double, Double, Long>> addInput(@Nullable Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value, Tuple4<Integer, Double, Double, Double> input) throws Exception {
+			Integer randomKey = input.f0;
+			if (value == null) {
+				Double passengers = input.f1;
+				Double distances = input.f2;
+				Double elapsedTimeMinutes = input.f3;
+				return Tuple2.of(randomKey, Tuple4.of(passengers, distances, elapsedTimeMinutes, 1L));
+			} else {
+				Double passengers = input.f1 + value.f1.f0;
+				Double distances = input.f2 + value.f1.f1;
+				Double elapsedTimeMinutes = input.f3 + value.f1.f2;
+				Long count = value.f1.f3 + 1;
+				return Tuple2.of(randomKey, Tuple4.of(passengers, distances, elapsedTimeMinutes, count));
+			}
+		}
+
+		@Override
+		public void collect(ConcurrentMap<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> buffer, Collector<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> out) throws Exception {
 			for (Map.Entry<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> entry : buffer.entrySet()) {
 				Double passengers = entry.getValue().f1.f0;
 				Double distances = entry.getValue().f1.f1;

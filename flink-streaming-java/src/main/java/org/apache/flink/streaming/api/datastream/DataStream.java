@@ -36,7 +36,6 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.io.CsvOutputFormat;
 import org.apache.flink.api.java.io.TextOutputFormat;
 import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.InputTypeConfigurable;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.core.fs.FileSystem.WriteMode;
@@ -46,7 +45,6 @@ import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.*;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateStrategy;
 import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
@@ -75,6 +73,8 @@ import org.apache.flink.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A DataStream represents a stream of elements of the same type. A DataStream
@@ -1300,8 +1300,8 @@ public class DataStream<T> {
 	 * @return The transformed {@link DataStream} constructed.
 	 */
 	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-														  int preAggWindowCount,
-														  boolean enableController) {
+													   int preAggWindowCount,
+													   boolean enableController) {
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
@@ -1313,6 +1313,29 @@ public class DataStream<T> {
 		return doTransform("PreAggregate", outType,
 			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
 				keySelector, enableController)));
+	}
+
+	/**
+	 * When the combiner receives only the pre-aggregation by time (SECONDS) it assumes a static combiner and
+	 * the controller is turned off.
+	 * @param preAggregateFunction
+	 * @param preAggWindowTime
+	 * @param <R>
+	 * @return
+	 */
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateConcurrentFunction<?, ?, T, R> preAggregateFunction,
+													  long preAggWindowTime) {
+		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+			clean(preAggregateFunction),
+			getType(),
+			Utils.getCallLocationName(),
+			false);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowTime);
+		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+
+		return doTransform("PreAggregate", outType,
+			SimpleOperatorFactory.of(new StreamPreAggregateConcurrentOperator(preAggregateFunction, preAggregateTriggerFunction,
+				keySelector, false)));
 	}
 
 	protected <R> SingleOutputStreamOperator<R> doTransform(
