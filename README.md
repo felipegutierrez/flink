@@ -21,17 +21,19 @@ echo "10000" > /tmp/datarate.txt   # 100K rec/sec
 echo "2000" > /tmp/datarate.txt    # 500K rec/sec
 echo "1000" > /tmp/datarate.txt    # 1M rec/sec
 ```
-Running the **static combiner** with 8 combiners and 8-16-24 reducers:
+Running the **static combiner** with 8 combiners and 8-16-24 reducers, or with parallelism 16 for all:
 ```
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
+./bin/flink run -p 16 ../flink-applications/TaxiRideCountPreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r04
 ```
-Running the **autonomous combiner** with 8 combiners and 8-16-24 reducers:
+Running the **autonomous combiner** with 8 combiners and 8-16-24 reducers, or with parallelism 16 for all:
 ```
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
+./bin/flink run -p 16 ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r04
 ```
 
 Checkout the [Flink dashboard](http://127.0.0.1:8081/) and the [Grafana dashboard](http://127.0.0.1:3000/).
