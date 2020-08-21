@@ -22,7 +22,7 @@ echo "2000" > /tmp/datarate.txt    # 500K rec/sec
 echo "1000" > /tmp/datarate.txt    # 1M rec/sec
 ```
 ### Taxi ride event count query
-This query is available at this [TaxiRideCountPreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate.java).
+This query is available at this [TaxiRideCountPreAggregate.java](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate.java).
 ```
 StreamExecutionEnvironment env = ...;
 env.addSource(new TaxiRideSourceUDF())
@@ -47,7 +47,7 @@ Running the **autonomous combiner** with 8 combiners and 8-16-24 reducers, or wi
 ./bin/flink run -p 16 ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r04
 ```
 ### Taxi ride top-N query
-This query is available at this [TaxiRideDistanceTopNPreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceTopNPreAggregate.java).
+This query is available at this [TaxiRideDistanceTopNPreAggregate.java](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceTopNPreAggregate.java).
 ```
 StreamExecutionEnvironment env = ...;
 env.addSource(new TaxiRideSourceUDF())
@@ -58,7 +58,7 @@ env.addSource(new TaxiRideSourceUDF())
    .sink(new PrintUDF());
 ```
 ### Taxi ride average query
-This query is available at this [TaxiRideAveragePreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideAveragePreAggregate.java).
+This query is available at this [TaxiRideAveragePreAggregate.java](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideAveragePreAggregate.java).
 ```
 StreamExecutionEnvironment env = ...;
 env.addSource(new TaxiRideSourceUDF())
@@ -69,7 +69,7 @@ env.addSource(new TaxiRideSourceUDF())
    .sink(new PrintUDF());
 ```
 ### TPC-H benchmark query 01
-This query is available at this [TPCHQuery01PreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate.java).
+This query is available at this [TPCHQuery01PreAggregate.java](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate.java).
 ```
 StreamExecutionEnvironment env = ...;
 env.addSource(new LineItemSourceUDF())
