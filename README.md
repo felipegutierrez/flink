@@ -21,6 +21,17 @@ echo "10000" > /tmp/datarate.txt   # 100K rec/sec
 echo "2000" > /tmp/datarate.txt    # 500K rec/sec
 echo "1000" > /tmp/datarate.txt    # 1M rec/sec
 ```
+### Taxi ride event count query
+This query is available at this [TaxiRideCountPreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate.java).
+```
+StreamExecutionEnvironment env = ...;
+env.addSource(new TaxiRideSourceUDF())
+   .map(new TaxiRideTupleUDF())
+   .combiner(new TaxiRideSumUDF())
+   .keyBy(new TaxiRideKeySelectorUDF())
+   .reduce(new TaxiRideSumUDF())
+   .sink(new PrintUDF());
+```
 Running the **static combiner** with 8 combiners and 8-16-24 reducers, or with parallelism 16 for all:
 ```
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
@@ -34,6 +45,39 @@ Running the **autonomous combiner** with 8 combiners and 8-16-24 reducers, or wi
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ./bin/flink run ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ./bin/flink run -p 16 ../flink-applications/TaxiRideCountPreAggregate.jar -controller true -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r04
+```
+### Taxi ride top-N query
+This query is available at this [TaxiRideDistanceTopNPreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceTopNPreAggregate.java).
+```
+StreamExecutionEnvironment env = ...;
+env.addSource(new TaxiRideSourceUDF())
+   .map(new TaxiRideTupleUDF())
+   .combiner(new TopNPassengerPreAggUDF(100))
+   .keyBy(new TaxiRideKeySelectorUDF())
+   .reduce(new TopNPassengerReducerUDF(100))
+   .sink(new PrintUDF());
+```
+### Taxi ride average query
+This query is available at this [TaxiRideAveragePreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideAveragePreAggregate.java).
+```
+StreamExecutionEnvironment env = ...;
+env.addSource(new TaxiRideSourceUDF())
+   .map(new TaxiRideTupleUDF())
+   .combiner(new TaxiRideCountSumUDF())
+   .keyBy(new TaxiRideKeySelectorUDF())
+   .reduce(new TaxiRideAvgReducerUDF())
+   .sink(new PrintUDF());
+```
+### TPC-H benchmark query 01
+This query is available at this [TPCHQuery01PreAggregate.java](blob/master/flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate.java).
+```
+StreamExecutionEnvironment env = ...;
+env.addSource(new LineItemSourceUDF())
+   .map(new LineItemToTupleUDF())
+   .combiner(new LineItemCountSumUDF())
+   .keyBy(new LineItemKeySelectorUDF())
+   .reduce(new LineItemAvgReducerUDF())
+   .sink(new PrintUDF());
 ```
 
 Checkout the [Flink dashboard](http://127.0.0.1:8081/) and the [Grafana dashboard](http://127.0.0.1:3000/).
