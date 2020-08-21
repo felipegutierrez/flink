@@ -49,7 +49,12 @@ Running the **autonomous combiner** with 8 combiners and 8-16-24 reducers, or wi
 ### Taxi ride top-N query
 This query is available at this [TaxiRideDistanceTopNPreAggregate.java](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceTopNPreAggregate.java).
 ```
+./bin/flink run ../flink-applications/TaxiRideDistanceTopNPreAggregate.jar -topN 100 -controller true -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
+./bin/flink run ../flink-applications/TaxiRideDistanceTopNPreAggregate.jar -topN 100 -controller true -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
+./bin/flink run ../flink-applications/TaxiRideDistanceTopNPreAggregate.jar -topN 100 -controller true -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ./bin/flink run ../flink-applications/TaxiRideDistanceTopNPreAggregate.jar -topN 100 -pre-aggregate-window-timeout 1 -controller false -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
+./bin/flink run ../flink-applications/TaxiRideDistanceTopNPreAggregate.jar -topN 100 -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
+./bin/flink run ../flink-applications/TaxiRideDistanceTopNPreAggregate.jar -topN 100 -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP_r02
 ```
 ```
 StreamExecutionEnvironment env = ...;
@@ -63,7 +68,12 @@ env.addSource(new TaxiRideSourceUDF())
 ### Taxi ride average query
 This query is available at this [TaxiRideAveragePreAggregate.java](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TaxiRideAveragePreAggregate.java).
 ```
-./bin/flink run ../flink-applications/
+./bin/flink run ../flink-applications/TaxiRideAveragePreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TaxiRideAveragePreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TaxiRideAveragePreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TaxiRideAveragePreAggregate.jar -controller true -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TaxiRideAveragePreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TaxiRideAveragePreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
 ```
 ```
 StreamExecutionEnvironment env = ...;
@@ -77,7 +87,13 @@ env.addSource(new TaxiRideSourceUDF())
 ### TPC-H benchmark query 01
 This query is available at this [TPCHQuery01PreAggregate.java](flink-examples/flink-examples-streaming/src/main/java/org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate.java).
 ```
-./bin/flink run ../flink-applications/
+./bin/flink run ../flink-applications/TPCHQuery01PreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TPCHQuery01PreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TPCHQuery01PreAggregate.jar -pre-aggregate-window-timeout 1 -controller false -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+
+./bin/flink run ../flink-applications/TPCHQuery01PreAggregate.jar -controller true -slotSplit 2 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TPCHQuery01PreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 16 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
+./bin/flink run ../flink-applications/TPCHQuery01PreAggregate.jar -controller true -slotSplit 1 -parallelism-group-02 24 -disableOperatorChaining true -input /home/flink/flink-applications/nycTaxiRides.gz -output mqtt -sinkHost IP
 ```
 ```
 StreamExecutionEnvironment env = ...;
