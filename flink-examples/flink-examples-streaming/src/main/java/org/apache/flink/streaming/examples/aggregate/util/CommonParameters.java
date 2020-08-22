@@ -50,6 +50,7 @@ public class CommonParameters {
 	public static final String SLOT_GROUP_SPLIT = "slotSplit";
 	public static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
 	public static final String CONTROLLER = "controller";
+	public static final String COMBINER = "combiner";
 	public static final String LATENCY_TRACKING_INTERVAL = "latencyTrackingInterval";
 	public static final String SIMULATE_SKEW = "simulateSkew";
 	public static final String WINDOW = "window";

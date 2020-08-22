@@ -64,10 +64,11 @@ public class TPCHQuery01PreAggregate {
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, SINK_TEXT);
 		int maxCount = params.getInt(MAX_COUNT_SOURCE, -1);
-		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
 		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
+		boolean enableCombiner = params.getBoolean(COMBINER, true);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 
@@ -81,6 +82,7 @@ public class TPCHQuery01PreAggregate {
 		System.out.println("Feedback loop Controller                                : " + enableController);
 		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
+		System.out.println("Enable combiner                                         : " + enableCombiner);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
@@ -122,7 +124,7 @@ public class TPCHQuery01PreAggregate {
 			.map(new LineItemToTuple11Map()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemsCombined = null;
-		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+		if (!enableCombiner) {
 			// no combiner
 			lineItemsCombined = lineItemsMap;
 		} else if (enableController == false && preAggregationWindowTimer > 0) {

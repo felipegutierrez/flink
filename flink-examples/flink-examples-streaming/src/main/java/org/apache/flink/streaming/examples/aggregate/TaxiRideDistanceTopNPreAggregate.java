@@ -30,8 +30,9 @@ public class TaxiRideDistanceTopNPreAggregate {
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
 		int sinkPort = params.getInt(SINK_PORT, 1883);
 		String output = params.get(SINK, "");
-		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
+		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
 		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
+		boolean enableCombiner = params.getBoolean(COMBINER, true);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		int topN = params.getInt(TOP_N, 10);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
@@ -48,6 +49,7 @@ public class TaxiRideDistanceTopNPreAggregate {
 		System.out.println("Feedback loop Controller                                : " + enableController);
 		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
+		System.out.println("Enable combiner                                         : " + enableCombiner);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("topN                                                    : " + topN);
@@ -80,27 +82,30 @@ public class TaxiRideDistanceTopNPreAggregate {
 		}
 
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
-		DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = null;
-		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+		if (!enableCombiner) {
 			// no combiner
-			// preAggregatedStream = tuples;
-		} else if (enableController == false && preAggregationWindowTimer > 0) {
-			// static combiner based on timeout
-			PreAggregateConcurrentFunction<Integer, Double[], Tuple2<Integer, Double>,
-				Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TaxiRidePassengerTopNPreAggregateConcurrent(topN);
-			preAggregatedStream = tuples
-				.combiner(topNPreAggregateFunction, preAggregationWindowTimer)
-				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+			DataStream<Tuple2<Integer, Double[]>> tuples = rides.map(new TokenizerNoCombinerMap(topN)).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+			preAggregatedStream = tuples;
 		} else {
-			PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>,
-				Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TaxiRidePassengerTopNPreAggregate(topN);
-			preAggregatedStream = tuples
-				.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController)
-				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+			// enable combiner
+			DataStream<Tuple2<Integer, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+			if (enableController == false && preAggregationWindowTimer > 0) {
+				// static combiner based on timeout
+				PreAggregateConcurrentFunction<Integer, Double[], Tuple2<Integer, Double>,
+					Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TaxiRidePassengerTopNPreAggregateConcurrent(topN);
+				preAggregatedStream = tuples
+					.combiner(topNPreAggregateFunction, preAggregationWindowTimer)
+					.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+			} else {
+				PreAggregateFunction<Integer, Double[], Tuple2<Integer, Double>,
+					Tuple2<Integer, Double[]>> topNPreAggregateFunction = new TaxiRidePassengerTopNPreAggregate(topN);
+				preAggregatedStream = tuples
+					.combiner(topNPreAggregateFunction, preAggregationWindowCount, enableController)
+					.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+			}
 		}
-
 		KeyedStream<Tuple2<Integer, Double[]>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverKeySelector());
 
 		DataStream<Tuple2<Integer, Double[]>> taxiRideTopNDistances = keyedByRandomDriver
@@ -138,6 +143,35 @@ public class TaxiRideDistanceTopNPreAggregate {
 			Integer result = random.nextInt(high - low) + low;
 			Double distance = TaxiRideDistanceCalculator.distance(ride.startLat, ride.startLon, ride.endLat, ride.endLon, "K");
 			return Tuple2.of(result, distance);
+		}
+	}
+
+	private static class TokenizerNoCombinerMap implements MapFunction<TaxiRide, Tuple2<Integer, Double[]>> {
+		private final Double MIN_VALUE = -1.0;
+		private final Random random;
+		private final int topN;
+
+		public TokenizerNoCombinerMap(int topN) {
+			this.random = new Random();
+			this.topN = topN;
+		}
+
+		@Override
+		public Tuple2<Integer, Double[]> map(TaxiRide ride) {
+			// create random keys from 0 to 10 in order to average the passengers of all taxi drivers
+			int low = 0;
+			int high = 10;
+			Integer result = random.nextInt(high - low) + low;
+			Double distance = TaxiRideDistanceCalculator.distance(ride.startLat, ride.startLon, ride.endLat, ride.endLon, "K");
+			Double[] value = new Double[this.topN];
+			for (int i = 0; i < this.topN; i++) {
+				if (i == this.topN - 1) {
+					value[i] = distance;
+				} else {
+					value[i] = MIN_VALUE;
+				}
+			}
+			return Tuple2.of(result, value);
 		}
 	}
 
