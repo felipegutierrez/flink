@@ -5,8 +5,8 @@ This is an [Apache Flink](https://github.com/apache/flink) branch forked from th
 ## Compiling
 
 ```
-$ git clone https://github.com/felipegutierrez/flink.git flink-auto-combiner
-$ cd flink-auto-combiner/
+$ git clone https://github.com/felipegutierrez/flink.git flink-with-adcom
+$ cd flink-with-adcom
 $ mvn clean install -e -X -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true
 $ ll flink-examples/flink-examples-streaming/target/
 ```

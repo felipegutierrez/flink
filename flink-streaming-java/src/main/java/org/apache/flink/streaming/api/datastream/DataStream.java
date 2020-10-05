@@ -1338,6 +1338,29 @@ public class DataStream<T> {
 				keySelector, false)));
 	}
 
+	/**
+	 * When the combiner receives only the pre-aggregation by the number of tuples it assumes a static combiner and
+	 * the controller is turned off.
+	 * @param preAggregateFunction
+	 * @param preAggWindowCount
+	 * @param <R>
+	 * @return
+	 */
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateConcurrentFunction<?, ?, T, R> preAggregateFunction,
+													  int preAggWindowCount) {
+		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+			clean(preAggregateFunction),
+			getType(),
+			Utils.getCallLocationName(),
+			false);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount);
+		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+
+		return doTransform("PreAggregate", outType,
+			SimpleOperatorFactory.of(new StreamPreAggregateConcurrentOperator(preAggregateFunction, preAggregateTriggerFunction,
+				keySelector, false)));
+	}
+
 	protected <R> SingleOutputStreamOperator<R> doTransform(
 			String operatorName,
 			TypeInformation<R> outTypeInfo,

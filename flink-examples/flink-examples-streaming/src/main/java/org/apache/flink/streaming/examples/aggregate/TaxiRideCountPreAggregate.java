@@ -96,6 +96,12 @@ public class TaxiRideCountPreAggregate {
 			preAggregatedStream = tuples
 				.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowTimer)
 				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
+		} else if (enableController == false && preAggregationWindowTimer == -1 && preAggregationWindowCount > 0) {
+			// static combiner based on number of tuples
+			PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideCountPreAggregateConcurrentFunction();
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowCount)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
 		} else {
 			// dynamic combiner with PI controller
 			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
