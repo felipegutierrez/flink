@@ -206,7 +206,7 @@ public class TaxiRideCountPreAggregate {
 	private static class TokenizerTimeMap implements MapFunction<TaxiRide, Tuple3<Long, Long, Long>> {
 		@Override
 		public Tuple3<Long, Long, Long> map(TaxiRide ride) {
-			return new Tuple3<Long, Long, Long>(ride.driverId, 1L, ride.getNanoTime());
+			return new Tuple3<Long, Long, Long>(ride.driverId, 1L, ride.getTime());
 		}
 	}
 
