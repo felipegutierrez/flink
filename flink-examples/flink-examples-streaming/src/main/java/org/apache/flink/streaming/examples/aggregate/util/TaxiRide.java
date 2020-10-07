@@ -38,7 +38,7 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 	public short passengerCnt;
 	public long taxiId;
 	public long driverId;
-	private long nanoTime;
+	private long time;
 
 	public TaxiRide() {
 		this.startTime = new DateTime();
@@ -162,12 +162,12 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 		}
 	}
 
-	public long getNanoTime() {
-		return nanoTime;
+	public long getTime() {
+		return time;
 	}
 
-	public void setNanoTime(long nanoTime) {
-		this.nanoTime = nanoTime;
+	public void setTime(long time) {
+		this.time = time;
 	}
 
 	public double getEuclideanDistance(double longitude, double latitude) {

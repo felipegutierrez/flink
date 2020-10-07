@@ -124,10 +124,9 @@ public class MqttDataSink extends RichSinkFunction<String> {
 				String[] bodySplit = body.split("-");
 				if (bodySplit.length == 3) {
 					long ingestionTime = Long.valueOf(bodySplit[2]);
-					long end2endNanoLatency = System.nanoTime() - ingestionTime;
-					long end2endMilliLatency = TimeUnit.NANOSECONDS.toMillis(end2endNanoLatency);
-					this.latencyHistogram.update(end2endMilliLatency);
-					System.out.println("mean[" + this.latencyHistogram.getStatistics().getMean() + "] 0.99[" + this.latencyHistogram.getStatistics().getQuantile(0.99) + "]");
+					long end2endLatency = System.currentTimeMillis() - ingestionTime;
+					this.latencyHistogram.update(end2endLatency);
+					// System.out.println("mean[" + this.latencyHistogram.getStatistics().getMean() + "] 0.99[" + this.latencyHistogram.getStatistics().getQuantile(0.99) + "]");
 				}
 			}
 		}

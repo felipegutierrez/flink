@@ -119,7 +119,7 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 			startTime = System.nanoTime();
 			taxiRide = TaxiRide.fromString(line);
 			if (enableEndToEndLatencyMonitor) {
-				taxiRide.setNanoTime(startTime);
+				taxiRide.setTime(System.currentTimeMillis());
 			}
 			sourceContext.collectWithTimestamp(taxiRide, getEventTime(taxiRide));
 
