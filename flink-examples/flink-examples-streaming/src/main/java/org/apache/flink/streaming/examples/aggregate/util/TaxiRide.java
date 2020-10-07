@@ -38,10 +38,13 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 	public short passengerCnt;
 	public long taxiId;
 	public long driverId;
+	private long nanoTime;
+
 	public TaxiRide() {
 		this.startTime = new DateTime();
 		this.endTime = new DateTime();
 	}
+
 	public TaxiRide(long rideId, boolean isStart, DateTime startTime, DateTime endTime,
 					float startLon, float startLat, float endLon, float endLat,
 					short passengerCnt, long taxiId, long driverId) {
@@ -157,6 +160,14 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 		} else {
 			return endTime.getMillis();
 		}
+	}
+
+	public long getNanoTime() {
+		return nanoTime;
+	}
+
+	public void setNanoTime(long nanoTime) {
+		this.nanoTime = nanoTime;
 	}
 
 	public double getEuclideanDistance(double longitude, double latitude) {

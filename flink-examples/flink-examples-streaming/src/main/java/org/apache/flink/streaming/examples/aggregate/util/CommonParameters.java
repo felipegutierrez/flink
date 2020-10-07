@@ -49,6 +49,7 @@ public class CommonParameters {
 	public static final String PRE_AGGREGATE_STRATEGY = "strategy";
 	public static final String SLOT_GROUP_SPLIT = "slotSplit";
 	public static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
+	public static final String ENABLE_END_TO_END_LATENCY_MONITOR = "enableEndToEndLatency";
 	public static final String CONTROLLER = "controller";
 	public static final String COMBINER = "combiner";
 	public static final String LATENCY_TRACKING_INTERVAL = "latencyTrackingInterval";
@@ -58,4 +59,5 @@ public class CommonParameters {
 	public static final String BUFFER_TIMEOUT = "bufferTimeout";
 	public static final String POOLING_FREQUENCY = "pooling";
 	public static final String TOP_N = "topN";
+	public static final String TIME_CHARACTERISTIC = "timeCharacteristic";
 }

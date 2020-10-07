@@ -39,6 +39,8 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 	private transient BufferedReader reader;
 	private transient InputStream gzipStream;
 
+	private final boolean enableEndToEndLatencyMonitor;
+
 	/**
 	 * Serves the TaxiRide records from the specified and ordered gzipped input file.
 	 * Rides are served exactly in order of their time stamps
@@ -47,7 +49,11 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 	 * @param dataFilePath The gzipped input file from which the TaxiRide records are read.
 	 */
 	public TaxiRideSource(String dataFilePath) {
-		this(dataFilePath, 0, 1);
+		this(dataFilePath, 0, 1, false);
+	}
+
+	public TaxiRideSource(String dataFilePath, boolean enableEndToEndLatencyMonitor) {
+		this(dataFilePath, 0, 1, enableEndToEndLatencyMonitor);
 	}
 
 	/**
@@ -59,7 +65,7 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 	 * @param servingSpeedFactor The serving speed factor by which the logical serving time is adjusted.
 	 */
 	public TaxiRideSource(String dataFilePath, int servingSpeedFactor) {
-		this(dataFilePath, 0, servingSpeedFactor);
+		this(dataFilePath, 0, servingSpeedFactor, false);
 	}
 
 	/**
@@ -71,11 +77,12 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 	 * @param maxEventDelaySecs  The max time in seconds by which events are delayed.
 	 * @param servingSpeedFactor The serving speed factor by which the logical serving time is adjusted.
 	 */
-	public TaxiRideSource(String dataFilePath, int maxEventDelaySecs, int servingSpeedFactor) {
+	public TaxiRideSource(String dataFilePath, int maxEventDelaySecs, int servingSpeedFactor, boolean enableEndToEndLatencyMonitor) {
 		if (maxEventDelaySecs < 0) {
 			throw new IllegalArgumentException("Max event delay must be positive");
 		}
 		this.running = true;
+		this.enableEndToEndLatencyMonitor = enableEndToEndLatencyMonitor;
 		this.dataFilePath = dataFilePath;
 		this.maxDelayMsecs = maxEventDelaySecs * 1000;
 		this.watermarkDelayMSecs = maxDelayMsecs < 10000 ? 10000 : maxDelayMsecs;
@@ -111,6 +118,9 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 		while (reader.ready() && (line = reader.readLine()) != null) {
 			startTime = System.nanoTime();
 			taxiRide = TaxiRide.fromString(line);
+			if (enableEndToEndLatencyMonitor) {
+				taxiRide.setNanoTime(startTime);
+			}
 			sourceContext.collectWithTimestamp(taxiRide, getEventTime(taxiRide));
 
 			// sleep in nanoseconds to have a reproducible data rate for the data source
