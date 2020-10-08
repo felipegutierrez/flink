@@ -38,7 +38,6 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 	public short passengerCnt;
 	public long taxiId;
 	public long driverId;
-	private long time;
 
 	public TaxiRide() {
 		this.startTime = new DateTime();
@@ -160,14 +159,6 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 		} else {
 			return endTime.getMillis();
 		}
-	}
-
-	public long getTime() {
-		return time;
-	}
-
-	public void setTime(long time) {
-		this.time = time;
 	}
 
 	public double getEuclideanDistance(double longitude, double latitude) {

@@ -29,7 +29,7 @@ public class PreAggregateTimer extends Thread implements Serializable {
 				Thread.sleep(200);
 				long currentTimeMillis = System.currentTimeMillis();
 				if (currentTimeMillis > (this.elapsedTime + windowTimeMilliseconds)) {
-					System.out.println("subtaskIndex[" + subtaskIndex + "] elapsed time: " + sdf.format(new Date(currentTimeMillis)));
+					// System.out.println("subtaskIndex[" + subtaskIndex + "] elapsed time: " + sdf.format(new Date(currentTimeMillis)));
 					// trigger the combiner based on the timeout window
 					this.preAggregateTriggerFunction.timeTrigger();
 					this.elapsedTime = System.currentTimeMillis();

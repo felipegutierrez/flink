@@ -40,7 +40,6 @@ public class TaxiRideCountPreAggregate {
 		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-		boolean enableEndToEndLatencyMonitor = params.getBoolean(ENABLE_END_TO_END_LATENCY_MONITOR, false);
 
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
@@ -53,7 +52,6 @@ public class TaxiRideCountPreAggregate {
 		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
 		System.out.println("Feedback loop Controller                                : " + enableController);
 		System.out.println("time characteristic 1-Processing 2-Event 3-Ingestion    : " + timeCharacteristic);
-		System.out.println("Enable end-to-end latency monitor                       : " + enableEndToEndLatencyMonitor);
 		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
 		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
@@ -100,92 +98,52 @@ public class TaxiRideCountPreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input, enableEndToEndLatencyMonitor)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
-		// End2End Latency custom not enable
-		if (!enableEndToEndLatencyMonitor) {
-			DataStream<Tuple2<Long, Long>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
-
-			DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-			if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
-				// no combiner
-				preAggregatedStream = tuples;
-			} else if (enableController == false && preAggregationWindowTimer > 0) {
-				// static combiner based on timeout
-				PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideCountPreAggregateConcurrentFunction();
-				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowTimer)
-					.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-			} else if (enableController == false && preAggregationWindowTimer == -1 && preAggregationWindowCount > 0) {
-				// static combiner based on number of tuples
-				PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideCountPreAggregateConcurrentFunction();
-				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowCount)
-					.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-			} else {
-				// dynamic combiner with PI controller
-				PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
-				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
-					.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-			}
-
-			KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream.keyBy(0);
-
-			DataStream<Tuple2<Long, Long>> rideCounts = keyedByDriverId
-				.reduce(new SumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
-
-			if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
-				rideCounts
-					.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-					.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort, enableEndToEndLatencyMonitor)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
-			} else if (output.equalsIgnoreCase(SINK_TEXT)) {
-				rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
-			} else {
-				System.out.println("discarding output");
-			}
+		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
+		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
+			// no combiner
+			preAggregatedStream = tuples;
+		} else if (enableController == false && preAggregationWindowTimer > 0 && preAggregationWindowCount == 0) {
+			// static combiner based on timeout
+			PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideCountPreAggregateConcurrentFunction();
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowTimer)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
+		} else if (enableController == false && preAggregationWindowTimer == -1 && preAggregationWindowCount > 0) {
+			// static combiner based on number of tuples
+			PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideCountPreAggregateConcurrentFunction();
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowCount)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
+		} else if (enableController == false && preAggregationWindowTimer > 0 && preAggregationWindowCount > 0) {
+			// static combiner based on number of tuples
+			PreAggregateConcurrentFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideCountPreAggregateConcurrentFunction();
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowTimer, preAggregationWindowCount)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
 		} else {
-			// End2End Latency custom enable, this may have a cost
-			DataStream<Tuple3<Long, Long, Long>> tuples = rides.map(new TokenizerTimeMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
-			DataStream<Tuple3<Long, Long, Long>> preAggregatedStream = null;
-			if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
-				// no combiner
-				preAggregatedStream = tuples;
-			} else if (enableController == false && preAggregationWindowTimer > 0) {
-				// static combiner based on timeout
-				PreAggregateConcurrentFunction<Long, Tuple2<Long, Long>, Tuple3<Long, Long, Long>, Tuple3<Long, Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideTimeCountPreAggregateConcurrentFunction();
+			// dynamic combiner with PI controller
+			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
+			preAggregatedStream = tuples
+				.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
+				.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
+		}
 
-				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowTimer)
-					.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-			} else if (enableController == false && preAggregationWindowTimer == -1 && preAggregationWindowCount > 0) {
-				// static combiner based on number of tuples
-				PreAggregateConcurrentFunction<Long, Tuple2<Long, Long>, Tuple3<Long, Long, Long>, Tuple3<Long, Long, Long>> taxiRidePreAggregateConcurrentFunction = new TaxiRideTimeCountPreAggregateConcurrentFunction();
-				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateConcurrentFunction, preAggregationWindowCount)
-					.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-			} else {
-				// dynamic combiner with PI controller
-				PreAggregateFunction<Long, Tuple2<Long, Long>, Tuple3<Long, Long, Long>, Tuple3<Long, Long, Long>> taxiRidePreAggregateFunction = new TaxiRideTimeCountPreAggregateFunction();
-				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
-					.name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-			}
+		KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream.keyBy(0);
 
-			KeyedStream<Tuple3<Long, Long, Long>, Tuple> keyedByDriverId = preAggregatedStream.keyBy(0);
+		DataStream<Tuple2<Long, Long>> rideCounts = keyedByDriverId
+			.reduce(new SumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
 
-			DataStream<Tuple3<Long, Long, Long>> rideCounts = keyedByDriverId
-				.reduce(new SumTimeReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
-
-			if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
-				rideCounts
-					.map(new FlatTimeOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-					.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort, enableEndToEndLatencyMonitor)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
-			} else if (output.equalsIgnoreCase(SINK_TEXT)) {
-				rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
-			} else {
-				System.out.println("discarding output");
-			}
+		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
+			rideCounts
+				.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
+			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+		} else {
+			System.out.println("discarding output");
 		}
 
 
@@ -206,7 +164,7 @@ public class TaxiRideCountPreAggregate {
 	private static class TokenizerTimeMap implements MapFunction<TaxiRide, Tuple3<Long, Long, Long>> {
 		@Override
 		public Tuple3<Long, Long, Long> map(TaxiRide ride) {
-			return new Tuple3<Long, Long, Long>(ride.driverId, 1L, ride.getTime());
+			return new Tuple3<Long, Long, Long>(ride.driverId, 1L, 0L);
 		}
 	}
 

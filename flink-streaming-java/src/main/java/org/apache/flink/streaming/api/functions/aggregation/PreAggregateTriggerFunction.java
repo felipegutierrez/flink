@@ -15,7 +15,7 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 	}
 
 	public PreAggregateTriggerFunction(int maxCount) {
-		Preconditions.checkArgument(maxCount > 0, "when pre-aggregation time is not considered the pre-aggregation count must be greater than 0");
+		Preconditions.checkArgument(maxCount > 0, "when pre-aggregation time is not considered the pre-aggregation count must be greater than 0.");
 		this.maxCount = maxCount;
 		this.maxTime = -1L;
 		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
@@ -25,6 +25,14 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 		Preconditions.checkArgument(maxTime > 0, "when pre-aggregation is static maxTime must be greater than 0.");
 		this.maxCount = -1;
 		this.maxTime = maxTime;
+		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
+	}
+
+	public PreAggregateTriggerFunction(long maxTime, int maxCount) {
+		Preconditions.checkArgument(maxTime > 0, "when pre-aggregation is static maxTime must be greater than 0.");
+		Preconditions.checkArgument(maxCount > 0, "when pre-aggregation is static maxCount must be greater than 0.");
+		this.maxTime = maxTime;
+		this.maxCount = maxCount;
 		this.preAggregateStrategy = PreAggregateStrategy.GLOBAL;
 	}
 
@@ -46,6 +54,7 @@ public class PreAggregateTriggerFunction<T> implements PreAggregateTrigger<T> {
 
 	public void timeTrigger() throws Exception {
 		this.callback.collect();
+		reset();
 	}
 
 	@Override

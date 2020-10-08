@@ -1361,6 +1361,21 @@ public class DataStream<T> {
 				keySelector, false)));
 	}
 
+	public <R> SingleOutputStreamOperator<R> combiner(PreAggregateConcurrentFunction<?, ?, T, R> preAggregateFunction,
+													  long preAggWindowTime, int preAggWindowCount) {
+		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+			clean(preAggregateFunction),
+			getType(),
+			Utils.getCallLocationName(),
+			false);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowTime, preAggWindowCount);
+		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+
+		return doTransform("PreAggregate", outType,
+			SimpleOperatorFactory.of(new StreamPreAggregateConcurrentOperator(preAggregateFunction, preAggregateTriggerFunction,
+				keySelector, false)));
+	}
+
 	protected <R> SingleOutputStreamOperator<R> doTransform(
 			String operatorName,
 			TypeInformation<R> outTypeInfo,
