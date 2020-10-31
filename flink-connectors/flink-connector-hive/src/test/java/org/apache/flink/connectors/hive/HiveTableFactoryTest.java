@@ -29,6 +29,9 @@ import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.config.CatalogConfig;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
 import org.apache.flink.table.catalog.hive.HiveTestUtils;
+import org.apache.flink.table.connector.sink.DynamicTableSink;
+import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.table.factories.TableSinkFactoryContextImpl;
 import org.apache.flink.table.factories.TableSourceFactoryContextImpl;
@@ -83,10 +86,13 @@ public class HiveTableFactoryTest {
 		assertTrue(opt.isPresent());
 		HiveTableFactory tableFactory = (HiveTableFactory) opt.get();
 		TableSource tableSource = tableFactory.createTableSource(new TableSourceFactoryContextImpl(
-				ObjectIdentifier.of("mycatalog", "mydb", "mytable"), table, new Configuration()));
+				ObjectIdentifier.of("mycatalog", "mydb", "mytable"), table, new Configuration(), false));
 		assertTrue(tableSource instanceof StreamTableSource);
 		TableSink tableSink = tableFactory.createTableSink(new TableSinkFactoryContextImpl(
-				ObjectIdentifier.of("mycatalog", "mydb", "mytable"), table, new Configuration()));
+				ObjectIdentifier.of("mycatalog", "mydb", "mytable"),
+				table,
+				new Configuration(),
+				true, false));
 		assertTrue(tableSink instanceof StreamTableSink);
 	}
 
@@ -98,20 +104,30 @@ public class HiveTableFactoryTest {
 			.build();
 
 		Map<String, String> properties = new HashMap<>();
+		properties.put(CatalogConfig.IS_GENERIC, String.valueOf(false));
 
 		catalog.createDatabase("mydb", new CatalogDatabaseImpl(new HashMap<>(), ""), true);
 		ObjectPath path = new ObjectPath("mydb", "mytable");
 		CatalogTable table = new CatalogTableImpl(schema, properties, "hive table");
 		catalog.createTable(path, table, true);
-		Optional<TableFactory> opt = catalog.getTableFactory();
-		assertTrue(opt.isPresent());
-		HiveTableFactory tableFactory = (HiveTableFactory) opt.get();
-		TableSink tableSink = tableFactory.createTableSink(new TableSinkFactoryContextImpl(
-				ObjectIdentifier.of("mycatalog", "mydb", "mytable"), table, new Configuration()));
-		assertTrue(tableSink instanceof HiveTableSink);
-		TableSource tableSource = tableFactory.createTableSource(new TableSourceFactoryContextImpl(
-				ObjectIdentifier.of("mycatalog", "mydb", "mytable"), table, new Configuration()));
+
+		DynamicTableSource tableSource = FactoryUtil.createTableSource(
+				catalog,
+				ObjectIdentifier.of("mycatalog", "mydb", "mytable"),
+				table,
+				new Configuration(),
+				Thread.currentThread().getContextClassLoader(),
+				false);
 		assertTrue(tableSource instanceof HiveTableSource);
+
+		DynamicTableSink tableSink = FactoryUtil.createTableSink(
+				catalog,
+				ObjectIdentifier.of("mycatalog", "mydb", "mytable"),
+				table,
+				new Configuration(),
+				Thread.currentThread().getContextClassLoader(),
+				false);
+		assertTrue(tableSink instanceof HiveTableSink);
 	}
 
 }

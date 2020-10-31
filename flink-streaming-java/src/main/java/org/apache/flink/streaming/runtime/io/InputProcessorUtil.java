@@ -18,17 +18,24 @@
 package org.apache.flink.streaming.runtime.io;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.IllegalConfigurationException;
-import org.apache.flink.configuration.TaskManagerOptions;
+import org.apache.flink.runtime.io.network.partition.consumer.CheckpointableInput;
+import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.metrics.MetricNames;
 import org.apache.flink.runtime.metrics.groups.TaskIOMetricGroup;
-import org.apache.flink.runtime.util.ConfigurationParserUtils;
-import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.streaming.api.graph.StreamConfig;
+import org.apache.flink.streaming.api.operators.MailboxExecutor;
+import org.apache.flink.streaming.runtime.tasks.SubtaskCheckpointCoordinator;
+
+import org.apache.flink.shaded.guava18.com.google.common.collect.Iterables;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Utility for creating {@link CheckpointedInputGate} based on checkpoint mode
@@ -36,119 +43,112 @@ import java.util.Arrays;
  */
 @Internal
 public class InputProcessorUtil {
-
+	@SuppressWarnings("unchecked")
 	public static CheckpointedInputGate createCheckpointedInputGate(
 			AbstractInvokable toNotifyOnCheckpoint,
-			CheckpointingMode checkpointMode,
-			InputGate inputGate,
-			Configuration taskManagerConfig,
+			StreamConfig config,
+			SubtaskCheckpointCoordinator checkpointCoordinator,
+			IndexedInputGate[] inputGates,
 			TaskIOMetricGroup taskIOMetricGroup,
-			String taskName) {
-
-		int pageSize = ConfigurationParserUtils.getPageSize(taskManagerConfig);
-
-		BufferStorage bufferStorage = createBufferStorage(
-			checkpointMode, pageSize, taskManagerConfig, taskName);
-		CheckpointBarrierHandler barrierHandler = createCheckpointBarrierHandler(
-			checkpointMode, inputGate.getNumberOfInputChannels(), taskName, toNotifyOnCheckpoint);
-		registerCheckpointMetrics(taskIOMetricGroup, barrierHandler);
-
-		return new CheckpointedInputGate(inputGate, bufferStorage, barrierHandler);
+			String taskName,
+			MailboxExecutor mailboxExecutor) {
+		CheckpointedInputGate[] checkpointedInputGates = createCheckpointedMultipleInputGate(
+			toNotifyOnCheckpoint,
+			config,
+			checkpointCoordinator,
+			taskIOMetricGroup,
+			taskName,
+			mailboxExecutor,
+			new List[]{ Arrays.asList(inputGates) },
+			Collections.emptyList());
+		return Iterables.getOnlyElement(Arrays.asList(checkpointedInputGates));
 	}
 
 	/**
-	 * @return a pair of {@link CheckpointedInputGate} created for two corresponding
+	 * @return an array of {@link CheckpointedInputGate} created for corresponding
 	 * {@link InputGate}s supplied as parameters.
 	 */
-	public static CheckpointedInputGate[] createCheckpointedInputGatePair(
+	public static CheckpointedInputGate[] createCheckpointedMultipleInputGate(
 			AbstractInvokable toNotifyOnCheckpoint,
-			CheckpointingMode checkpointMode,
-			Configuration taskManagerConfig,
+			StreamConfig config,
+			SubtaskCheckpointCoordinator checkpointCoordinator,
 			TaskIOMetricGroup taskIOMetricGroup,
 			String taskName,
-			InputGate ...inputGates) {
-
-		int pageSize = ConfigurationParserUtils.getPageSize(taskManagerConfig);
-
-		BufferStorage[] mainBufferStorages = new BufferStorage[inputGates.length];
-		for (int i = 0; i < inputGates.length; i++) {
-			mainBufferStorages[i] = createBufferStorage(
-				checkpointMode, pageSize, taskManagerConfig, taskName);
-		}
-
-		BufferStorage[] linkedBufferStorages = new BufferStorage[inputGates.length];
-
-		for (int i = 0; i < inputGates.length; i++) {
-			linkedBufferStorages[i] = new LinkedBufferStorage(
-				mainBufferStorages[i],
-				mainBufferStorages[i].getMaxBufferedBytes(),
-				copyBufferStoragesExceptOf(i, mainBufferStorages));
-		}
-
+			MailboxExecutor mailboxExecutor,
+			List<IndexedInputGate>[] inputGates,
+			List<StreamTaskSourceInput<?>> sourceInputs) {
 		CheckpointBarrierHandler barrierHandler = createCheckpointBarrierHandler(
-			checkpointMode,
-			Arrays.stream(inputGates).mapToInt(InputGate::getNumberOfInputChannels).sum(),
+			toNotifyOnCheckpoint,
+			config,
+			checkpointCoordinator,
 			taskName,
-			toNotifyOnCheckpoint);
+			inputGates,
+			sourceInputs);
+		return createCheckpointedMultipleInputGate(
+			mailboxExecutor,
+			inputGates,
+			taskIOMetricGroup,
+			barrierHandler);
+	}
+
+	public static CheckpointedInputGate[] createCheckpointedMultipleInputGate(
+			MailboxExecutor mailboxExecutor,
+			List<IndexedInputGate>[] inputGates,
+			TaskIOMetricGroup taskIOMetricGroup,
+			CheckpointBarrierHandler barrierHandler) {
+
 		registerCheckpointMetrics(taskIOMetricGroup, barrierHandler);
 
-		CheckpointedInputGate[] checkpointedInputGates = new CheckpointedInputGate[inputGates.length];
+		InputGate[] unionedInputGates = Arrays.stream(inputGates)
+			.map(InputGateUtil::createInputGate)
+			.toArray(InputGate[]::new);
 
-		int channelIndexOffset = 0;
-		for (int i = 0; i < inputGates.length; i++) {
-			checkpointedInputGates[i] = new CheckpointedInputGate(inputGates[i], linkedBufferStorages[i], barrierHandler, channelIndexOffset);
-			channelIndexOffset += inputGates[i].getNumberOfInputChannels();
-		}
-
-		return checkpointedInputGates;
+		return Arrays.stream(unionedInputGates)
+			.map(unionedInputGate -> new CheckpointedInputGate(unionedInputGate, barrierHandler, mailboxExecutor))
+			.toArray(CheckpointedInputGate[]::new);
 	}
 
-	private static BufferStorage[] copyBufferStoragesExceptOf(
-			int skipStorage,
-			BufferStorage[] bufferStorages) {
-		BufferStorage[] copy = new BufferStorage[bufferStorages.length - 1];
-		System.arraycopy(bufferStorages, 0, copy, 0, skipStorage);
-		System.arraycopy(bufferStorages, skipStorage + 1, copy, skipStorage, bufferStorages.length - skipStorage - 1);
-		return copy;
-	}
-
-	private static CheckpointBarrierHandler createCheckpointBarrierHandler(
-			CheckpointingMode checkpointMode,
-			int numberOfInputChannels,
+	public static CheckpointBarrierHandler createCheckpointBarrierHandler(
+			AbstractInvokable toNotifyOnCheckpoint,
+			StreamConfig config,
+			SubtaskCheckpointCoordinator checkpointCoordinator,
 			String taskName,
-			AbstractInvokable toNotifyOnCheckpoint) {
-		switch (checkpointMode) {
-			case EXACTLY_ONCE:
-				return new CheckpointBarrierAligner(
-					numberOfInputChannels,
-					taskName,
-					toNotifyOnCheckpoint);
-			case AT_LEAST_ONCE:
-				return new CheckpointBarrierTracker(numberOfInputChannels, toNotifyOnCheckpoint);
-			default:
-				throw new UnsupportedOperationException("Unrecognized Checkpointing Mode: " + checkpointMode);
-		}
-	}
+			List<IndexedInputGate>[] inputGates,
+			List<StreamTaskSourceInput<?>> sourceInputs) {
 
-	private static BufferStorage createBufferStorage(
-			CheckpointingMode checkpointMode,
-			int pageSize,
-			Configuration taskManagerConfig,
-			String taskName) {
-		switch (checkpointMode) {
-			case EXACTLY_ONCE: {
-				long maxAlign = taskManagerConfig.getLong(TaskManagerOptions.TASK_CHECKPOINT_ALIGNMENT_BYTES_LIMIT);
-				if (!(maxAlign == -1 || maxAlign > 0)) {
-					throw new IllegalConfigurationException(
-						TaskManagerOptions.TASK_CHECKPOINT_ALIGNMENT_BYTES_LIMIT.key()
-							+ " must be positive or -1 (infinite)");
-				}
-				return new CachedBufferStorage(pageSize, maxAlign, taskName);
-			}
+		CheckpointableInput[] inputs =
+			Stream.<CheckpointableInput>concat(
+					Arrays.stream(inputGates).flatMap(Collection::stream),
+					sourceInputs.stream())
+				.sorted(Comparator.comparing(CheckpointableInput::getInputGateIndex))
+				.toArray(CheckpointableInput[]::new);
+
+		switch (config.getCheckpointMode()) {
+			case EXACTLY_ONCE:
+				int numberOfChannels = (int) Arrays
+						.stream(inputs)
+						.flatMap(gate -> gate.getChannelInfos().stream())
+						.count();
+				CheckpointBarrierBehaviourController controller =
+					config.isUnalignedCheckpointsEnabled() ?
+						new AlternatingController(
+							new AlignedController(inputs),
+							new UnalignedController(checkpointCoordinator, inputs)) :
+						new AlignedController(inputs);
+				return new SingleCheckpointBarrierHandler(
+						taskName,
+						toNotifyOnCheckpoint,
+						numberOfChannels,
+						controller);
 			case AT_LEAST_ONCE:
-				return new EmptyBufferStorage();
+				if (config.isUnalignedCheckpointsEnabled()) {
+					throw new IllegalStateException("Cannot use unaligned checkpoints with AT_LEAST_ONCE " +
+						"checkpointing mode");
+				}
+				int numInputChannels = Arrays.stream(inputs).mapToInt(CheckpointableInput::getNumberOfInputChannels).sum();
+				return new CheckpointBarrierTracker(numInputChannels, toNotifyOnCheckpoint);
 			default:
-				throw new UnsupportedOperationException("Unrecognized Checkpointing Mode: " + checkpointMode);
+				throw new UnsupportedOperationException("Unrecognized Checkpointing Mode: " + config.getCheckpointMode());
 		}
 	}
 

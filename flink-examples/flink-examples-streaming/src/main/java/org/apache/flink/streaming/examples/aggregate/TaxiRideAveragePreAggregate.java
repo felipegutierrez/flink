@@ -80,6 +80,7 @@ public class TaxiRideAveragePreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
+		/*
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 
 		if (!enableCombiner) {
@@ -144,6 +145,8 @@ public class TaxiRideAveragePreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideAveragePreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************
@@ -168,7 +171,8 @@ public class TaxiRideAveragePreAggregate {
 			Double distance = TaxiRideDistanceCalculator.distance(ride.startLat, ride.startLon, ride.endLat, ride.endLon, "K");
 
 			// elapsed time taxi ride
-			long elapsedTimeMilliSec = ride.endTime.getMillis() - ride.startTime.getMillis();
+//			long elapsedTimeMilliSec = ride.endTime.getMillis() - ride.startTime.getMillis();
+			long elapsedTimeMilliSec = 1L;
 			Double elapsedTimeMinutes = Double.valueOf(elapsedTimeMilliSec * 1000 * 60);
 
 			return Tuple4.of(randomKey, passengerCnt, distance, elapsedTimeMinutes);
@@ -194,7 +198,8 @@ public class TaxiRideAveragePreAggregate {
 			Double distance = TaxiRideDistanceCalculator.distance(ride.startLat, ride.startLon, ride.endLat, ride.endLon, "K");
 
 			// elapsed time taxi ride
-			long elapsedTimeMilliSec = ride.endTime.getMillis() - ride.startTime.getMillis();
+			// long elapsedTimeMilliSec = ride.endTime.getMillis() - ride.startTime.getMillis();
+			long elapsedTimeMilliSec = 1L;
 			Double elapsedTimeMinutes = Double.valueOf(elapsedTimeMilliSec * 1000 * 60);
 
 			return Tuple5.of(randomKey, passengerCnt, distance, elapsedTimeMinutes, 1L);

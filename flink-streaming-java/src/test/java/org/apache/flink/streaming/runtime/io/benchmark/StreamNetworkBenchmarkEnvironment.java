@@ -30,10 +30,10 @@ import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.io.network.netty.NettyConfig;
 import org.apache.flink.runtime.io.network.partition.InputChannelTestUtils;
-import org.apache.flink.runtime.io.network.partition.NoOpResultPartitionConsumableNotifier;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionBuilder;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 import org.apache.flink.runtime.io.network.partition.consumer.SingleInputGate;
 import org.apache.flink.runtime.io.network.partition.consumer.SingleInputGateBuilder;
@@ -41,9 +41,7 @@ import org.apache.flink.runtime.io.network.partition.consumer.SingleInputGateFac
 import org.apache.flink.runtime.io.network.partition.consumer.UnionInputGate;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
-import org.apache.flink.runtime.taskmanager.ConsumableNotifyingResultPartitionWriterDecorator;
 import org.apache.flink.runtime.taskmanager.InputGateWithMetrics;
-import org.apache.flink.runtime.taskmanager.NoOpTaskActions;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import org.apache.flink.runtime.util.ConfigurationParserUtils;
 import org.apache.flink.runtime.util.NettyShuffleDescriptorBuilder;
@@ -187,15 +185,9 @@ public class StreamNetworkBenchmarkEnvironment<T extends IOReadableWritable> {
 			.setupBufferPoolFactoryFromNettyShuffleEnvironment(senderEnv)
 			.build();
 
-		ResultPartitionWriter consumableNotifyingPartitionWriter = new ConsumableNotifyingResultPartitionWriterDecorator(
-			new NoOpTaskActions(),
-			jobId,
-			resultPartitionWriter,
-			new NoOpResultPartitionConsumableNotifier());
+		resultPartitionWriter.setup();
 
-		consumableNotifyingPartitionWriter.setup();
-
-		return consumableNotifyingPartitionWriter;
+		return resultPartitionWriter;
 	}
 
 	private void generatePartitionIds() throws Exception {
@@ -221,14 +213,14 @@ public class StreamNetworkBenchmarkEnvironment<T extends IOReadableWritable> {
 	}
 
 	private InputGate createInputGate(TaskManagerLocation senderLocation) throws Exception {
-		InputGate[] gates = new InputGate[partitionIds.length];
+		IndexedInputGate[] gates = new IndexedInputGate[partitionIds.length];
 		for (int gateIndex = 0; gateIndex < gates.length; ++gateIndex) {
 			final InputGateDeploymentDescriptor gateDescriptor = createInputGateDeploymentDescriptor(
 				senderLocation,
 				gateIndex,
 				location);
 
-			final InputGate gate = createInputGateWithMetrics(gateFactory, gateDescriptor, gateIndex);
+			final IndexedInputGate gate = createInputGateWithMetrics(gateFactory, gateDescriptor, gateIndex);
 
 			gate.setup();
 			gates[gateIndex] = gate;
@@ -261,7 +253,7 @@ public class StreamNetworkBenchmarkEnvironment<T extends IOReadableWritable> {
 			channelDescriptors);
 	}
 
-	private InputGate createInputGateWithMetrics(
+	private IndexedInputGate createInputGateWithMetrics(
 		SingleInputGateFactory gateFactory,
 		InputGateDeploymentDescriptor gateDescriptor,
 		int gateIndex) {

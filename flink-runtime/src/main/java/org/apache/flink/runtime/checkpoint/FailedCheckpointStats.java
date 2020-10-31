@@ -41,8 +41,9 @@ public class FailedCheckpointStats extends AbstractCheckpointStats {
 	/** Total checkpoint state size over all subtasks. */
 	private final long stateSize;
 
-	/** Buffered bytes during alignment over all subtasks. */
-	private final long alignmentBuffered;
+	private final long processedData;
+
+	private final long persistedData;
 
 	/** Timestamp when the checkpoint was failed at the coordinator. */
 	private final long failureTimestamp;
@@ -68,7 +69,8 @@ public class FailedCheckpointStats extends AbstractCheckpointStats {
 	 * @param taskStats Task stats for each involved operator.
 	 * @param numAcknowledgedSubtasks Number of acknowledged subtasks.
 	 * @param stateSize Total checkpoint state size over all subtasks.
-	 * @param alignmentBuffered Buffered bytes during alignment over all subtasks.
+	 * @param processedData Processed data during the checkpoint.
+	 * @param persistedData Persisted data during the checkpoint.
 	 * @param failureTimestamp Timestamp when this checkpoint failed.
 	 * @param latestAcknowledgedSubtask The latest acknowledged subtask stats or <code>null</code>.
 	 * @param cause Cause of the checkpoint failure or <code>null</code>.
@@ -81,7 +83,8 @@ public class FailedCheckpointStats extends AbstractCheckpointStats {
 			Map<JobVertexID, TaskStateStats> taskStats,
 			int numAcknowledgedSubtasks,
 			long stateSize,
-			long alignmentBuffered,
+			long processedData,
+			long persistedData,
 			long failureTimestamp,
 			@Nullable SubtaskStateStats latestAcknowledgedSubtask,
 			@Nullable Throwable cause) {
@@ -91,7 +94,8 @@ public class FailedCheckpointStats extends AbstractCheckpointStats {
 		this.numAcknowledgedSubtasks = numAcknowledgedSubtasks;
 		checkArgument(stateSize >= 0, "Negative state size");
 		this.stateSize = stateSize;
-		this.alignmentBuffered = alignmentBuffered;
+		this.processedData = processedData;
+		this.persistedData = persistedData;
 		this.failureTimestamp = failureTimestamp;
 		this.latestAcknowledgedSubtask = latestAcknowledgedSubtask;
 		this.failureMsg = cause != null ? cause.getMessage() : null;
@@ -113,8 +117,13 @@ public class FailedCheckpointStats extends AbstractCheckpointStats {
 	}
 
 	@Override
-	public long getAlignmentBuffered() {
-		return alignmentBuffered;
+	public long getProcessedData() {
+		return processedData;
+	}
+
+	@Override
+	public long getPersistedData() {
+		return persistedData;
 	}
 
 	@Override

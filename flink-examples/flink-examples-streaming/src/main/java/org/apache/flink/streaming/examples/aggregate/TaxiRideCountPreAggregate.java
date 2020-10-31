@@ -26,6 +26,13 @@ import java.util.concurrent.ConcurrentMap;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
+/**
+ * <pre>
+ * -controller true -pre-aggregate-window 1 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -output mqtt -sinkHost 127.0.0.1
+ *
+ * -controller false -pre-aggregate-window 100 -pre-aggregate-window-timeout 1 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -output mqtt -sinkHost 127.0.0.1
+ * </pre>
+ */
 public class TaxiRideCountPreAggregate {
 	public static void main(String[] args) throws Exception {
 		ParameterTool params = ParameterTool.fromArgs(args);
@@ -101,6 +108,7 @@ public class TaxiRideCountPreAggregate {
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
+		/*
 		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
 		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
 			// no combiner
@@ -149,6 +157,8 @@ public class TaxiRideCountPreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideCountPreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************

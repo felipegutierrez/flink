@@ -1,6 +1,6 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-import io.airlift.tpch.LineItem;
+//import io.airlift.tpch.LineItem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
@@ -12,7 +12,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
+//import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
 import org.apache.flink.streaming.examples.aggregate.util.MqttDataSink;
 import org.apache.flink.streaming.examples.utils.DataRateListener;
 import org.apache.flink.util.Collector;
@@ -118,6 +118,7 @@ public class TPCHQuery01PreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
+		/*
 		DataStream<LineItem> lineItems = env.addSource(new LineItemSource(maxCount)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemsMap = lineItems
@@ -163,6 +164,8 @@ public class TPCHQuery01PreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TPCHQuery01PreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************
@@ -184,28 +187,28 @@ public class TPCHQuery01PreAggregate {
 	 *        count(*) as count_order // long
 	 * </pre>
 	 */
-	private static class LineItemToTuple11Map implements MapFunction<LineItem,
-		Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> {
-		private static final long serialVersionUID = 1L;
-
-		@Override
-		public Tuple2<String,
-			Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> map(LineItem lineItem) throws Exception {
-
-			String key = lineItem.getReturnFlag() + "|" + lineItem.getStatus();
-			return Tuple2.of(key, Tuple11.of(
-				lineItem.getReturnFlag(), lineItem.getStatus(),
-				lineItem.getQuantity(),
-				lineItem.getExtendedPrice(),
-				lineItem.getDiscount(),
-				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()),
-				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()) * (1 + lineItem.getTax()),
-				lineItem.getQuantity(),
-				lineItem.getExtendedPrice(),
-				lineItem.getDiscount(),
-				1L));
-		}
-	}
+//	private static class LineItemToTuple11Map implements MapFunction<LineItem,
+//		Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> {
+//		private static final long serialVersionUID = 1L;
+//
+//		@Override
+//		public Tuple2<String,
+//			Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> map(LineItem lineItem) throws Exception {
+//
+//			String key = lineItem.getReturnFlag() + "|" + lineItem.getStatus();
+//			return Tuple2.of(key, Tuple11.of(
+//				lineItem.getReturnFlag(), lineItem.getStatus(),
+//				lineItem.getQuantity(),
+//				lineItem.getExtendedPrice(),
+//				lineItem.getDiscount(),
+//				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()),
+//				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()) * (1 + lineItem.getTax()),
+//				lineItem.getQuantity(),
+//				lineItem.getExtendedPrice(),
+//				lineItem.getDiscount(),
+//				1L));
+//		}
+//	}
 
 	private static class LineItemSumPreAgg extends PreAggregateFunction<String,
 		Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,

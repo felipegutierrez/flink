@@ -29,6 +29,7 @@ import org.apache.flink.util.TestLogger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -95,7 +96,7 @@ public class FutureUtilsTest extends TestLogger {
 	 * Tests that a retry future is failed after all retries have been consumed.
 	 */
 	@Test(expected = FutureUtils.RetryException.class)
-	public void testRetryFailure() throws Throwable {
+	public void testRetryFailureFixedRetries() throws Throwable {
 		final int retries = 3;
 
 		CompletableFuture<?> retryFuture = FutureUtils.retry(
@@ -163,7 +164,7 @@ public class FutureUtilsTest extends TestLogger {
 	 * Tests that retry with delay fails after having exceeded all retries.
 	 */
 	@Test(expected = FutureUtils.RetryException.class)
-	public void testRetryWithDelayFailure() throws Throwable {
+	public void testRetryWithDelayFixedArgsFailure() throws Throwable {
 		CompletableFuture<?> retryFuture = FutureUtils.retryWithDelay(
 			() -> FutureUtils.completedExceptionally(new FlinkException("Test exception")),
 			3,
@@ -178,10 +179,27 @@ public class FutureUtilsTest extends TestLogger {
 	}
 
 	/**
+	 * Tests that retry with delay fails after having exceeded all retries.
+	 */
+	@Test(expected = FutureUtils.RetryException.class)
+	public void testRetryWithDelayRetryStrategyFailure() throws Throwable {
+		CompletableFuture<?> retryFuture = FutureUtils.retryWithDelay(
+				() -> FutureUtils.completedExceptionally(new FlinkException("Test exception")),
+				new FixedRetryStrategy(3, Duration.ofMillis(1L)),
+				TestingUtils.defaultScheduledExecutor());
+
+		try {
+			retryFuture.get(TestingUtils.TIMEOUT().toMilliseconds(), TimeUnit.MILLISECONDS);
+		} catch (ExecutionException ee) {
+			throw ExceptionUtils.stripExecutionException(ee);
+		}
+	}
+
+	/**
 	 * Tests that the delay is respected between subsequent retries of a retry future with retry delay.
 	 */
 	@Test
-	public void testRetryWithDelay() throws Exception {
+	public void testRetryWithDelayFixedArgs() throws Exception {
 		final int retries = 4;
 		final Time delay = Time.milliseconds(5L);
 		final AtomicInteger countDown = new AtomicInteger(retries);
@@ -205,7 +223,37 @@ public class FutureUtilsTest extends TestLogger {
 		long completionTime = System.currentTimeMillis() - start;
 
 		assertTrue(result);
-		assertTrue("The completion time should be at least rertries times delay between retries.", completionTime >= retries * delay.toMilliseconds());
+		assertTrue("The completion time should be at least retries times delay between retries.", completionTime >= retries * delay.toMilliseconds());
+	}
+
+	/**
+	 * Tests that the delay is respected between subsequent retries of a retry future with retry delay.
+	 */
+	@Test
+	public void testRetryWithDelayRetryStrategy() throws Exception {
+		final int retries = 4;
+		final Time delay = Time.milliseconds(5L);
+		final AtomicInteger countDown = new AtomicInteger(retries);
+
+		long start = System.currentTimeMillis();
+
+		CompletableFuture<Boolean> retryFuture = FutureUtils.retryWithDelay(
+				() -> {
+					if (countDown.getAndDecrement() == 0) {
+						return CompletableFuture.completedFuture(true);
+					} else {
+						return FutureUtils.completedExceptionally(new FlinkException("Test exception."));
+					}
+				},
+				new ExponentialBackoffRetryStrategy(retries, Duration.ofMillis(2L), Duration.ofMillis(5L)),
+				TestingUtils.defaultScheduledExecutor());
+
+		Boolean result = retryFuture.get();
+
+		long completionTime = System.currentTimeMillis() - start;
+
+		assertTrue(result);
+		assertTrue("The completion time should be at least retries times delay between retries.", completionTime >= (2 + 4 + 5 + 5));
 	}
 
 	/**
@@ -800,6 +848,24 @@ public class FutureUtilsTest extends TestLogger {
 		Throwable actualException = getThrowable(source);
 
 		assertThat(targetException, is(equalTo(actualException)));
+	}
+
+	@Test
+	public void testForwardAsync() throws Exception {
+		final CompletableFuture<String> source = new CompletableFuture<>();
+		final CompletableFuture<String> target = new CompletableFuture<>();
+		final ManuallyTriggeredScheduledExecutor executor = new ManuallyTriggeredScheduledExecutor();
+
+		FutureUtils.forwardAsync(source, target, executor);
+
+		source.complete("foobar");
+
+		assertThat(target.isDone(), is(false));
+
+		// execute the forward action
+		executor.triggerAll();
+
+		assertThat(target.get(), is(equalTo(source.get())));
 	}
 
 	@Test

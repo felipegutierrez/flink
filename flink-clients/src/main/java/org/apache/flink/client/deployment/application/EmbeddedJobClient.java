@@ -25,11 +25,19 @@ import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.common.accumulators.AccumulatorHelper;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.core.execution.JobClient;
+import org.apache.flink.runtime.concurrent.FutureUtils;
+import org.apache.flink.runtime.concurrent.ScheduledExecutor;
 import org.apache.flink.runtime.dispatcher.DispatcherGateway;
 import org.apache.flink.runtime.executiongraph.ArchivedExecutionGraph;
+import org.apache.flink.runtime.jobgraph.OperatorID;
+import org.apache.flink.runtime.operators.coordination.CoordinationRequest;
+import org.apache.flink.runtime.operators.coordination.CoordinationRequestGateway;
+import org.apache.flink.runtime.operators.coordination.CoordinationResponse;
+import org.apache.flink.util.SerializedValue;
 
 import javax.annotation.Nullable;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -41,21 +49,29 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * uses directly the {@link DispatcherGateway}.
  */
 @Internal
-public class EmbeddedJobClient implements JobClient {
+public class EmbeddedJobClient implements JobClient, CoordinationRequestGateway {
 
 	private final JobID jobId;
 
 	private final DispatcherGateway dispatcherGateway;
 
+	private final ScheduledExecutor retryExecutor;
+
 	private final Time timeout;
+
+	private final ClassLoader classLoader;
 
 	public EmbeddedJobClient(
 			final JobID jobId,
 			final DispatcherGateway dispatcherGateway,
-			final Time rpcTimeout) {
+			final ScheduledExecutor retryExecutor,
+			final Time rpcTimeout,
+			final ClassLoader classLoader) {
 		this.jobId = checkNotNull(jobId);
 		this.dispatcherGateway = checkNotNull(dispatcherGateway);
+		this.retryExecutor = checkNotNull(retryExecutor);
 		this.timeout = checkNotNull(rpcTimeout);
+		this.classLoader = classLoader;
 	}
 
 	@Override
@@ -86,7 +102,7 @@ public class EmbeddedJobClient implements JobClient {
 	}
 
 	@Override
-	public CompletableFuture<Map<String, Object>> getAccumulators(final ClassLoader classLoader) {
+	public CompletableFuture<Map<String, Object>> getAccumulators() {
 		checkNotNull(classLoader);
 
 		return dispatcherGateway.requestJob(jobId, timeout)
@@ -101,18 +117,28 @@ public class EmbeddedJobClient implements JobClient {
 	}
 
 	@Override
-	public CompletableFuture<JobExecutionResult> getJobExecutionResult(final ClassLoader userClassloader) {
-		checkNotNull(userClassloader);
+	public CompletableFuture<JobExecutionResult> getJobExecutionResult() {
+		checkNotNull(classLoader);
 
-		return dispatcherGateway
-				.requestJobResult(jobId, timeout)
+		final Time retryPeriod = Time.milliseconds(100L);
+		return JobStatusPollingUtils.getJobResult(dispatcherGateway, jobId, retryExecutor, timeout, retryPeriod)
 				.thenApply((jobResult) -> {
 					try {
-						return jobResult.toJobExecutionResult(userClassloader);
+						return jobResult.toJobExecutionResult(classLoader);
 					} catch (Throwable t) {
-						throw new CompletionException(
-								new Exception("Job " + jobId + " failed", t));
+						throw new CompletionException(new Exception("Job " + jobId + " failed", t));
 					}
 				});
+	}
+
+	@Override
+	public CompletableFuture<CoordinationResponse> sendCoordinationRequest(OperatorID operatorId, CoordinationRequest request) {
+		try {
+			SerializedValue<CoordinationRequest> serializedRequest = new SerializedValue<>(request);
+			return dispatcherGateway.deliverCoordinationRequestToCoordinator(
+				jobId, operatorId, serializedRequest, timeout);
+		} catch (IOException e) {
+			return FutureUtils.completedExceptionally(e);
+		}
 	}
 }

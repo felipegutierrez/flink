@@ -247,6 +247,12 @@ public class DataTypesTest {
 				.expectConversionClass(Integer[][].class),
 
 			TestSpec
+				.forDataType(ARRAY(ARRAY(INT().notNull())).bridgedTo(int[][].class))
+				.expectLogicalType(new ArrayType(new ArrayType(new IntType(false))))
+				.expectConversionClass(int[][].class)
+				.expectChildren(DataTypes.ARRAY(INT().notNull()).bridgedTo(int[].class)),
+
+			TestSpec
 				.forDataType(MULTISET(MULTISET(INT())))
 				.expectLogicalType(new MultisetType(new MultisetType(new IntType())))
 				.expectConversionClass(Map.class),
@@ -351,7 +357,15 @@ public class DataTypesTest {
 				.forUnresolvedDataType(RAW(Object.class))
 				.expectUnresolvedString("[RAW('java.lang.Object', '?')]")
 				.lookupReturns(DataTypes.RAW(new GenericTypeInfo<>(Object.class)))
-				.expectResolvedDataType(DataTypes.RAW(new GenericTypeInfo<>(Object.class)))
+				.expectResolvedDataType(DataTypes.RAW(new GenericTypeInfo<>(Object.class))),
+
+			TestSpec
+				.forUnresolvedDataType(DataTypes.of(SimplePojo.class))
+				.expectResolvedDataType(
+					DataTypes.STRUCTURED(
+						SimplePojo.class,
+						DataTypes.FIELD("name", DataTypes.STRING()),
+						DataTypes.FIELD("count", DataTypes.INT().notNull().bridgedTo(int.class))))
 		);
 	}
 
@@ -365,7 +379,9 @@ public class DataTypesTest {
 
 			assertThat(dataType, hasLogicalType(testSpec.expectedLogicalType));
 
-			assertThat(toDataType(testSpec.expectedLogicalType), equalTo(dataType));
+			assertThat(
+				toDataType(testSpec.expectedLogicalType).bridgedTo(dataType.getConversionClass()),
+				equalTo(dataType));
 
 			assertThat(toLogicalType(dataType), equalTo(testSpec.expectedLogicalType));
 		}
@@ -376,6 +392,14 @@ public class DataTypesTest {
 		if (testSpec.expectedConversionClass != null) {
 			final DataType dataType = testSpec.typeFactory.createDataType(testSpec.abstractDataType);
 			assertThat(dataType, hasConversionClass(testSpec.expectedConversionClass));
+		}
+	}
+
+	@Test
+	public void testChildren() {
+		if (testSpec.expectedChildren != null) {
+			final DataType dataType = testSpec.typeFactory.createDataType(testSpec.abstractDataType);
+			assertThat(dataType.getChildren(), equalTo(testSpec.expectedChildren));
 		}
 	}
 
@@ -406,6 +430,8 @@ public class DataTypesTest {
 
 		private @Nullable Class<?> expectedConversionClass;
 
+		private @Nullable List<DataType> expectedChildren;
+
 		private @Nullable String expectedUnresolvedString;
 
 		private @Nullable DataType expectedResolvedDataType;
@@ -432,6 +458,11 @@ public class DataTypesTest {
 			return this;
 		}
 
+		TestSpec expectChildren(DataType... expectedChildren) {
+			this.expectedChildren = Arrays.asList(expectedChildren);
+			return this;
+		}
+
 		TestSpec expectUnresolvedString(String expectedUnresolvedString) {
 			this.expectedUnresolvedString = expectedUnresolvedString;
 			return this;
@@ -450,6 +481,23 @@ public class DataTypesTest {
 		@Override
 		public String toString() {
 			return abstractDataType.toString();
+		}
+	}
+
+	// --------------------------------------------------------------------------------------------
+	// Helper classes
+	// --------------------------------------------------------------------------------------------
+
+	/**
+	 * Simple POJO for testing.
+	 */
+	public static class SimplePojo {
+		public final String name;
+		public final int count;
+
+		public SimplePojo(String name, int count) {
+			this.name = name;
+			this.count = count;
 		}
 	}
 }

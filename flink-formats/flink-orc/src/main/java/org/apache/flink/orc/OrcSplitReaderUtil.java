@@ -22,8 +22,8 @@ import org.apache.flink.core.fs.Path;
 import org.apache.flink.orc.OrcColumnarRowSplitReader.ColumnBatchGenerator;
 import org.apache.flink.orc.shim.OrcShim;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.dataformat.vector.ColumnVector;
-import org.apache.flink.table.dataformat.vector.VectorizedColumnBatch;
+import org.apache.flink.table.data.vector.ColumnVector;
+import org.apache.flink.table.data.vector.VectorizedColumnBatch;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.CharType;
@@ -62,7 +62,7 @@ public class OrcSplitReaderUtil {
 			DataType[] fullFieldTypes,
 			Map<String, Object> partitionSpec,
 			int[] selectedFields,
-			List<OrcSplitReader.Predicate> conjunctPredicates,
+			List<OrcFilters.Predicate> conjunctPredicates,
 			int batchSize,
 			Path path,
 			long splitStart,
@@ -80,7 +80,7 @@ public class OrcSplitReaderUtil {
 				LogicalType type = fullFieldTypes[selectedFields[i]].getLogicalType();
 				vectors[i] = partitionSpec.containsKey(name) ?
 						createFlinkVectorFromConstant(type, partitionSpec.get(name), batchSize) :
-						createFlinkVector(rowBatch.cols[nonPartNames.indexOf(name)]);
+						createFlinkVector(rowBatch.cols[nonPartNames.indexOf(name)], type);
 			}
 			return new VectorizedColumnBatch(vectors);
 		};
@@ -134,7 +134,7 @@ public class OrcSplitReaderUtil {
 	/**
 	 * See {@code org.apache.flink.table.catalog.hive.util.HiveTypeUtil}.
 	 */
-	static TypeDescription logicalTypeToOrcType(LogicalType type) {
+	public static TypeDescription logicalTypeToOrcType(LogicalType type) {
 		type = type.copy(true);
 		switch (type.getTypeRoot()) {
 			case CHAR:

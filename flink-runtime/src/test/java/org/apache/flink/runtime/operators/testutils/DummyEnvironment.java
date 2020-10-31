@@ -29,10 +29,11 @@ import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
 import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
+import org.apache.flink.runtime.externalresource.ExternalResourceInfoProvider;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.runtime.io.network.TaskEventDispatcher;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
-import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
+import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
 import org.apache.flink.runtime.jobgraph.tasks.TaskOperatorEventGateway;
@@ -48,6 +49,8 @@ import org.apache.flink.runtime.taskexecutor.TestGlobalAggregateManager;
 import org.apache.flink.runtime.taskmanager.NoOpTaskOperatorEventGateway;
 import org.apache.flink.runtime.taskmanager.TaskManagerRuntimeInfo;
 import org.apache.flink.runtime.util.TestingTaskManagerRuntimeInfo;
+import org.apache.flink.runtime.util.TestingUserCodeClassLoader;
+import org.apache.flink.util.UserCodeClassLoader;
 
 import java.util.Collections;
 import java.util.Map;
@@ -64,7 +67,7 @@ public class DummyEnvironment implements Environment {
 	private TaskStateManager taskStateManager;
 	private final GlobalAggregateManager aggregateManager;
 	private final AccumulatorRegistry accumulatorRegistry = new AccumulatorRegistry(jobId, executionId);
-	private ClassLoader userClassLoader;
+	private UserCodeClassLoader userClassLoader;
 
 	public DummyEnvironment() {
 		this("Test Job", 1, 0, 1);
@@ -72,7 +75,7 @@ public class DummyEnvironment implements Environment {
 
 	public DummyEnvironment(ClassLoader userClassLoader) {
 		this("Test Job", 1, 0, 1);
-		this.userClassLoader = userClassLoader;
+		this.userClassLoader = TestingUserCodeClassLoader.newBuilder().setClassLoader(userClassLoader).build();
 	}
 
 	public DummyEnvironment(String taskName, int numSubTasks, int subTaskIndex) {
@@ -154,9 +157,9 @@ public class DummyEnvironment implements Environment {
 	}
 
 	@Override
-	public ClassLoader getUserClassLoader() {
+	public UserCodeClassLoader getUserCodeClassLoader() {
 		if (userClassLoader == null) {
-			return getClass().getClassLoader();
+			return TestingUserCodeClassLoader.newBuilder().build();
 		} else {
 			return userClassLoader;
 		}
@@ -197,6 +200,11 @@ public class DummyEnvironment implements Environment {
 	}
 
 	@Override
+	public ExternalResourceInfoProvider getExternalResourceInfoProvider() {
+		return ExternalResourceInfoProvider.NO_EXTERNAL_RESOURCES;
+	}
+
+	@Override
 	public void acknowledgeCheckpoint(long checkpointId, CheckpointMetrics checkpointMetrics, TaskStateSnapshot subtaskState) {
 	}
 
@@ -217,17 +225,17 @@ public class DummyEnvironment implements Environment {
 
 	@Override
 	public ResultPartitionWriter[] getAllWriters() {
-		return null;
+		return new ResultPartitionWriter[0];
 	}
 
 	@Override
-	public InputGate getInputGate(int index) {
-		return null;
+	public IndexedInputGate getInputGate(int index) {
+		throw new ArrayIndexOutOfBoundsException(0);
 	}
 
 	@Override
-	public InputGate[] getAllInputGates() {
-		return null;
+	public IndexedInputGate[] getAllInputGates() {
+		return new IndexedInputGate[0];
 	}
 
 	@Override

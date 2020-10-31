@@ -7,7 +7,7 @@ This is an [Apache Flink](https://github.com/apache/flink) branch forked from th
 ```
 $ git clone https://github.com/felipegutierrez/flink.git flink-with-adcom
 $ cd flink-with-adcom
-$ mvn clean install -e -X -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true
+$ mvn clean install -e -X -DskipTests -Dskip.npm -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true -Drat.skip=true -Dscala-2.12
 $ ll flink-examples/flink-examples-streaming/target/
 ```
 
@@ -142,6 +142,25 @@ $ git merge upstream/master
 // From my own github repository
 $ git pull
 // Open IntelliJ, update the project, and commit the new changes on my local repository
+```
+
+classes changed:
+```
+org.apache.flink.api.java.typeutils.TypeExtractor.java
+org.apache.flink.metrics.MetricGroup.java
+org.apache.flink.runtime.jobmaster.JobManagerRunnerImpl.java
+org.apache.flink.runtime.jobmaster.factories.JobMasterServiceFactory.java
+org.apache.flink.streaming.api.operators.StreamingRuntimeContext.java
+org.apache.flink.streaming.api.datastream.DataStream.java
+org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
+org.apache.flink.api.common.functions.PreAggregateFunction;
+org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
+org.apache.flink.streaming.api.operators.StreamPreAggregateConcurrentOperator;
+org.apache.flink.streaming.api.operators.StreamPreAggregateOperator;
+org.apache.flink.streaming.api.operators.AbstractUdfStreamPreAggregateOperator;
+org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
+AbstractMetricGroup
+ProxyMetricGroup
 ```
 
 

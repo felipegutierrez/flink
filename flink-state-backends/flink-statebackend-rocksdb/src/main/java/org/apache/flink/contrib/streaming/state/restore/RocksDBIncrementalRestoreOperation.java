@@ -51,6 +51,7 @@ import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.DBOptions;
+import org.rocksdb.ReadOptions;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
@@ -78,6 +79,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import static org.apache.flink.contrib.streaming.state.snapshot.RocksSnapshotUtil.SST_FILE_SUFFIX;
+import static org.apache.flink.runtime.state.StateUtil.unexpectedStateHandleException;
 import static org.apache.flink.util.Preconditions.checkArgument;
 
 /**
@@ -160,6 +162,7 @@ public class RocksDBIncrementalRestoreOperation<K> extends AbstractRocksDBRestor
 	/**
 	 * Recovery from a single remote incremental state without rescaling.
 	 */
+	@SuppressWarnings("unchecked")
 	private void restoreWithoutRescaling(KeyedStateHandle keyedStateHandle) throws Exception {
 		if (keyedStateHandle instanceof IncrementalRemoteKeyedStateHandle) {
 			IncrementalRemoteKeyedStateHandle incrementalRemoteKeyedStateHandle =
@@ -172,9 +175,9 @@ public class RocksDBIncrementalRestoreOperation<K> extends AbstractRocksDBRestor
 			restorePreviousIncrementalFilesStatus(incrementalLocalKeyedStateHandle);
 			restoreFromLocalState(incrementalLocalKeyedStateHandle);
 		} else {
-			throw new BackendBuildingException("Unexpected state handle type, " +
-				"expected " + IncrementalRemoteKeyedStateHandle.class + " or " + IncrementalLocalKeyedStateHandle.class +
-				", but found " + keyedStateHandle.getClass());
+			throw unexpectedStateHandleException(
+					new Class[]{IncrementalRemoteKeyedStateHandle.class, IncrementalLocalKeyedStateHandle.class},
+					keyedStateHandle.getClass());
 		}
 	}
 
@@ -287,9 +290,7 @@ public class RocksDBIncrementalRestoreOperation<K> extends AbstractRocksDBRestor
 		for (KeyedStateHandle rawStateHandle : restoreStateHandles) {
 
 			if (!(rawStateHandle instanceof IncrementalRemoteKeyedStateHandle)) {
-				throw new IllegalStateException("Unexpected state handle type, " +
-					"expected " + IncrementalRemoteKeyedStateHandle.class +
-					", but found " + rawStateHandle.getClass());
+				throw unexpectedStateHandleException(IncrementalRemoteKeyedStateHandle.class, rawStateHandle.getClass());
 			}
 
 			Path temporaryRestoreInstancePath = instanceBasePath.getAbsoluteFile().toPath().resolve(UUID.randomUUID().toString());
@@ -309,7 +310,7 @@ public class RocksDBIncrementalRestoreOperation<K> extends AbstractRocksDBRestor
 						null, tmpRestoreDBInfo.stateMetaInfoSnapshots.get(i))
 						.columnFamilyHandle;
 
-					try (RocksIteratorWrapper iterator = RocksDBOperationUtils.getRocksIterator(tmpRestoreDBInfo.db, tmpColumnFamilyHandle)) {
+					try (RocksIteratorWrapper iterator = RocksDBOperationUtils.getRocksIterator(tmpRestoreDBInfo.db, tmpColumnFamilyHandle, tmpRestoreDBInfo.readOptions)) {
 
 						iterator.seek(startKeyGroupPrefixBytes);
 
@@ -376,6 +377,8 @@ public class RocksDBIncrementalRestoreOperation<K> extends AbstractRocksDBRestor
 		@Nonnull
 		private final List<StateMetaInfoSnapshot> stateMetaInfoSnapshots;
 
+		private final ReadOptions readOptions;
+
 		private RestoredDBInstance(
 			@Nonnull RocksDB db,
 			@Nonnull List<ColumnFamilyHandle> columnFamilyHandles,
@@ -386,6 +389,7 @@ public class RocksDBIncrementalRestoreOperation<K> extends AbstractRocksDBRestor
 			this.columnFamilyHandles = columnFamilyHandles;
 			this.columnFamilyDescriptors = columnFamilyDescriptors;
 			this.stateMetaInfoSnapshots = stateMetaInfoSnapshots;
+			this.readOptions = RocksDBOperationUtils.createTotalOrderSeekReadOptions();
 		}
 
 		@Override
@@ -397,6 +401,7 @@ public class RocksDBIncrementalRestoreOperation<K> extends AbstractRocksDBRestor
 			IOUtils.closeAllQuietly(columnFamilyHandles);
 			IOUtils.closeQuietly(db);
 			IOUtils.closeAllQuietly(columnFamilyOptions);
+			IOUtils.closeQuietly(readOptions);
 		}
 	}
 

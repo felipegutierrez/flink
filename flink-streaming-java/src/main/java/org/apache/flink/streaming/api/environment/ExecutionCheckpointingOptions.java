@@ -123,4 +123,40 @@ public class ExecutionCheckpointingOptions {
 					TextElement.code(MAX_CONCURRENT_CHECKPOINTS.key()),
 					TextElement.code(MIN_PAUSE_BETWEEN_CHECKPOINTS.key()))
 				.build());
+
+	public static final ConfigOption<Boolean> ENABLE_UNALIGNED =
+		ConfigOptions.key("execution.checkpointing.unaligned")
+			.booleanType()
+			.defaultValue(false)
+			.withDescription(Description.builder()
+				.text("Enables unaligned checkpoints, which greatly reduce checkpointing times under backpressure.")
+				.linebreak()
+				.linebreak()
+				.text("Unaligned checkpoints contain data stored in buffers as part of the checkpoint state, which " +
+					"allows checkpoint barriers to overtake these buffers. Thus, the checkpoint duration becomes " +
+					"independent of the current throughput as checkpoint barriers are effectively not embedded into " +
+					"the stream of data anymore.")
+				.linebreak()
+				.linebreak()
+				.text("Unaligned checkpoints can only be enabled if %s is %s and if %s is 1",
+					TextElement.code(CHECKPOINTING_MODE.key()),
+					TextElement.code(CheckpointingMode.EXACTLY_ONCE.toString()),
+					TextElement.code(MAX_CONCURRENT_CHECKPOINTS.key()))
+				.build());
+
+	public static final ConfigOption<Duration> ALIGNMENT_TIMEOUT =
+		ConfigOptions.key("execution.checkpointing.alignment-timeout")
+			.durationType()
+			.defaultValue(Duration.ofSeconds(30))
+			.withDescription(Description.builder()
+				.text("Only relevant if %s is enabled.", TextElement.code(ENABLE_UNALIGNED.key()))
+				.linebreak()
+				.linebreak()
+				.text("If timeout is 0, checkpoints will always start unaligned.")
+				.linebreak()
+				.linebreak()
+				.text("If timeout has a positive value, checkpoints will start aligned. " +
+					"If during checkpointing, checkpoint start delay exceeds this timeout, alignment " +
+					"will timeout and checkpoint barrier will start working as unaligned checkpoint.")
+				.build());
 }

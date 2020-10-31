@@ -19,19 +19,37 @@
 package org.apache.flink.table.filesystem;
 
 import org.apache.flink.api.common.io.InputFormat;
+import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.java.io.CollectionInputFormat;
+import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.connector.file.src.FileSource;
+import org.apache.flink.connector.file.src.reader.BulkFormat;
 import org.apache.flink.core.fs.Path;
+import org.apache.flink.streaming.api.functions.source.InputFormatSourceFunction;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.dataformat.BaseRow;
-import org.apache.flink.table.expressions.Expression;
-import org.apache.flink.table.sources.FilterableTableSource;
-import org.apache.flink.table.sources.InputFormatTableSource;
-import org.apache.flink.table.sources.LimitableTableSource;
-import org.apache.flink.table.sources.PartitionableTableSource;
-import org.apache.flink.table.sources.ProjectableTableSource;
+import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.connector.ChangelogMode;
+import org.apache.flink.table.connector.format.BulkDecodingFormat;
+import org.apache.flink.table.connector.format.DecodingFormat;
+import org.apache.flink.table.connector.source.InputFormatProvider;
+import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.SourceFunctionProvider;
+import org.apache.flink.table.connector.source.SourceProvider;
+import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsPartitionPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.factories.DynamicTableFactory;
+import org.apache.flink.table.factories.FileSystemFormatFactory;
+import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.utils.PartitionPathUtils;
+
+import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,81 +57,104 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.apache.flink.table.filesystem.FileSystemTableFactory.createFormatFactory;
+import java.util.stream.Stream;
 
 /**
  * File system table source.
  */
-public class FileSystemTableSource extends InputFormatTableSource<BaseRow> implements
-		PartitionableTableSource,
-		ProjectableTableSource<BaseRow>,
-		LimitableTableSource<BaseRow>,
-		FilterableTableSource<BaseRow> {
+public class FileSystemTableSource extends AbstractFileSystemTable implements
+		ScanTableSource,
+		SupportsProjectionPushDown,
+		SupportsLimitPushDown,
+		SupportsPartitionPushDown,
+		SupportsFilterPushDown {
 
-	private final TableSchema schema;
-	private final Path path;
-	private final List<String> partitionKeys;
-	private final String defaultPartName;
-	private final Map<String, String> formatProperties;
+	@Nullable private final DecodingFormat<BulkFormat<RowData>> bulkReaderFormat;
+	@Nullable private final DecodingFormat<DeserializationSchema<RowData>> deserializationFormat;
+	@Nullable private final FileSystemFormatFactory formatFactory;
 
-	private final int[] selectFields;
-	private final Long limit;
-	private final List<Expression> filters;
+	private int[][] projectedFields;
+	private List<Map<String, String>> remainingPartitions;
+	private List<ResolvedExpression> filters;
+	private Long limit;
 
-	private List<Map<String, String>> readPartitions;
-
-	/**
-	 * Construct a file system table source.
-	 *
-	 * @param schema schema of the table.
-	 * @param path directory path of the file system table.
-	 * @param partitionKeys partition keys of the table.
-	 * @param defaultPartName The default partition name in case the dynamic partition column value
-	 *                        is null/empty string.
-	 * @param formatProperties format properties.
-	 */
 	public FileSystemTableSource(
-			TableSchema schema,
-			Path path,
-			List<String> partitionKeys,
-			String defaultPartName,
-			Map<String, String> formatProperties) {
-		this(schema, path, partitionKeys, defaultPartName, formatProperties, null, null, null, null);
-	}
-
-	private FileSystemTableSource(
-			TableSchema schema,
-			Path path,
-			List<String> partitionKeys,
-			String defaultPartName,
-			Map<String, String> formatProperties,
-			List<Map<String, String>> readPartitions,
-			int[] selectFields,
-			Long limit,
-			List<Expression> filters) {
-		this.schema = schema;
-		this.path = path;
-		this.partitionKeys = partitionKeys;
-		this.defaultPartName = defaultPartName;
-		this.formatProperties = formatProperties;
-		this.readPartitions = readPartitions;
-		this.selectFields = selectFields;
-		this.limit = limit;
-		this.filters = filters;
+			DynamicTableFactory.Context context,
+			@Nullable DecodingFormat<BulkFormat<RowData>> bulkReaderFormat,
+			@Nullable DecodingFormat<DeserializationSchema<RowData>> deserializationFormat,
+			@Nullable FileSystemFormatFactory formatFactory) {
+		super(context);
+		if (Stream.of(bulkReaderFormat, deserializationFormat, formatFactory)
+				.allMatch(Objects::isNull)) {
+			throw new ValidationException("Please implement at least one of the following formats:" +
+					" BulkFormat, DeserializationSchema, FileSystemFormatFactory.");
+		}
+		this.bulkReaderFormat = bulkReaderFormat;
+		this.deserializationFormat = deserializationFormat;
+		this.formatFactory = formatFactory;
 	}
 
 	@Override
-	public InputFormat<BaseRow, ?> getInputFormat() {
-		// When this table has no partition, just return a empty source.
+	public ScanRuntimeProvider getScanRuntimeProvider(ScanContext scanContext) {
 		if (!partitionKeys.isEmpty() && getOrFetchPartitions().isEmpty()) {
-			return new CollectionInputFormat<>(new ArrayList<>(), null);
+			// When this table has no partition, just return a empty source.
+			return InputFormatProvider.of(new CollectionInputFormat<>(new ArrayList<>(), null));
+		} else if (bulkReaderFormat != null) {
+			return sourceProvider(bulkReaderFormat, scanContext);
+		} else if (formatFactory != null) {
+			// The ContinuousFileMonitoringFunction can not accept multiple paths. Default
+			// StreamEnv.createInput will create continuous function.
+			// Avoid using ContinuousFileMonitoringFunction.
+			return SourceFunctionProvider.of(
+					new InputFormatSourceFunction<>(
+							getInputFormat(),
+							InternalTypeInfo.of(getProducedDataType().getLogicalType())),
+					true);
+		} else if (deserializationFormat != null) {
+			throw new UnsupportedOperationException("The deserializationFormat is under developing.");
+			// TODO wrap deserializationFormat to bulk format
+			// return sourceProvider(wrapDeserializationFormat(deserializationFormat), scanContext);
+		} else {
+			throw new TableException("Can not find format factory.");
 		}
+	}
 
-		return createFormatFactory(formatProperties).createReader(
-				new FileSystemFormatFactory.ReaderContext() {
+	private SourceProvider sourceProvider(
+			DecodingFormat<BulkFormat<RowData>> decodingFormat, ScanContext scanContext) {
+		if (decodingFormat instanceof BulkDecodingFormat) {
+			BulkDecodingFormat<RowData> bulkFormat = (BulkDecodingFormat<RowData>) decodingFormat;
+			if (limit != null) {
+				bulkFormat.applyLimit(limit);
+			}
+			if (filters != null && filters.size() > 0) {
+				bulkFormat.applyFilters(filters);
+			}
+		}
+		BulkFormat<RowData> bulkFormat = decodingFormat.createRuntimeDecoder(
+				scanContext, getProducedDataType());
+		FileSource.FileSourceBuilder<RowData> builder = FileSource
+				.forBulkFileFormat(bulkFormat, paths());
+		return SourceProvider.of(builder.build());
+	}
+
+	private Path[] paths() {
+		if (partitionKeys.isEmpty()) {
+			return new Path[] {path};
+		} else {
+			return getOrFetchPartitions().stream()
+					.map(FileSystemTableSource.this::toFullLinkedPartSpec)
+					.map(PartitionPathUtils::generatePartitionPath)
+					.map(n -> new Path(path, n))
+					.toArray(Path[]::new);
+		}
+	}
+
+	private InputFormat<RowData, ?> getInputFormat() {
+		return formatFactory.createReader(new FileSystemFormatFactory.ReaderContext() {
 
 			@Override
 			public TableSchema getSchema() {
@@ -121,8 +162,8 @@ public class FileSystemTableSource extends InputFormatTableSource<BaseRow> imple
 			}
 
 			@Override
-			public Map<String, String> getFormatProperties() {
-				return formatProperties;
+			public ReadableConfig getFormatOptions() {
+				return formatOptions(formatFactory.factoryIdentifier());
 			}
 
 			@Override
@@ -137,15 +178,7 @@ public class FileSystemTableSource extends InputFormatTableSource<BaseRow> imple
 
 			@Override
 			public Path[] getPaths() {
-				if (partitionKeys.isEmpty()) {
-					return new Path[] {path};
-				} else {
-					return getOrFetchPartitions().stream()
-							.map(FileSystemTableSource.this::toFullLinkedPartSpec)
-							.map(PartitionPathUtils::generatePartitionPath)
-							.map(n -> new Path(path, n))
-							.toArray(Path[]::new);
-				}
+				return paths();
 			}
 
 			@Override
@@ -159,17 +192,82 @@ public class FileSystemTableSource extends InputFormatTableSource<BaseRow> imple
 			}
 
 			@Override
-			public List<Expression> getPushedDownFilters() {
+			public List<ResolvedExpression> getPushedDownFilters() {
 				return filters == null ? Collections.emptyList() : filters;
 			}
 		});
 	}
 
-	private List<Map<String, String>> getOrFetchPartitions() {
-		if (readPartitions == null) {
-			readPartitions = getPartitions();
+	@Override
+	public ChangelogMode getChangelogMode() {
+		return ChangelogMode.insertOnly();
+	}
+
+	@Override
+	public Result applyFilters(List<ResolvedExpression> filters) {
+		this.filters = filters;
+		return Result.of(Collections.emptyList(), filters);
+	}
+
+	@Override
+	public void applyLimit(long limit) {
+		this.limit = limit;
+	}
+
+	@Override
+	public Optional<List<Map<String, String>>> listPartitions() {
+		try {
+			return Optional.of(PartitionPathUtils
+					.searchPartSpecAndPaths(path.getFileSystem(), path, partitionKeys.size())
+					.stream()
+					.map(tuple2 -> tuple2.f0)
+					.map(spec -> {
+						LinkedHashMap<String, String> ret = new LinkedHashMap<>();
+						spec.forEach((k, v) -> ret.put(k, defaultPartName.equals(v) ? null : v));
+						return ret;
+					})
+					.collect(Collectors.toList()));
+		} catch (Exception e) {
+			throw new TableException("Fetch partitions fail.", e);
 		}
-		return readPartitions;
+	}
+
+	@Override
+	public void applyPartitions(List<Map<String, String>> remainingPartitions) {
+		this.remainingPartitions = remainingPartitions;
+	}
+
+	@Override
+	public boolean supportsNestedProjection() {
+		return false;
+	}
+
+	@Override
+	public void applyProjection(int[][] projectedFields) {
+		this.projectedFields = projectedFields;
+	}
+
+	@Override
+	public FileSystemTableSource copy() {
+		FileSystemTableSource source = new FileSystemTableSource(
+				context, bulkReaderFormat, deserializationFormat, formatFactory);
+		source.projectedFields = projectedFields;
+		source.remainingPartitions = remainingPartitions;
+		source.filters = filters;
+		source.limit = limit;
+		return source;
+	}
+
+	@Override
+	public String asSummaryString() {
+		return "Filesystem";
+	}
+
+	private List<Map<String, String>> getOrFetchPartitions() {
+		if (remainingPartitions == null) {
+			remainingPartitions = listPartitions().get();
+		}
+		return remainingPartitions;
 	}
 
 	private LinkedHashMap<String, String> toFullLinkedPartSpec(Map<String, String> part) {
@@ -184,99 +282,13 @@ public class FileSystemTableSource extends InputFormatTableSource<BaseRow> imple
 		return map;
 	}
 
-	@Override
-	public List<Map<String, String>> getPartitions() {
-		try {
-			return PartitionPathUtils
-					.searchPartSpecAndPaths(path.getFileSystem(), path, partitionKeys.size())
-					.stream()
-					.map(tuple2 -> tuple2.f0)
-					.map(spec -> {
-						LinkedHashMap<String, String> ret = new LinkedHashMap<>();
-						spec.forEach((k, v) -> ret.put(k, defaultPartName.equals(v) ? null : v));
-						return ret;
-					})
-					.collect(Collectors.toList());
-		} catch (Exception e) {
-			throw new TableException("Fetch partitions fail.", e);
-		}
-	}
-
-	@Override
-	public FileSystemTableSource applyPartitionPruning(
-			List<Map<String, String>> remainingPartitions) {
-		return new FileSystemTableSource(
-				schema,
-				path,
-				partitionKeys,
-				defaultPartName,
-				formatProperties,
-				remainingPartitions,
-				selectFields,
-				limit,
-				filters);
-	}
-
-	@Override
-	public FileSystemTableSource projectFields(int[] fields) {
-		return new FileSystemTableSource(
-				schema,
-				path,
-				partitionKeys,
-				defaultPartName,
-				formatProperties,
-				readPartitions,
-				fields,
-				limit,
-				filters);
-	}
-
-	@Override
-	public FileSystemTableSource applyLimit(long limit) {
-		return new FileSystemTableSource(
-				schema,
-				path,
-				partitionKeys,
-				defaultPartName,
-				formatProperties,
-				readPartitions,
-				selectFields,
-				limit,
-				filters);
-	}
-
-	@Override
-	public boolean isLimitPushedDown() {
-		return limit != null;
-	}
-
-	@Override
-	public FileSystemTableSource applyPredicate(List<Expression> predicates) {
-		return new FileSystemTableSource(
-				schema,
-				path,
-				partitionKeys,
-				defaultPartName,
-				formatProperties,
-				readPartitions,
-				selectFields,
-				limit,
-				new ArrayList<>(predicates));
-	}
-
-	@Override
-	public boolean isFilterPushedDown() {
-		return this.filters != null;
-	}
-
 	private int[] readFields() {
-		return selectFields == null ?
+		return projectedFields == null ?
 				IntStream.range(0, schema.getFieldCount()).toArray() :
-				selectFields;
+				Arrays.stream(projectedFields).mapToInt(array -> array[0]).toArray();
 	}
 
-	@Override
-	public DataType getProducedDataType() {
+	private DataType getProducedDataType() {
 		int[] fields = readFields();
 		String[] schemaFieldNames = schema.getFieldNames();
 		DataType[] schemaTypes = schema.getFieldDataTypes();
@@ -284,24 +296,7 @@ public class FileSystemTableSource extends InputFormatTableSource<BaseRow> imple
 		return DataTypes.ROW(Arrays.stream(fields)
 				.mapToObj(i -> DataTypes.FIELD(schemaFieldNames[i], schemaTypes[i]))
 				.toArray(DataTypes.Field[]::new))
-				.bridgedTo(BaseRow.class);
-	}
-
-	@Override
-	public TableSchema getTableSchema() {
-		return schema;
-	}
-
-	@Override
-	public String explainSource() {
-		return super.explainSource() +
-				(readPartitions == null ? "" : ", readPartitions=" + readPartitions) +
-				(selectFields == null ? "" : ", selectFields=" + Arrays.toString(selectFields)) +
-				(limit == null ? "" : ", limit=" + limit) +
-				(filters == null ? "" : ", filters=" + filtersString());
-	}
-
-	private String filtersString() {
-		return filters.stream().map(Expression::asSummaryString).collect(Collectors.joining(","));
+				.bridgedTo(RowData.class)
+			.notNull();
 	}
 }

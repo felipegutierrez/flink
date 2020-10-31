@@ -90,7 +90,6 @@ Operator state can be either user-defined or internal.
 | Operator                                            | Data Type of Internal Operator State |
 |:----------------------------------------------------|:-------------------------------------|
 | ReduceFunction[IOT]                                 | IOT (Input and output type) [, KEY]  |
-| FoldFunction[IT, OT]                                | OT (Output type) [, KEY]             |
 | WindowFunction[IT, OT, KEY, WINDOW]                 | IT (Input type), KEY                 |
 | AllWindowFunction[IT, OT, WINDOW]                   | IT (Input type)                      |
 | JoinFunction[IT1, IT2, OT]                          | IT1, IT2 (Type of 1. and 2. input), KEY |
@@ -217,6 +216,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
       <th class="text-center">1.8.x</th>
       <th class="text-center">1.9.x</th>
       <th class="text-center">1.10.x</th>
+      <th class="text-center">1.11.x</th>
       <th class="text-center">Limitations</th>
     </tr>
   </thead>
@@ -233,6 +233,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center"></td>
           <td class="text-center"></td>
           <td class="text-center"></td>
+          <td class="text-center"></td>
           <td class="text-left">The maximum parallelism of a job that was migrated from Flink 1.1.x to 1.2.x+ is
           currently fixed as the parallelism of the job. This means that the parallelism can not be increased after
           migration. This limitation might be removed in a future bugfix release.</td>
@@ -240,6 +241,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
     <tr>
           <td class="text-center"><strong>1.2.x</strong></td>
           <td class="text-center"></td>
+          <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
@@ -271,6 +273,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
+          <td class="text-center">O</td>
           <td class="text-left">Migrating from Flink 1.3.0 to Flink 1.4.[0,1] will fail if the savepoint contains Scala case classes. Users have to directly migrate to 1.4.2+ instead.</td>
     </tr>
     <tr>
@@ -278,6 +281,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center"></td>
           <td class="text-center"></td>
           <td class="text-center"></td>
+          <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
@@ -293,6 +297,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center"></td>
           <td class="text-center"></td>
           <td class="text-center"></td>
+          <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
@@ -316,6 +321,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
+          <td class="text-center">O</td>
           <td class="text-left"></td>
     </tr>
     <tr>
@@ -326,6 +332,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center"></td>
           <td class="text-center"></td>
           <td class="text-center"></td>
+          <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
@@ -344,6 +351,7 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center">O</td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
+          <td class="text-center">O</td>
           <td class="text-left"></td>
     </tr>
     <tr>
@@ -358,10 +366,27 @@ Savepoints are compatible across Flink versions as indicated by the table below:
           <td class="text-center"></td>
           <td class="text-center">O</td>
           <td class="text-center">O</td>
+          <td class="text-center">O</td>
           <td class="text-left"></td>
     </tr>
     <tr>
           <td class="text-center"><strong>1.10.x</strong></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center"></td>
+          <td class="text-center">O</td>
+          <td class="text-center">O</td>
+          <td class="text-left"></td>
+    </tr>
+    <tr>
+          <td class="text-center"><strong>1.11.x</strong></td>
+          <td class="text-center"></td>
           <td class="text-center"></td>
           <td class="text-center"></td>
           <td class="text-center"></td>

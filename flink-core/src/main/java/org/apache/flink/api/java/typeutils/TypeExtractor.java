@@ -18,11 +18,22 @@
 
 package org.apache.flink.api.java.typeutils;
 
-import org.apache.commons.lang3.ClassUtils;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.Public;
 import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.api.common.functions.*;
+import org.apache.flink.api.common.functions.AggregateFunction;
+import org.apache.flink.api.common.functions.CoGroupFunction;
+import org.apache.flink.api.common.functions.CrossFunction;
+import org.apache.flink.api.common.functions.FlatJoinFunction;
+import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.Function;
+import org.apache.flink.api.common.functions.GroupCombineFunction;
+import org.apache.flink.api.common.functions.GroupReduceFunction;
+import org.apache.flink.api.common.functions.InvalidTypesException;
+import org.apache.flink.api.common.functions.JoinFunction;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.MapPartitionFunction;
+import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -40,6 +51,8 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.Value;
 import org.apache.flink.util.InstantiationUtil;
 import org.apache.flink.util.Preconditions;
+
+import org.apache.commons.lang3.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,14 +72,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.getTypeHierarchy;
-import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.hasSuperclass;
-import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.checkAndExtractLambda;
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.getAllDeclaredMethods;
+import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.getTypeHierarchy;
+import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.hasSuperclass;
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.isClassType;
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.sameTypeVars;
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClass;
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * A utility for reflection analysis on classes, to determine the return type of implementations of transformation
@@ -119,34 +132,6 @@ public class TypeExtractor {
 	}
 
 	// --------------------------------------------------------------------------------------------
-	//  TypeInfoFactory registry
-	// --------------------------------------------------------------------------------------------
-
-	private static Map<Type, Class<? extends TypeInfoFactory>> registeredTypeInfoFactories = new HashMap<>();
-
-	/**
-	 * Registers a type information factory globally for a certain type. Every following type extraction
-	 * operation will use the provided factory for this type. The factory will have highest precedence
-	 * for this type. In a hierarchy of types the registered factory has higher precedence than annotations
-	 * at the same level but lower precedence than factories defined down the hierarchy.
-	 *
-	 * @param t type for which a new factory is registered
-	 * @param factory type information factory that will produce {@link TypeInformation}
-	 */
-	private static void registerFactory(Type t, Class<? extends TypeInfoFactory> factory) {
-		Preconditions.checkNotNull(t, "Type parameter must not be null.");
-		Preconditions.checkNotNull(factory, "Factory parameter must not be null.");
-
-		if (!TypeInfoFactory.class.isAssignableFrom(factory)) {
-			throw new IllegalArgumentException("Class is not a TypeInfoFactory.");
-		}
-		if (registeredTypeInfoFactories.containsKey(t)) {
-			throw new InvalidTypesException("A TypeInfoFactory for type '" + t + "' is already registered.");
-		}
-		registeredTypeInfoFactories.put(t, factory);
-	}
-
-	// --------------------------------------------------------------------------------------------
 	//  Function specific methods
 	// --------------------------------------------------------------------------------------------
 
@@ -157,10 +142,10 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN, OUT> TypeInformation<OUT> getMapReturnTypes(MapFunction<IN, OUT> mapInterface, TypeInformation<IN> inType,
-			String functionName, boolean allowMissing)
+																   String functionName, boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
-			(Function) mapInterface,
+			mapInterface,
 			MapFunction.class,
 			0,
 			1,
@@ -178,10 +163,10 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN, OUT> TypeInformation<OUT> getFlatMapReturnTypes(FlatMapFunction<IN, OUT> flatMapInterface, TypeInformation<IN> inType,
-			String functionName, boolean allowMissing)
+																	   String functionName, boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
-			(Function) flatMapInterface,
+			flatMapInterface,
 			FlatMapFunction.class,
 			0,
 			1,
@@ -192,69 +177,11 @@ public class TypeExtractor {
 	}
 
 	@PublicEvolving
-	public static <IN, OUT> TypeInformation<OUT> getPreAggregateReturnTypes(PreAggregateFunction<?, ?, IN, OUT> preAggregateInterface, TypeInformation<IN> inType,
-																		String functionName, boolean allowMissing)
-	{
-		return getUnaryOperatorReturnType(
-			(Function) preAggregateInterface,
-			PreAggregateFunction.class,
-			2,
-			3,
-			new int[]{1, 0},
-			inType,
-			functionName,
-			allowMissing);
-	}
-
-	@PublicEvolving
-	public static <IN, OUT> TypeInformation<OUT> getPreAggregateReturnTypes(PreAggregateConcurrentFunction<?, ?, IN, OUT> preAggregateInterface, TypeInformation<IN> inType,
-																			String functionName, boolean allowMissing)
-	{
-		return getUnaryOperatorReturnType(
-			(Function) preAggregateInterface,
-			PreAggregateConcurrentFunction.class,
-			2,
-			3,
-			new int[]{1, 0},
-			inType,
-			functionName,
-			allowMissing);
-	}
-
-	/**
-	 * @deprecated will be removed in a future version
-	 */
-	@PublicEvolving
-	@Deprecated
-	public static <IN, OUT> TypeInformation<OUT> getFoldReturnTypes(FoldFunction<IN, OUT> foldInterface, TypeInformation<IN> inType)
-	{
-		return getFoldReturnTypes(foldInterface, inType, null, false);
-	}
-
-	/**
-	 * @deprecated will be removed in a future version
-	 */
-	@PublicEvolving
-	@Deprecated
-	public static <IN, OUT> TypeInformation<OUT> getFoldReturnTypes(FoldFunction<IN, OUT> foldInterface, TypeInformation<IN> inType, String functionName, boolean allowMissing)
-	{
-		return getUnaryOperatorReturnType(
-			(Function) foldInterface,
-			FoldFunction.class,
-			0,
-			1,
-			NO_INDEX,
-			inType,
-			functionName,
-			allowMissing);
-	}
-
-	@PublicEvolving
 	public static <IN, ACC> TypeInformation<ACC> getAggregateFunctionAccumulatorType(
-			AggregateFunction<IN, ACC, ?> function,
-			TypeInformation<IN> inType,
-			String functionName,
-			boolean allowMissing)
+		AggregateFunction<IN, ACC, ?> function,
+		TypeInformation<IN> inType,
+		String functionName,
+		boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
 			function,
@@ -269,10 +196,10 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN, OUT> TypeInformation<OUT> getAggregateFunctionReturnType(
-			AggregateFunction<IN, ?, OUT> function,
-			TypeInformation<IN> inType,
-			String functionName,
-			boolean allowMissing)
+		AggregateFunction<IN, ?, OUT> function,
+		TypeInformation<IN> inType,
+		String functionName,
+		boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
 			function,
@@ -292,10 +219,10 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN, OUT> TypeInformation<OUT> getMapPartitionReturnTypes(MapPartitionFunction<IN, OUT> mapPartitionInterface, TypeInformation<IN> inType,
-			String functionName, boolean allowMissing)
+																			String functionName, boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
-			(Function) mapPartitionInterface,
+			mapPartitionInterface,
 			MapPartitionFunction.class,
 			0,
 			1,
@@ -312,10 +239,10 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN, OUT> TypeInformation<OUT> getGroupReduceReturnTypes(GroupReduceFunction<IN, OUT> groupReduceInterface, TypeInformation<IN> inType,
-			String functionName, boolean allowMissing)
+																		   String functionName, boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
-			(Function) groupReduceInterface,
+			groupReduceInterface,
 			GroupReduceFunction.class,
 			0,
 			1,
@@ -335,7 +262,7 @@ public class TypeExtractor {
 																			String functionName, boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
-			(Function) combineInterface,
+			combineInterface,
 			GroupCombineFunction.class,
 			0,
 			1,
@@ -347,17 +274,17 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getFlatJoinReturnTypes(FlatJoinFunction<IN1, IN2, OUT> joinInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
+																			  TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
 	{
 		return getFlatJoinReturnTypes(joinInterface, in1Type, in2Type, null, false);
 	}
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getFlatJoinReturnTypes(FlatJoinFunction<IN1, IN2, OUT> joinInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
+																			  TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
 	{
 		return getBinaryOperatorReturnType(
-			(Function) joinInterface,
+			joinInterface,
 			FlatJoinFunction.class,
 			0,
 			1,
@@ -371,17 +298,17 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getJoinReturnTypes(JoinFunction<IN1, IN2, OUT> joinInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
+																		  TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
 	{
 		return getJoinReturnTypes(joinInterface, in1Type, in2Type, null, false);
 	}
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getJoinReturnTypes(JoinFunction<IN1, IN2, OUT> joinInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
+																		  TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
 	{
 		return getBinaryOperatorReturnType(
-			(Function) joinInterface,
+			joinInterface,
 			JoinFunction.class,
 			0,
 			1,
@@ -395,17 +322,17 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getCoGroupReturnTypes(CoGroupFunction<IN1, IN2, OUT> coGroupInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
+																			 TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
 	{
 		return getCoGroupReturnTypes(coGroupInterface, in1Type, in2Type, null, false);
 	}
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getCoGroupReturnTypes(CoGroupFunction<IN1, IN2, OUT> coGroupInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
+																			 TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
 	{
 		return getBinaryOperatorReturnType(
-			(Function) coGroupInterface,
+			coGroupInterface,
 			CoGroupFunction.class,
 			0,
 			1,
@@ -419,17 +346,17 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getCrossReturnTypes(CrossFunction<IN1, IN2, OUT> crossInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
+																		   TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type)
 	{
 		return getCrossReturnTypes(crossInterface, in1Type, in2Type, null, false);
 	}
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> getCrossReturnTypes(CrossFunction<IN1, IN2, OUT> crossInterface,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
+																		   TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, String functionName, boolean allowMissing)
 	{
 		return getBinaryOperatorReturnType(
-			(Function) crossInterface,
+			crossInterface,
 			CrossFunction.class,
 			0,
 			1,
@@ -448,10 +375,10 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN, OUT> TypeInformation<OUT> getKeySelectorTypes(KeySelector<IN, OUT> selectorInterface,
-			TypeInformation<IN> inType, String functionName, boolean allowMissing)
+																	 TypeInformation<IN> inType, String functionName, boolean allowMissing)
 	{
 		return getUnaryOperatorReturnType(
-			(Function) selectorInterface,
+			selectorInterface,
 			KeySelector.class,
 			0,
 			1,
@@ -782,7 +709,7 @@ public class TypeExtractor {
 
 	@PublicEvolving
 	public static <IN1, IN2, OUT> TypeInformation<OUT> createTypeInfo(Class<?> baseClass, Class<?> clazz, int returnParamPos,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
+																	  TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
 		TypeInformation<OUT> ti =  new TypeExtractor().privateCreateTypeInfo(baseClass, clazz, returnParamPos, in1Type, in2Type);
 		if (ti == null) {
 			throw new InvalidTypesException("Could not extract type information.");
@@ -793,7 +720,7 @@ public class TypeExtractor {
 	// ----------------------------------- private methods ----------------------------------------
 
 	private TypeInformation<?> privateCreateTypeInfo(Type t) {
-		ArrayList<Type> typeHierarchy = new ArrayList<Type>();
+		List<Type> typeHierarchy = new ArrayList<>();
 		typeHierarchy.add(t);
 		return createTypeInfoWithTypeHierarchy(typeHierarchy, t, null, null);
 	}
@@ -801,8 +728,8 @@ public class TypeExtractor {
 	// for (Rich)Functions
 	@SuppressWarnings("unchecked")
 	private <IN1, IN2, OUT> TypeInformation<OUT> privateCreateTypeInfo(Class<?> baseClass, Class<?> clazz, int returnParamPos,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
-		ArrayList<Type> typeHierarchy = new ArrayList<Type>();
+																	   TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
+		List<Type> typeHierarchy = new ArrayList<>();
 		Type returnType = getParameterType(baseClass, typeHierarchy, clazz, returnParamPos);
 
 		TypeInformation<OUT> typeInfo;
@@ -817,21 +744,20 @@ public class TypeExtractor {
 		}
 
 		// get info from hierarchy
-		return (TypeInformation<OUT>) createTypeInfoWithTypeHierarchy(typeHierarchy, returnType, in1Type, in2Type);
+		return createTypeInfoWithTypeHierarchy(typeHierarchy, returnType, in1Type, in2Type);
 	}
 
 	// for LambdaFunctions
-	@SuppressWarnings("unchecked")
 	private <IN1, IN2, OUT> TypeInformation<OUT> privateCreateTypeInfo(Type returnType, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
-		ArrayList<Type> typeHierarchy = new ArrayList<Type>();
+		List<Type> typeHierarchy = new ArrayList<>();
 
 		// get info from hierarchy
-		return (TypeInformation<OUT>) createTypeInfoWithTypeHierarchy(typeHierarchy, returnType, in1Type, in2Type);
+		return createTypeInfoWithTypeHierarchy(typeHierarchy, returnType, in1Type, in2Type);
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private <IN1, IN2, OUT> TypeInformation<OUT> createTypeInfoWithTypeHierarchy(ArrayList<Type> typeHierarchy, Type t,
-			TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
+	private <IN1, IN2, OUT> TypeInformation<OUT> createTypeInfoWithTypeHierarchy(List<Type> typeHierarchy, Type t,
+																				 TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
 
 		// check if type information can be created using a type factory
 		final TypeInformation<OUT> typeFromFactory = createTypeInfoFromFactory(t, typeHierarchy, in1Type, in2Type);
@@ -845,13 +771,14 @@ public class TypeExtractor {
 			// do not allow usage of Tuple as type
 			if (typeToClass(t).equals(Tuple.class)) {
 				throw new InvalidTypesException(
-						"Usage of class Tuple as a type is not allowed. Use a concrete subclass (e.g. Tuple1, Tuple2, etc.) instead.");
+					"Usage of class Tuple as a type is not allowed. Use a concrete subclass (e.g. Tuple1, Tuple2, etc.) instead.");
 			}
 
 			// go up the hierarchy until we reach immediate child of Tuple (with or without generics)
 			// collect the types while moving up for a later top-down
+			List<Type> typeHierarchyForSubtypes = new ArrayList<>(typeHierarchy);
 			while (!(isClassType(curT) && typeToClass(curT).getSuperclass().equals(Tuple.class))) {
-				typeHierarchy.add(curT);
+				typeHierarchyForSubtypes.add(curT);
 				curT = typeToClass(curT).getGenericSuperclass();
 			}
 
@@ -864,18 +791,19 @@ public class TypeExtractor {
 				throw new InvalidTypesException("Tuple needs to be parameterized by using generics.");
 			}
 
-			typeHierarchy.add(curT);
+			typeHierarchyForSubtypes.add(curT);
 
 			// create the type information for the subtypes
-			final TypeInformation<?>[] subTypesInfo = createSubTypesInfo(t, (ParameterizedType) curT, typeHierarchy, in1Type, in2Type, false);
+			final TypeInformation<?>[] subTypesInfo = createSubTypesInfo(
+				t,
+				(ParameterizedType) curT,
+				typeHierarchyForSubtypes,
+				in1Type,
+				in2Type,
+				false);
 			// type needs to be treated a pojo due to additional fields
 			if (subTypesInfo == null) {
-				if (t instanceof ParameterizedType) {
-					return (TypeInformation<OUT>) analyzePojo(typeToClass(t), new ArrayList<Type>(typeHierarchy), (ParameterizedType) t, in1Type, in2Type);
-				}
-				else {
-					return (TypeInformation<OUT>) analyzePojo(typeToClass(t), new ArrayList<Type>(typeHierarchy), null, in1Type, in2Type);
-				}
+				return analyzePojo(t, new ArrayList<>(typeHierarchy), in1Type, in2Type);
 			}
 			// return tuple info
 			return new TupleTypeInfo(typeToClass(t), subTypesInfo);
@@ -931,7 +859,7 @@ public class TypeExtractor {
 		}
 		// objects with generics are treated as Class first
 		else if (t instanceof ParameterizedType) {
-			return (TypeInformation<OUT>) privateGetForClass(typeToClass(t), typeHierarchy, (ParameterizedType) t, in1Type, in2Type);
+			return privateGetForClass(typeToClass(t), typeHierarchy, (ParameterizedType) t, in1Type, in2Type);
 		}
 		// no tuple, no TypeVariable, no generic type
 		else if (t instanceof Class) {
@@ -941,8 +869,8 @@ public class TypeExtractor {
 		throw new InvalidTypesException("Type Information could not be created.");
 	}
 
-	private <IN1, IN2> TypeInformation<?> createTypeInfoFromInputs(TypeVariable<?> returnTypeVar, ArrayList<Type> returnTypeHierarchy,
-			TypeInformation<IN1> in1TypeInfo, TypeInformation<IN2> in2TypeInfo) {
+	private <IN1, IN2> TypeInformation<?> createTypeInfoFromInputs(TypeVariable<?> returnTypeVar, List<Type> returnTypeHierarchy,
+																   TypeInformation<IN1> in1TypeInfo, TypeInformation<IN2> in2TypeInfo) {
 
 		Type matReturnTypeVar = materializeTypeVariable(returnTypeHierarchy, returnTypeVar);
 
@@ -960,10 +888,11 @@ public class TypeExtractor {
 		}
 
 		// create a new type hierarchy for the input
-		ArrayList<Type> inputTypeHierarchy = new ArrayList<Type>();
+		List<Type> inputTypeHierarchy = new ArrayList<>();
 		// copy the function part of the type hierarchy
 		for (Type t : returnTypeHierarchy) {
-			if (isClassType(t) && Function.class.isAssignableFrom(typeToClass(t)) && typeToClass(t) != Function.class) {
+			Class<?> clazz = typeToClass(t);
+			if (isClassType(t) && Function.class.isAssignableFrom(clazz) && clazz != Function.class) {
 				inputTypeHierarchy.add(t);
 			}
 			else {
@@ -982,21 +911,17 @@ public class TypeExtractor {
 			// find the deepest type variable that describes the type of input 1
 			Type in1Type = baseClass.getActualTypeArguments()[0];
 
-			info = createTypeInfoFromInput(returnTypeVar, new ArrayList<Type>(inputTypeHierarchy), in1Type, in1TypeInfo);
+			info = createTypeInfoFromInput(returnTypeVar, new ArrayList<>(inputTypeHierarchy), in1Type, in1TypeInfo);
 		}
 
 		if (info == null && in2TypeInfo != null) {
 			// find the deepest type variable that describes the type of input 2
 			Type in2Type = baseClass.getActualTypeArguments()[1];
 
-			info = createTypeInfoFromInput(returnTypeVar, new ArrayList<Type>(inputTypeHierarchy), in2Type, in2TypeInfo);
+			info = createTypeInfoFromInput(returnTypeVar, new ArrayList<>(inputTypeHierarchy), in2Type, in2TypeInfo);
 		}
 
-		if (info != null) {
-			return info;
-		}
-
-		return null;
+		return info;
 	}
 
 	/**
@@ -1007,12 +932,11 @@ public class TypeExtractor {
 	 * Return the type information for "returnTypeVar" given that "inType" has type information "inTypeInfo".
 	 * Thus "inType" must contain "returnTypeVar" in a "inputTypeHierarchy", otherwise null is returned.
 	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private <IN1> TypeInformation<?> createTypeInfoFromInput(TypeVariable<?> returnTypeVar, ArrayList<Type> inputTypeHierarchy, Type inType, TypeInformation<IN1> inTypeInfo) {
+	private <IN1> TypeInformation<?> createTypeInfoFromInput(TypeVariable<?> returnTypeVar, List<Type> inputTypeHierarchy, Type inType, TypeInformation<IN1> inTypeInfo) {
 		TypeInformation<?> info = null;
 
 		// use a factory to find corresponding type information to type variable
-		final ArrayList<Type> factoryHierarchy = new ArrayList<>(inputTypeHierarchy);
+		final List<Type> factoryHierarchy = new ArrayList<>(inputTypeHierarchy);
 		final TypeInfoFactory<?> factory = getClosestFactory(factoryHierarchy, inType);
 		if (factory != null) {
 			// the type that defines the factory is last in factory hierarchy
@@ -1098,7 +1022,7 @@ public class TypeExtractor {
 					return getTypeOfPojoField(inTypeInfo, field);
 				}
 				else if (fieldType instanceof ParameterizedType || fieldType instanceof GenericArrayType) {
-					ArrayList<Type> typeHierarchyWithFieldType = new ArrayList<>(inputTypeHierarchy);
+					List<Type> typeHierarchyWithFieldType = new ArrayList<>(inputTypeHierarchy);
 					typeHierarchyWithFieldType.add(fieldType);
 					TypeInformation<?> foundInfo = createTypeInfoFromInput(returnTypeVar, typeHierarchyWithFieldType, fieldType, getTypeOfPojoField(inTypeInfo, field));
 					if (foundInfo != null) {
@@ -1124,7 +1048,7 @@ public class TypeExtractor {
 	 *     more subtypes (fields) that defined
 	 */
 	private <IN1, IN2> TypeInformation<?>[] createSubTypesInfo(Type originalType, ParameterizedType definingType,
-			ArrayList<Type> typeHierarchy, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, boolean lenient) {
+															   List<Type> typeHierarchy, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type, boolean lenient) {
 		Type[] subtypes = new Type[definingType.getActualTypeArguments().length];
 
 		// materialize possible type variables
@@ -1142,7 +1066,7 @@ public class TypeExtractor {
 
 		TypeInformation<?>[] subTypesInfo = new TypeInformation<?>[subtypes.length];
 		for (int i = 0; i < subtypes.length; i++) {
-			final ArrayList<Type> subTypeHierarchy = new ArrayList<>(typeHierarchy);
+			final List<Type> subTypeHierarchy = new ArrayList<>(typeHierarchy);
 			subTypeHierarchy.add(subtypes[i]);
 			// sub type could not be determined with materializing
 			// try to derive the type info of the TypeVariable from the immediate base child input as a last attempt
@@ -1196,9 +1120,9 @@ public class TypeExtractor {
 	 */
 	@SuppressWarnings("unchecked")
 	private <IN1, IN2, OUT> TypeInformation<OUT> createTypeInfoFromFactory(
-			Type t, ArrayList<Type> typeHierarchy, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
+		Type t, List<Type> typeHierarchy, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
 
-		final ArrayList<Type> factoryHierarchy = new ArrayList<>(typeHierarchy);
+		final List<Type> factoryHierarchy = new ArrayList<>(typeHierarchy);
 		final TypeInfoFactory<? super OUT> factory = getClosestFactory(factoryHierarchy, t);
 		if (factory == null) {
 			return null;
@@ -1237,7 +1161,7 @@ public class TypeExtractor {
 		return getParameterType(baseClass, null, clazz, pos);
 	}
 
-	private static Type getParameterType(Class<?> baseClass, ArrayList<Type> typeHierarchy, Class<?> clazz, int pos) {
+	private static Type getParameterType(Class<?> baseClass, List<Type> typeHierarchy, Class<?> clazz, int pos) {
 		if (typeHierarchy != null) {
 			typeHierarchy.add(clazz);
 		}
@@ -1259,10 +1183,10 @@ public class TypeExtractor {
 		}
 
 		throw new InvalidTypesException("The types of the interface " + baseClass.getName() + " could not be inferred. " +
-						"Support for synthetic interfaces, lambdas, and generic or raw types is limited at this point");
+			"Support for synthetic interfaces, lambdas, and generic or raw types is limited at this point");
 	}
 
-	private static Type getParameterTypeFromGenericType(Class<?> baseClass, ArrayList<Type> typeHierarchy, Type t, int pos) {
+	private static Type getParameterTypeFromGenericType(Class<?> baseClass, List<Type> typeHierarchy, Type t, int pos) {
 		// base class
 		if (t instanceof ParameterizedType && baseClass.equals(((ParameterizedType) t).getRawType())) {
 			if (typeHierarchy != null) {
@@ -1291,18 +1215,8 @@ public class TypeExtractor {
 	//  Validate input
 	// --------------------------------------------------------------------------------------------
 
-	private static void validateInputType(Type t, TypeInformation<?> inType) {
-		ArrayList<Type> typeHierarchy = new ArrayList<Type>();
-		try {
-			validateInfo(typeHierarchy, t, inType);
-		}
-		catch(InvalidTypesException e) {
-			throw new InvalidTypesException("Input mismatch: " + e.getMessage(), e);
-		}
-	}
-
 	private static void validateInputType(Class<?> baseClass, Class<?> clazz, int inputParamPos, TypeInformation<?> inTypeInfo) {
-		ArrayList<Type> typeHierarchy = new ArrayList<Type>();
+		List<Type> typeHierarchy = new ArrayList<>();
 
 		// try to get generic parameter
 		Type inType;
@@ -1322,7 +1236,7 @@ public class TypeExtractor {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static void validateInfo(ArrayList<Type> typeHierarchy, Type type, TypeInformation<?> typeInfo) {
+	private static void validateInfo(List<Type> typeHierarchy, Type type, TypeInformation<?> typeInfo) {
 		if (type == null) {
 			throw new InvalidTypesException("Unknown Error. Type is null.");
 		}
@@ -1393,11 +1307,11 @@ public class TypeExtractor {
 
 				if (subTypes.length != tti.getArity()) {
 					throw new InvalidTypesException("Tuple arity '" + tti.getArity() + "' expected but was '"
-							+ subTypes.length + "'.");
+						+ subTypes.length + "'.");
 				}
 
 				for (int i = 0; i < subTypes.length; i++) {
-					validateInfo(new ArrayList<Type>(typeHierarchy), subTypes[i], tti.getTypeAt(i));
+					validateInfo(new ArrayList<>(typeHierarchy), subTypes[i], tti.getTypeAt(i));
 				}
 			}
 			// check for primitive array
@@ -1405,7 +1319,7 @@ public class TypeExtractor {
 				Type component;
 				// check if array at all
 				if (!(type instanceof Class<?> && ((Class<?>) type).isArray() && (component = ((Class<?>) type).getComponentType()) != null)
-						&& !(type instanceof GenericArrayType && (component = ((GenericArrayType) type).getGenericComponentType()) != null)) {
+					&& !(type instanceof GenericArrayType && (component = ((GenericArrayType) type).getGenericComponentType()) != null)) {
 					throw new InvalidTypesException("Array type expected.");
 				}
 				if (component instanceof TypeVariable<?>) {
@@ -1423,7 +1337,7 @@ public class TypeExtractor {
 				Type component;
 				// check if array at all
 				if (!(type instanceof Class<?> && ((Class<?>) type).isArray() && (component = ((Class<?>) type).getComponentType()) != null)
-						&& !(type instanceof GenericArrayType && (component = ((GenericArrayType) type).getGenericComponentType()) != null)) {
+					&& !(type instanceof GenericArrayType && (component = ((GenericArrayType) type).getGenericComponentType()) != null)) {
 					throw new InvalidTypesException("Array type expected.");
 				}
 
@@ -1470,7 +1384,7 @@ public class TypeExtractor {
 
 				TypeInformation<?> actual;
 				// check value type contents
-				if (!((ValueTypeInfo<?>) typeInfo).equals(actual = ValueTypeInfo.getValueTypeInfo((Class<? extends Value>) type))) {
+				if (!typeInfo.equals(actual = ValueTypeInfo.getValueTypeInfo((Class<? extends Value>) type))) {
 					throw new InvalidTypesException("Value type '" + typeInfo + "' expected but was '" + actual + "'.");
 				}
 			}
@@ -1479,8 +1393,8 @@ public class TypeExtractor {
 				Class<?> clazz = null;
 				if (!(isClassType(type) && ((PojoTypeInfo<?>) typeInfo).getTypeClass() == (clazz = typeToClass(type)))) {
 					throw new InvalidTypesException("POJO type '"
-							+ ((PojoTypeInfo<?>) typeInfo).getTypeClass().getCanonicalName() + "' expected but was '"
-							+ clazz.getCanonicalName() + "'.");
+						+ ((PojoTypeInfo<?>) typeInfo).getTypeClass().getCanonicalName() + "' expected but was '"
+						+ clazz.getCanonicalName() + "'.");
 				}
 			}
 			// check for Enum
@@ -1491,7 +1405,7 @@ public class TypeExtractor {
 				// check enum type contents
 				if (!(typeInfo.getTypeClass() == type)) {
 					throw new InvalidTypesException("Enum type '" + typeInfo.getTypeClass().getCanonicalName() + "' expected but was '"
-							+ typeToClass(type).getCanonicalName() + "'.");
+						+ typeToClass(type).getCanonicalName() + "'.");
 				}
 			}
 			// check for generic object
@@ -1499,8 +1413,8 @@ public class TypeExtractor {
 				Class<?> clazz = null;
 				if (!(isClassType(type) && (clazz = typeToClass(type)).isAssignableFrom(((GenericTypeInfo<?>) typeInfo).getTypeClass()))) {
 					throw new InvalidTypesException("Generic type '"
-							+ ((GenericTypeInfo<?>) typeInfo).getTypeClass().getCanonicalName() + "' or a subclass of it expected but was '"
-							+ clazz.getCanonicalName() + "'.");
+						+ ((GenericTypeInfo<?>) typeInfo).getTypeClass().getCanonicalName() + "' or a subclass of it expected but was '"
+						+ clazz.getCanonicalName() + "'.");
 				}
 			}
 			// check for Writable
@@ -1515,22 +1429,6 @@ public class TypeExtractor {
 		}
 	}
 
-	private static void validateInputContainsExecutable(LambdaExecutable exec, TypeInformation<?> typeInfo) {
-		List<Method> methods = getAllDeclaredMethods(typeInfo.getTypeClass());
-		for (Method method : methods) {
-			if (exec.executablesEquals(method)) {
-				return;
-			}
-		}
-		Constructor<?>[] constructors = typeInfo.getTypeClass().getDeclaredConstructors();
-		for (Constructor<?> constructor : constructors) {
-			if (exec.executablesEquals(constructor)) {
-				return;
-			}
-		}
-		throw new InvalidTypesException("Type contains no executable '" + exec.getName() + "'.");
-	}
-
 	// --------------------------------------------------------------------------------------------
 	//  Utility methods
 	// --------------------------------------------------------------------------------------------
@@ -1539,21 +1437,17 @@ public class TypeExtractor {
 	 * Returns the type information factory for a type using the factory registry or annotations.
 	 */
 	@Internal
+	@SuppressWarnings("unchecked")
 	public static <OUT> TypeInfoFactory<OUT> getTypeInfoFactory(Type t) {
 		final Class<?> factoryClass;
-		if (registeredTypeInfoFactories.containsKey(t)) {
-			factoryClass = registeredTypeInfoFactories.get(t);
+		if (!isClassType(t) || !typeToClass(t).isAnnotationPresent(TypeInfo.class)) {
+			return null;
 		}
-		else {
-			if (!isClassType(t) || !typeToClass(t).isAnnotationPresent(TypeInfo.class)) {
-				return null;
-			}
-			final TypeInfo typeInfoAnnotation = typeToClass(t).getAnnotation(TypeInfo.class);
-			factoryClass = typeInfoAnnotation.value();
-			// check for valid factory class
-			if (!TypeInfoFactory.class.isAssignableFrom(factoryClass)) {
-				throw new InvalidTypesException("TypeInfo annotation does not specify a valid TypeInfoFactory.");
-			}
+		final TypeInfo typeInfoAnnotation = typeToClass(t).getAnnotation(TypeInfo.class);
+		factoryClass = typeInfoAnnotation.value();
+		// check for valid factory class
+		if (!TypeInfoFactory.class.isAssignableFrom(factoryClass)) {
+			throw new InvalidTypesException("TypeInfo annotation does not specify a valid TypeInfoFactory.");
 		}
 
 		// instantiate
@@ -1563,7 +1457,7 @@ public class TypeExtractor {
 	/**
 	 * @return number of items with equal type or same raw type
 	 */
-	private static int countTypeInHierarchy(ArrayList<Type> typeHierarchy, Type type) {
+	private static int countTypeInHierarchy(List<Type> typeHierarchy, Type type) {
 		int count = 0;
 		for (Type t : typeHierarchy) {
 			if (t == type || (isClassType(type) && t == typeToClass(type)) || (isClassType(t) && typeToClass(t) == type)) {
@@ -1580,8 +1474,8 @@ public class TypeExtractor {
 	 * @param t type for which a factory needs to be found
 	 * @return closest type information factory or null if there is no factory in the type hierarchy
 	 */
-	private static <OUT> TypeInfoFactory<? super OUT> getClosestFactory(ArrayList<Type> typeHierarchy, Type t) {
-		TypeInfoFactory factory = null;
+	private static <OUT> TypeInfoFactory<? super OUT> getClosestFactory(List<Type> typeHierarchy, Type t) {
+		TypeInfoFactory<OUT> factory = null;
 		while (factory == null && isClassType(t) && !(typeToClass(t).equals(Object.class))) {
 			typeHierarchy.add(t);
 			factory = getTypeInfoFactory(t);
@@ -1599,7 +1493,7 @@ public class TypeExtractor {
 		for(Field field : clazz.getFields()) { // get all fields
 			if(	!Modifier.isStatic(field.getModifiers()) &&
 				!Modifier.isTransient(field.getModifiers())
-				) {
+			) {
 				fieldCount++;
 			}
 		}
@@ -1610,7 +1504,7 @@ public class TypeExtractor {
 	 * Tries to find a concrete value (Class, ParameterizedType etc. ) for a TypeVariable by traversing the type hierarchy downwards.
 	 * If a value could not be found it will return the most bottom type variable in the hierarchy.
 	 */
-	private static Type materializeTypeVariable(ArrayList<Type> typeHierarchy, TypeVariable<?> typeVar) {
+	private static Type materializeTypeVariable(List<Type> typeHierarchy, TypeVariable<?> typeVar) {
 		TypeVariable<?> inTypeTypeVar = typeVar;
 		// iterate thru hierarchy from top to bottom until type variable gets a class assigned
 		for (int i = typeHierarchy.size() - 1; i >= 0; i--) {
@@ -1656,18 +1550,18 @@ public class TypeExtractor {
 	 * @return TypeInformation that describes the passed Class
 	 */
 	public static <X> TypeInformation<X> getForClass(Class<X> clazz) {
-		final ArrayList<Type> typeHierarchy = new ArrayList<>();
+		final List<Type> typeHierarchy = new ArrayList<>();
 		typeHierarchy.add(clazz);
 		return new TypeExtractor().privateGetForClass(clazz, typeHierarchy);
 	}
 
-	private <X> TypeInformation<X> privateGetForClass(Class<X> clazz, ArrayList<Type> typeHierarchy) {
+	private <X> TypeInformation<X> privateGetForClass(Class<X> clazz, List<Type> typeHierarchy) {
 		return privateGetForClass(clazz, typeHierarchy, null, null, null);
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private <OUT,IN1,IN2> TypeInformation<OUT> privateGetForClass(Class<OUT> clazz, ArrayList<Type> typeHierarchy,
-			ParameterizedType parameterizedType, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
+	private <OUT,IN1,IN2> TypeInformation<OUT> privateGetForClass(Class<OUT> clazz, List<Type> typeHierarchy,
+																  ParameterizedType parameterizedType, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
 		checkNotNull(clazz);
 
 		// check if type information can be produced using a factory
@@ -1683,7 +1577,7 @@ public class TypeExtractor {
 
 		// Class is handled as generic type info
 		if (clazz.equals(Class.class)) {
-			return new GenericTypeInfo<OUT>(clazz);
+			return new GenericTypeInfo<>(clazz);
 		}
 
 		// recursive types are handled as generic type info
@@ -1761,11 +1655,12 @@ public class TypeExtractor {
 
 		if (Modifier.isInterface(clazz.getModifiers())) {
 			// Interface has no members and is therefore not handled as POJO
-			return new GenericTypeInfo<OUT>(clazz);
+			return new GenericTypeInfo<>(clazz);
 		}
 
 		try {
-			TypeInformation<OUT> pojoType = analyzePojo(clazz, new ArrayList<Type>(typeHierarchy), parameterizedType, in1Type, in2Type);
+			Type t = parameterizedType != null ? parameterizedType : clazz;
+			TypeInformation<OUT> pojoType = analyzePojo(t, new ArrayList<>(typeHierarchy), in1Type, in2Type);
 			if (pojoType != null) {
 				return pojoType;
 			}
@@ -1777,7 +1672,7 @@ public class TypeExtractor {
 		}
 
 		// return a generic type
-		return new GenericTypeInfo<OUT>(clazz);
+		return new GenericTypeInfo<>(clazz);
 	}
 
 	/**
@@ -1790,7 +1685,7 @@ public class TypeExtractor {
 	 * @param clazz class of field
 	 * @param typeHierarchy type hierarchy for materializing generic types
 	 */
-	private boolean isValidPojoField(Field f, Class<?> clazz, ArrayList<Type> typeHierarchy) {
+	private boolean isValidPojoField(Field f, Class<?> clazz, List<Type> typeHierarchy) {
 		if(Modifier.isPublic(f.getModifiers())) {
 			return true;
 		} else {
@@ -1807,23 +1702,23 @@ public class TypeExtractor {
 			}
 			for(Method m : clazz.getMethods()) {
 				final String methodNameLow = m.getName().endsWith("_$eq") ?
-						m.getName().toLowerCase().replaceAll("_", "").replaceFirst("\\$eq$", "_\\$eq") :
-						m.getName().toLowerCase().replaceAll("_", "");
+					m.getName().toLowerCase().replaceAll("_", "").replaceFirst("\\$eq$", "_\\$eq") :
+					m.getName().toLowerCase().replaceAll("_", "");
 
 				// check for getter
 				if(	// The name should be "get<FieldName>" or "<fieldName>" (for scala) or "is<fieldName>" for boolean fields.
 					(methodNameLow.equals("get"+fieldNameLow) || methodNameLow.equals("is"+fieldNameLow) || methodNameLow.equals(fieldNameLow)) &&
-					// no arguments for the getter
-					m.getParameterTypes().length == 0 &&
-					// return type is same as field type (or the generic variant of it)
-					(m.getGenericReturnType().equals( fieldType ) || (fieldTypeWrapper != null && m.getReturnType().equals( fieldTypeWrapper )) || (fieldTypeGeneric != null && m.getGenericReturnType().equals(fieldTypeGeneric)) )
+						// no arguments for the getter
+						m.getParameterTypes().length == 0 &&
+						// return type is same as field type (or the generic variant of it)
+						(m.getGenericReturnType().equals( fieldType ) || (m.getReturnType().equals(fieldTypeWrapper)) || (m.getGenericReturnType().equals(fieldTypeGeneric)) )
 				) {
 					hasGetter = true;
 				}
 				// check for setters (<FieldName>_$eq for scala)
 				if((methodNameLow.equals("set"+fieldNameLow) || methodNameLow.equals(fieldNameLow+"_$eq")) &&
 					m.getParameterTypes().length == 1 && // one parameter of the field's type
-					(m.getGenericParameterTypes()[0].equals( fieldType ) || (fieldTypeWrapper != null && m.getParameterTypes()[0].equals( fieldTypeWrapper )) || (fieldTypeGeneric != null && m.getGenericParameterTypes()[0].equals(fieldTypeGeneric) ) )&&
+					(m.getGenericParameterTypes()[0].equals( fieldType ) || (m.getParameterTypes()[0].equals( fieldTypeWrapper )) || (m.getGenericParameterTypes()[0].equals(fieldTypeGeneric) ) )&&
 					// return type is void (or the class self).
 					(m.getReturnType().equals(Void.TYPE) || m.getReturnType().equals(clazz))
 				) {
@@ -1833,10 +1728,10 @@ public class TypeExtractor {
 			if(hasGetter && hasSetter) {
 				return true;
 			} else {
-				if(!hasGetter) {
+				if(!hasGetter && clazz != Row.class) {
 					LOG.info(clazz+" does not contain a getter for field "+f.getName() );
 				}
-				if(!hasSetter) {
+				if(!hasSetter && clazz != Row.class) {
 					LOG.info(clazz+" does not contain a setter for field "+f.getName() );
 				}
 				return false;
@@ -1845,44 +1740,42 @@ public class TypeExtractor {
 	}
 
 	@SuppressWarnings("unchecked")
-	protected <OUT, IN1, IN2> TypeInformation<OUT> analyzePojo(Class<OUT> clazz, ArrayList<Type> typeHierarchy,
-			ParameterizedType parameterizedType, TypeInformation<IN1> in1Type, TypeInformation<IN2> in2Type) {
+	protected <OUT, IN1, IN2> TypeInformation<OUT> analyzePojo(
+		Type type,
+		List<Type> typeHierarchy,
+		TypeInformation<IN1> in1Type,
+		TypeInformation<IN2> in2Type) {
 
+		Class<OUT> clazz = typeToClass(type);
 		if (!Modifier.isPublic(clazz.getModifiers())) {
 			LOG.info("Class " + clazz.getName() + " is not public so it cannot be used as a POJO type " +
 				"and must be processed as GenericType. Please read the Flink documentation " +
 				"on \"Data Types & Serialization\" for details of the effect on performance.");
-			return new GenericTypeInfo<OUT>(clazz);
+			return new GenericTypeInfo<>(clazz);
 		}
 
-		// add the hierarchy of the POJO itself if it is generic
-		if (parameterizedType != null) {
-			getTypeHierarchy(typeHierarchy, parameterizedType, Object.class);
-		}
-		// create a type hierarchy, if the incoming only contains the most bottom one or none.
-		else if (typeHierarchy.size() <= 1) {
-			getTypeHierarchy(typeHierarchy, clazz, Object.class);
-		}
+		// add the hierarchy of the POJO
+		getTypeHierarchy(typeHierarchy, type, Object.class);
 
 		List<Field> fields = getAllDeclaredFields(clazz, false);
 		if (fields.size() == 0) {
 			LOG.info("No fields were detected for " + clazz + " so it cannot be used as a POJO type " +
 				"and must be processed as GenericType. Please read the Flink documentation " +
 				"on \"Data Types & Serialization\" for details of the effect on performance.");
-			return new GenericTypeInfo<OUT>(clazz);
+			return new GenericTypeInfo<>(clazz);
 		}
 
-		List<PojoField> pojoFields = new ArrayList<PojoField>();
+		List<PojoField> pojoFields = new ArrayList<>();
 		for (Field field : fields) {
 			Type fieldType = field.getGenericType();
-			if(!isValidPojoField(field, clazz, typeHierarchy)) {
+			if(!isValidPojoField(field, clazz, typeHierarchy) && clazz != Row.class) {
 				LOG.info("Class " + clazz + " cannot be used as a POJO type because not all fields are valid POJO fields, " +
 					"and must be processed as GenericType. Please read the Flink documentation " +
 					"on \"Data Types & Serialization\" for details of the effect on performance.");
 				return null;
 			}
 			try {
-				ArrayList<Type> fieldTypeHierarchy = new ArrayList<Type>(typeHierarchy);
+				List<Type> fieldTypeHierarchy = new ArrayList<>(typeHierarchy);
 				fieldTypeHierarchy.add(fieldType);
 				TypeInformation<?> ti = createTypeInfoWithTypeHierarchy(fieldTypeHierarchy, fieldType, in1Type, in2Type);
 				pojoFields.add(new PojoField(field, ti));
@@ -1891,11 +1784,11 @@ public class TypeExtractor {
 				if(isClassType(fieldType)) {
 					genericClass = typeToClass(fieldType);
 				}
-				pojoFields.add(new PojoField(field, new GenericTypeInfo<OUT>((Class<OUT>) genericClass)));
+				pojoFields.add(new PojoField(field, new GenericTypeInfo<>((Class<OUT>) genericClass)));
 			}
 		}
 
-		CompositeType<OUT> pojoType = new PojoTypeInfo<OUT>(clazz, pojoFields);
+		CompositeType<OUT> pojoType = new PojoTypeInfo<>(clazz, pojoFields);
 
 		//
 		// Validate the correctness of the pojo.
@@ -1913,13 +1806,13 @@ public class TypeExtractor {
 
 		// Try retrieving the default constructor, if it does not have one
 		// we cannot use this because the serializer uses it.
-		Constructor defaultConstructor = null;
+		Constructor<OUT> defaultConstructor = null;
 		try {
 			defaultConstructor = clazz.getDeclaredConstructor();
 		} catch (NoSuchMethodException e) {
 			if (clazz.isInterface() || Modifier.isAbstract(clazz.getModifiers())) {
 				LOG.info(clazz + " is abstract or an interface, having a concrete " +
-						"type can increase performance.");
+					"type can increase performance.");
 			} else {
 				LOG.info(clazz + " is missing a default constructor so it cannot be used as a POJO type " +
 					"and must be processed as GenericType. Please read the Flink documentation " +
@@ -1950,7 +1843,7 @@ public class TypeExtractor {
 	 */
 	@PublicEvolving
 	public static List<Field> getAllDeclaredFields(Class<?> clazz, boolean ignoreDuplicates) {
-		List<Field> result = new ArrayList<Field>();
+		List<Field> result = new ArrayList<>();
 		while (clazz != null) {
 			Field[] fields = clazz.getDeclaredFields();
 			for (Field field : fields) {
@@ -2010,7 +1903,7 @@ public class TypeExtractor {
 		checkNotNull(value);
 
 		// check if type information can be produced using a factory
-		final ArrayList<Type> typeHierarchy = new ArrayList<>();
+		final List<Type> typeHierarchy = new ArrayList<>();
 		typeHierarchy.add(value.getClass());
 		final TypeInformation<X> typeFromFactory = createTypeInfoFromFactory(value.getClass(), typeHierarchy, null, null);
 		if (typeFromFactory != null) {
@@ -2023,7 +1916,7 @@ public class TypeExtractor {
 			int numFields = t.getArity();
 			if(numFields != countFieldsInClass(value.getClass())) {
 				// not a tuple since it has more fields.
-				return analyzePojo((Class<X>) value.getClass(), new ArrayList<Type>(), null, null, null); // we immediately call analyze Pojo here, because
+				return analyzePojo(value.getClass(), new ArrayList<>(), null, null); // we immediately call analyze Pojo here, because
 				// there is currently no other type that can handle such a class.
 			}
 
@@ -2033,7 +1926,7 @@ public class TypeExtractor {
 
 				if (field == null) {
 					throw new InvalidTypesException("Automatic type extraction is not possible on candidates with null values. "
-							+ "Please specify the types directly.");
+						+ "Please specify the types directly.");
 				}
 
 				infos[i] = privateGetForObject(field);
@@ -2047,7 +1940,7 @@ public class TypeExtractor {
 				if (row.getField(i) == null) {
 					LOG.warn("Cannot extract type of Row field, because of Row field[" + i + "] is null. " +
 						"Should define RowTypeInfo explicitly.");
-					return privateGetForClass((Class<X>) value.getClass(), new ArrayList<Type>());
+					return privateGetForClass((Class<X>) value.getClass(), new ArrayList<>());
 				}
 			}
 			TypeInformation<?>[] typeArray = new TypeInformation<?>[arity];
@@ -2057,7 +1950,7 @@ public class TypeExtractor {
 			return (TypeInformation<X>) new RowTypeInfo(typeArray);
 		}
 		else {
-			return privateGetForClass((Class<X>) value.getClass(), new ArrayList<Type>());
+			return privateGetForClass((Class<X>) value.getClass(), new ArrayList<>());
 		}
 	}
 
@@ -2102,7 +1995,7 @@ public class TypeExtractor {
 		}
 		catch (ClassNotFoundException e) {
 			throw new RuntimeException("Could not load the TypeInformation for the class '"
-					+ HADOOP_WRITABLE_CLASS + "'. You may be missing the 'flink-hadoop-compatibility' dependency.");
+				+ HADOOP_WRITABLE_CLASS + "'. You may be missing the 'flink-hadoop-compatibility' dependency.");
 		}
 
 		try {
@@ -2126,7 +2019,7 @@ public class TypeExtractor {
 			// try to load the writable type info
 
 			Class<?> writableTypeInfoClass = Class
-					.forName(HADOOP_WRITABLE_TYPEINFO_CLASS, false, typeInfo.getClass().getClassLoader());
+				.forName(HADOOP_WRITABLE_TYPEINFO_CLASS, false, typeInfo.getClass().getClassLoader());
 
 			if (writableTypeInfoClass.isAssignableFrom(typeInfo.getClass())) {
 				// this is actually a writable type info
@@ -2139,8 +2032,8 @@ public class TypeExtractor {
 				Class<?> clazz = (Class<?>) type;
 				if (typeInfo.getTypeClass() != clazz) {
 					throw new InvalidTypesException("Writable type '"
-							+ typeInfo.getTypeClass().getCanonicalName() + "' expected but was '"
-							+ clazz.getCanonicalName() + "'.");
+						+ typeInfo.getTypeClass().getCanonicalName() + "' expected but was '"
+						+ clazz.getCanonicalName() + "'.");
 				}
 			}
 		}

@@ -26,6 +26,8 @@ import org.apache.flink.configuration.description.Description;
 import org.apache.flink.util.TimeUtils;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.apache.flink.configuration.ConfigOptions.key;
 import static org.apache.flink.configuration.description.TextElement.text;
@@ -143,8 +145,10 @@ public class TaskManagerOptions {
 	/**
 	 * The initial registration backoff between two consecutive registration attempts. The backoff
 	 * is doubled for each new registration attempt until it reaches the maximum registration backoff.
+	 *
+	 * @deprecated use {@link ClusterOptions#INITIAL_REGISTRATION_TIMEOUT} instead
 	 */
-	@Documentation.Section(Documentation.Sections.ALL_TASK_MANAGER)
+	@Deprecated
 	public static final ConfigOption<Duration> INITIAL_REGISTRATION_BACKOFF =
 		key("taskmanager.registration.initial-backoff")
 			.durationType()
@@ -155,8 +159,10 @@ public class TaskManagerOptions {
 
 	/**
 	 * The maximum registration backoff between two consecutive registration attempts.
+	 *
+	 * @deprecated use {@link ClusterOptions#MAX_REGISTRATION_TIMEOUT} instead
 	 */
-	@Documentation.Section(Documentation.Sections.ALL_TASK_MANAGER)
+	@Deprecated
 	public static final ConfigOption<Duration> REGISTRATION_MAX_BACKOFF =
 		key("taskmanager.registration.max-backoff")
 			.durationType()
@@ -167,8 +173,10 @@ public class TaskManagerOptions {
 
 	/**
 	 * The backoff after a registration has been refused by the job manager before retrying to connect.
+	 *
+	 * @deprecated use {@link ClusterOptions#REFUSED_REGISTRATION_DELAY} instead
 	 */
-	@Documentation.Section(Documentation.Sections.ALL_TASK_MANAGER)
+	@Deprecated
 	public static final ConfigOption<Duration> REFUSED_REGISTRATION_BACKOFF =
 		key("taskmanager.registration.refused-backoff")
 			.durationType()
@@ -250,6 +258,18 @@ public class TaskManagerOptions {
 					text("\"name\" - uses hostname as binding address"),
 					text("\"ip\" - uses host's ip address as binding address"))
 				.build());
+
+	/**
+	 * The TaskManager's ResourceID. If not configured, the ResourceID will be generated with the RpcAddress:RpcPort and a 6-character
+	 * random string. Notice that this option is not valid in Yarn / Mesos and Native Kubernetes mode.
+	 */
+	@Documentation.Section(Documentation.Sections.ALL_TASK_MANAGER)
+	public static final ConfigOption<String> TASK_MANAGER_RESOURCE_ID =
+		key("taskmanager.resource-id")
+			.stringType()
+			.noDefaultValue()
+			.withDescription("The TaskManager's ResourceID. If not configured, the ResourceID will be generated with the "
+				+ "\"RpcAddress:RpcPort\" and a 6-character random string. Notice that this option is not valid in Yarn / Mesos and Native Kubernetes mode.");
 
 	// ------------------------------------------------------------------------
 	//  Resource Options
@@ -383,6 +403,23 @@ public class TaskManagerOptions {
 			.withDescription("Fraction of Total Flink Memory to be used as Managed Memory, if Managed Memory size is not"
 				+ " explicitly specified.");
 
+	/**
+	 * Weights of managed memory consumers.
+	 */
+	// Do not advertise this option until the feature is completed.
+	@Documentation.ExcludeFromDocumentation
+	public static final ConfigOption<Map<String, String>> MANAGED_MEMORY_CONSUMER_WEIGHTS =
+		key("taskmanager.memory.managed.consumer-weights")
+			.mapType()
+			.defaultValue(new HashMap<String, String>() {{
+				put(ManagedMemoryConsumerNames.DATAPROC, "70");
+				put(ManagedMemoryConsumerNames.PYTHON, "30");
+			}})
+			.withDescription("Managed memory weights for different kinds of consumers. A slot’s managed memory is"
+				+ " shared by all kinds of consumers it contains, proportionally to the kinds’ weights and regardless"
+				+ " of the number of consumers from each kind. Currently supported kinds of consumers are "
+				+ ManagedMemoryConsumerNames.DATAPROC + " (for RocksDB state backend in streaming and built-in"
+				+ " algorithms in batch) and " + ManagedMemoryConsumerNames.PYTHON + " (for python processes).");
 	/**
 	 * Min Network Memory size for TaskExecutors.
 	 */
@@ -526,24 +563,14 @@ public class TaskManagerOptions {
 			.withDescription("Time we wait for the timers in milliseconds to finish all pending timer threads" +
 				" when the stream task is cancelled.");
 
-	/**
-	 * The maximum number of bytes that a checkpoint alignment may buffer.
-	 * If the checkpoint alignment buffers more than the configured amount of
-	 * data, the checkpoint is aborted (skipped).
-	 *
-	 * <p>The default value of {@code -1} indicates that there is no limit.
-	 */
-	@Documentation.ExcludeFromDocumentation("With flow control, there is no alignment spilling any more")
-	public static final ConfigOption<Long> TASK_CHECKPOINT_ALIGNMENT_BYTES_LIMIT =
-			key("task.checkpoint.alignment.max-size")
-			.longType()
-			.defaultValue(-1L)
-			.withDescription("The maximum number of bytes that a checkpoint alignment may buffer. If the checkpoint" +
-				" alignment buffers more than the configured amount of data, the checkpoint is aborted (skipped)." +
-				" A value of -1 indicates that there is no limit.");
-
 	// ------------------------------------------------------------------------
 
 	/** Not intended to be instantiated. */
 	private TaskManagerOptions() {}
+
+	/** Valid names of managed memory consumers. */
+	public static class ManagedMemoryConsumerNames {
+		public static final String DATAPROC = "DATAPROC";
+		public static final String PYTHON = "PYTHON";
+	}
 }

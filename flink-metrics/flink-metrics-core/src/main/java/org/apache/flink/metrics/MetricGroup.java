@@ -130,8 +130,6 @@ public interface MetricGroup {
 	 */
 	<M extends Meter> M meter(int name, M meter);
 
-	Metric getMetric(String name);
-
 	// ------------------------------------------------------------------------
 	// Groups
 	// ------------------------------------------------------------------------
@@ -183,7 +181,7 @@ public interface MetricGroup {
 	 * {@code {"<host>"="host-7", "<tm_id>"="taskmanager-2"}}.
 	 *
 	 * @return map of all variables and their associated value
-     */
+	 */
 	Map<String, String> getAllVariables();
 
 	/**

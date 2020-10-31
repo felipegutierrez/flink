@@ -57,7 +57,7 @@ public class HadoopRecoverableWriter implements RecoverableWriter {
 		this.fs = checkNotNull(fs);
 
 		// This writer is only supported on a subset of file systems
-		if (!"hdfs".equalsIgnoreCase(fs.getScheme())) {
+		if (!("hdfs".equalsIgnoreCase(fs.getScheme()) || "viewfs".equalsIgnoreCase(fs.getScheme()))) {
 			throw new UnsupportedOperationException(
 					"Recoverable writers on Hadoop are only supported for HDFS");
 		}
@@ -95,7 +95,7 @@ public class HadoopRecoverableWriter implements RecoverableWriter {
 
 	@Override
 	public boolean cleanupRecoverableState(ResumeRecoverable resumable) throws IOException {
-		throw new UnsupportedOperationException();
+		return false;
 	}
 
 	@Override

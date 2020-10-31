@@ -17,17 +17,17 @@
 
 package org.apache.flink.streaming.runtime.tasks;
 
-import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.core.fs.FileSystemSafetyNet;
+import org.apache.flink.runtime.checkpoint.CheckpointException;
+import org.apache.flink.runtime.checkpoint.CheckpointFailureReason;
 import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
-import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
+import org.apache.flink.runtime.checkpoint.CheckpointMetricsBuilder;
 import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.streaming.api.operators.OperatorSnapshotFinalizer;
 import org.apache.flink.streaming.api.operators.OperatorSnapshotFutures;
 import org.apache.flink.util.ExceptionUtils;
-import org.apache.flink.util.Preconditions;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,8 +35,10 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
+import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * This runnable executes the asynchronous parts of all involved backend snapshots for the subtask.
@@ -45,10 +47,15 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 
 	public static final Logger LOG = LoggerFactory.getLogger(AsyncCheckpointRunnable.class);
 	private final String taskName;
-	private final CloseableRegistry closeableRegistry;
+	private final Consumer<AsyncCheckpointRunnable> registerConsumer;
+	private final Consumer<AsyncCheckpointRunnable> unregisterConsumer;
 	private final Environment taskEnvironment;
 
-	private enum AsyncCheckpointState {
+	public boolean isRunning() {
+		return asyncCheckpointState.get() == AsyncCheckpointState.RUNNING;
+	}
+
+	enum AsyncCheckpointState {
 		RUNNING,
 		DISCARDED,
 		COMPLETED
@@ -57,39 +64,48 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 	private final AsyncExceptionHandler asyncExceptionHandler;
 	private final Map<OperatorID, OperatorSnapshotFutures> operatorSnapshotsInProgress;
 	private final CheckpointMetaData checkpointMetaData;
-	private final CheckpointMetrics checkpointMetrics;
-	private final long asyncStartNanos;
+	private final CheckpointMetricsBuilder checkpointMetrics;
+	private final long asyncConstructionNanos;
 	private final AtomicReference<AsyncCheckpointState> asyncCheckpointState = new AtomicReference<>(AsyncCheckpointState.RUNNING);
 
 	AsyncCheckpointRunnable(
 			Map<OperatorID, OperatorSnapshotFutures> operatorSnapshotsInProgress,
 			CheckpointMetaData checkpointMetaData,
-			CheckpointMetrics checkpointMetrics,
-			long asyncStartNanos,
+			CheckpointMetricsBuilder checkpointMetrics,
+			long asyncConstructionNanos,
 			String taskName,
-			CloseableRegistry closeableRegistry,
+			Consumer<AsyncCheckpointRunnable> register,
+			Consumer<AsyncCheckpointRunnable> unregister,
 			Environment taskEnvironment,
 			AsyncExceptionHandler asyncExceptionHandler) {
 
 		this.operatorSnapshotsInProgress = checkNotNull(operatorSnapshotsInProgress);
 		this.checkpointMetaData = checkNotNull(checkpointMetaData);
 		this.checkpointMetrics = checkNotNull(checkpointMetrics);
-		this.asyncStartNanos = asyncStartNanos;
+		this.asyncConstructionNanos = asyncConstructionNanos;
 		this.taskName = checkNotNull(taskName);
-		this.closeableRegistry = checkNotNull(closeableRegistry);
+		this.registerConsumer = register;
+		this.unregisterConsumer = unregister;
 		this.taskEnvironment = checkNotNull(taskEnvironment);
 		this.asyncExceptionHandler = checkNotNull(asyncExceptionHandler);
 	}
 
 	@Override
 	public void run() {
+		final long asyncStartNanos = System.nanoTime();
+		final long asyncStartDelayMillis = (asyncStartNanos - asyncConstructionNanos) / 1_000_000L;
+		LOG.debug("{} - started executing asynchronous part of checkpoint {}. Asynchronous start delay: {} ms",
+			taskName, checkpointMetaData.getCheckpointId(), asyncStartDelayMillis);
+
 		FileSystemSafetyNet.initializeSafetyNetForThread();
 		try {
-			closeableRegistry.registerCloseable(this);
+
+			registerConsumer.accept(this);
 
 			TaskStateSnapshot jobManagerTaskOperatorSubtaskStates = new TaskStateSnapshot(operatorSnapshotsInProgress.size());
 			TaskStateSnapshot localTaskOperatorSubtaskStates = new TaskStateSnapshot(operatorSnapshotsInProgress.size());
 
+			long bytesPersistedDuringAlignment = 0;
 			for (Map.Entry<OperatorID, OperatorSnapshotFutures> entry : operatorSnapshotsInProgress.entrySet()) {
 
 				OperatorID operatorID = entry.getKey();
@@ -106,11 +122,15 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 				localTaskOperatorSubtaskStates.putSubtaskStateByOperatorID(
 					operatorID,
 					finalizedSnapshots.getTaskLocalState());
+
+				bytesPersistedDuringAlignment += finalizedSnapshots.getJobManagerOwnedState().getResultSubpartitionState().getStateSize();
+				bytesPersistedDuringAlignment += finalizedSnapshots.getJobManagerOwnedState().getInputChannelState().getStateSize();
 			}
 
 			final long asyncEndNanos = System.nanoTime();
-			final long asyncDurationMillis = (asyncEndNanos - asyncStartNanos) / 1_000_000L;
+			final long asyncDurationMillis = (asyncEndNanos - asyncConstructionNanos) / 1_000_000L;
 
+			checkpointMetrics.setBytesPersistedDuringAlignment(bytesPersistedDuringAlignment);
 			checkpointMetrics.setAsyncDurationMillis(asyncDurationMillis);
 
 			if (asyncCheckpointState.compareAndSet(AsyncCheckpointState.RUNNING, AsyncCheckpointState.COMPLETED)) {
@@ -126,15 +146,13 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 					checkpointMetaData.getCheckpointId());
 			}
 		} catch (Exception e) {
-			if (LOG.isDebugEnabled()) {
-				LOG.debug("{} - asynchronous part of checkpoint {} could not be completed.",
-					taskName,
-					checkpointMetaData.getCheckpointId(),
-					e);
-			}
+			LOG.info("{} - asynchronous part of checkpoint {} could not be completed.",
+				taskName,
+				checkpointMetaData.getCheckpointId(),
+				e);
 			handleExecutionException(e);
 		} finally {
-			closeableRegistry.unregisterCloseable(this);
+			unregisterConsumer.accept(this);
 			FileSystemSafetyNet.closeSafetyNetAndGuardedResourcesForThread();
 		}
 	}
@@ -147,7 +165,7 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 		boolean hasAckState = acknowledgedTaskStateSnapshot.hasState();
 		boolean hasLocalState = localTaskStateSnapshot.hasState();
 
-		Preconditions.checkState(hasAckState || !hasLocalState,
+		checkState(hasAckState || !hasLocalState,
 			"Found cached state but no corresponding primary state is reported to the job " +
 				"manager. This indicates a problem.");
 
@@ -156,7 +174,7 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 		// stateless without the need to assign them uids to match their (always empty) states.
 		taskEnvironment.getTaskStateManager().reportTaskStateSnapshots(
 			checkpointMetaData,
-			checkpointMetrics,
+			checkpointMetrics.build(),
 			hasAckState ? acknowledgedTaskStateSnapshot : null,
 			hasLocalState ? localTaskStateSnapshot : null);
 
@@ -192,7 +210,9 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 				// We only report the exception for the original cause of fail and cleanup.
 				// Otherwise this followup exception could race the original exception in failing the task.
 				try {
-					taskEnvironment.declineCheckpoint(checkpointMetaData.getCheckpointId(), checkpointException);
+					taskEnvironment.declineCheckpoint(
+							checkpointMetaData.getCheckpointId(),
+							new CheckpointException(CheckpointFailureReason.CHECKPOINT_ASYNC_EXCEPTION, checkpointException));
 				} catch (Exception unhandled) {
 					AsynchronousException asyncException = new AsynchronousException(unhandled);
 					asyncExceptionHandler.handleAsyncException("Failure in asynchronous checkpoint materialization", asyncException);
@@ -221,6 +241,10 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 		} else {
 			logFailedCleanupAttempt();
 		}
+	}
+
+	long getCheckpointId() {
+		return checkpointMetaData.getCheckpointId();
 	}
 
 	private void cleanup() throws Exception {

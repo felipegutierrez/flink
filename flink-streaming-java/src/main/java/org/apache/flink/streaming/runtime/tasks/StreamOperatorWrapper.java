@@ -52,30 +52,33 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
 
 	private final MailboxExecutor mailboxExecutor;
 
+	private final boolean isHead;
+
 	private StreamOperatorWrapper<?, ?> previous;
 
 	private StreamOperatorWrapper<?, ?> next;
 
+	private boolean closed;
+
 	StreamOperatorWrapper(
-		OP wrapped,
-		Optional<ProcessingTimeService> processingTimeService,
-		MailboxExecutor mailboxExecutor) {
+			OP wrapped,
+			Optional<ProcessingTimeService> processingTimeService,
+			MailboxExecutor mailboxExecutor,
+			boolean isHead) {
 
 		this.wrapped = checkNotNull(wrapped);
 		this.processingTimeService = checkNotNull(processingTimeService);
 		this.mailboxExecutor = checkNotNull(mailboxExecutor);
+		this.isHead = isHead;
 	}
 
 	/**
-	 * Closes the wrapped operator and propagates the close operation to the next wrapper that the
-	 * {@link #next} points to.
+	 * Checks if the wrapped operator has been closed.
 	 *
-	 * <p>Note that this method must be called in the task thread, because we need to call
-	 * {@link MailboxExecutor#yield()} to take the mails of closing operator and running timers and
-	 * run them.
+	 * <p>Note that this method must be called in the task thread.
 	 */
-	public void close(StreamTaskActionExecutor actionExecutor) throws Exception {
-		close(actionExecutor, false);
+	public boolean isClosed() {
+		return closed;
 	}
 
 	/**
@@ -91,6 +94,12 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
 		}
 	}
 
+	public void notifyCheckpointComplete(long checkpointId) throws Exception {
+		if (!closed) {
+			wrapped.notifyCheckpointComplete(checkpointId);
+		}
+	}
+
 	public OP getStreamOperator() {
 		return wrapped;
 	}
@@ -103,8 +112,16 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
 		this.next = next;
 	}
 
-	private void close(StreamTaskActionExecutor actionExecutor, boolean invokingEndInput) throws Exception {
-		if (invokingEndInput) {
+	/**
+	 * Closes the wrapped operator and propagates the close operation to the next wrapper that the
+	 * {@link #next} points to.
+	 *
+	 * <p>Note that this method must be called in the task thread, because we need to call
+	 * {@link MailboxExecutor#yield()} to take the mails of closing operator and running timers and
+	 * run them.
+	 */
+	public void close(StreamTaskActionExecutor actionExecutor) throws Exception {
+		if (!isHead) {
 			// NOTE: This only do for the case where the operator is one-input operator. At present,
 			// any non-head operator on the operator chain is one-input operator.
 			actionExecutor.runThrowing(() -> endOperatorInput(1));
@@ -114,7 +131,7 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
 
 		// propagate the close operation to the next wrapper
 		if (next != null) {
-			next.close(actionExecutor, true);
+			next.close(actionExecutor);
 		}
 	}
 
@@ -130,7 +147,7 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
 		// step 3. send a closed mail to ensure that the mails that are from the operator and still in the mailbox
 		//         are completed before exiting the following mailbox processing loop
 		CompletableFuture<Void> closedFuture = quiesceProcessingTimeService()
-			.thenCompose(unused  -> deferCloseOperatorToMailbox(actionExecutor))
+			.thenCompose(unused -> deferCloseOperatorToMailbox(actionExecutor))
 			.thenCompose(unused -> sendClosedMail());
 
 		// run the mailbox processing loop until all operations are finished
@@ -183,7 +200,10 @@ public class StreamOperatorWrapper<OUT, OP extends StreamOperator<OUT>> {
 	}
 
 	private void closeOperator(StreamTaskActionExecutor actionExecutor) throws Exception {
-		actionExecutor.runThrowing(wrapped::close);
+		actionExecutor.runThrowing(() -> {
+			closed = true;
+			wrapped.close();
+		});
 	}
 
 	static class ReadIterator implements Iterator<StreamOperatorWrapper<?, ?>>, Iterable<StreamOperatorWrapper<?, ?>> {

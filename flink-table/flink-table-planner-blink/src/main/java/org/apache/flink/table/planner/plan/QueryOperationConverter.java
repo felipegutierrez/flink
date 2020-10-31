@@ -24,7 +24,6 @@ import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.ConnectorCatalogTable;
-import org.apache.flink.table.catalog.DataTypeFactory;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.UnresolvedIdentifier;
 import org.apache.flink.table.expressions.CallExpression;
@@ -52,6 +51,7 @@ import org.apache.flink.table.operations.ScalaDataStreamQueryOperation;
 import org.apache.flink.table.operations.SetQueryOperation;
 import org.apache.flink.table.operations.SortQueryOperation;
 import org.apache.flink.table.operations.TableSourceQueryOperation;
+import org.apache.flink.table.operations.ValuesQueryOperation;
 import org.apache.flink.table.operations.WindowAggregateQueryOperation;
 import org.apache.flink.table.operations.WindowAggregateQueryOperation.ResolvedGroupWindow;
 import org.apache.flink.table.operations.utils.QueryOperationDefaultVisitor;
@@ -77,11 +77,10 @@ import org.apache.flink.table.planner.plan.logical.SlidingGroupWindow;
 import org.apache.flink.table.planner.plan.logical.TumblingGroupWindow;
 import org.apache.flink.table.planner.plan.schema.DataStreamTable;
 import org.apache.flink.table.planner.plan.schema.DataStreamTable$;
-import org.apache.flink.table.planner.plan.schema.TableSourceTable;
+import org.apache.flink.table.planner.plan.schema.LegacyTableSourceTable;
 import org.apache.flink.table.planner.plan.schema.TypedFlinkTableFunction;
 import org.apache.flink.table.planner.plan.stats.FlinkStatistic;
 import org.apache.flink.table.planner.sources.TableSourceUtil;
-import org.apache.flink.table.planner.utils.ShortcutUtils;
 import org.apache.flink.table.sources.LookupableTableSource;
 import org.apache.flink.table.sources.StreamTableSource;
 import org.apache.flink.table.sources.TableSource;
@@ -93,14 +92,16 @@ import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalTableFunctionScan;
 import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilder.AggCall;
 import org.apache.calcite.tools.RelBuilder.GroupKey;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -286,17 +287,10 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 					typeFactory);
 			}
 
-			DataTypeFactory dataTypeFactory = ShortcutUtils.unwrapContext(relBuilder.getCluster())
-				.getCatalogManager()
-				.getDataTypeFactory();
-
 			final BridgingSqlFunction sqlFunction = BridgingSqlFunction.of(
-					dataTypeFactory,
-					typeFactory,
-					SqlKind.OTHER_FUNCTION,
+					relBuilder.getCluster(),
 					calculatedTable.getFunctionIdentifier().orElse(null),
-					calculatedTable.getFunctionDefinition(),
-					calculatedTable.getFunctionDefinition().getTypeInference(dataTypeFactory));
+					calculatedTable.getFunctionDefinition());
 
 			return relBuilder.functionScan(
 				sqlFunction,
@@ -347,6 +341,62 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				objectIdentifier.getDatabaseName(),
 				objectIdentifier.getObjectName()
 			).build();
+		}
+
+		@Override
+		public RelNode visit(ValuesQueryOperation values) {
+			RelDataType rowType = relBuilder.getTypeFactory().buildRelNodeRowType(values.getTableSchema());
+			if (values.getValues().isEmpty()) {
+				relBuilder.values(rowType);
+				return relBuilder.build();
+			}
+
+			List<List<RexLiteral>> rexLiterals = new ArrayList<>();
+			List<List<RexNode>> rexProjections = new ArrayList<>();
+
+			splitToProjectionsAndLiterals(values, rexLiterals, rexProjections);
+
+			int inputs = 0;
+			if (rexLiterals.size() != 0) {
+				inputs += 1;
+				relBuilder.values(rexLiterals, rowType);
+			}
+
+			if (rexProjections.size() != 0) {
+				inputs += rexProjections.size();
+				applyProjections(values, rexProjections);
+			}
+
+			if (inputs > 1) {
+				relBuilder.union(true, inputs);
+			}
+			return relBuilder.build();
+		}
+
+		private void applyProjections(ValuesQueryOperation values, List<List<RexNode>> rexProjections) {
+			List<RelNode> relNodes = rexProjections.stream().map(exprs -> {
+				relBuilder.push(LogicalValues.createOneRow(relBuilder.getCluster()));
+				relBuilder.project(exprs, asList(values.getTableSchema().getFieldNames()));
+				return relBuilder.build();
+			}).collect(toList());
+			relBuilder.pushAll(relNodes);
+		}
+
+		private void splitToProjectionsAndLiterals(
+				ValuesQueryOperation values,
+				List<List<RexLiteral>> rexValues,
+				List<List<RexNode>> rexProjections) {
+			values.getValues().stream()
+				.map(this::convertToRexNodes)
+				.forEach(row -> {
+						boolean allLiterals = row.stream().allMatch(expr -> expr instanceof RexLiteral);
+						if (allLiterals) {
+							rexValues.add(row.stream().map(expr -> (RexLiteral) expr).collect(toList()));
+						} else {
+							rexProjections.add(row);
+						}
+					}
+				);
 		}
 
 		@Override
@@ -402,11 +452,11 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				tableIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(refId));
 			}
 
-			RelDataType rowType = TableSourceUtil.getSourceRowType(relBuilder.getTypeFactory(),
-				tableSourceOperation.getTableSchema(),
-				scala.Option.apply(tableSource),
+			RelDataType rowType = TableSourceUtil.getSourceRowTypeFromSource(
+				relBuilder.getTypeFactory(),
+				tableSource,
 				!isBatch);
-			TableSourceTable<?> tableSourceTable = new TableSourceTable<>(
+			LegacyTableSourceTable<?> tableSourceTable = new LegacyTableSourceTable<>(
 				relBuilder.getRelOptSchema(),
 				tableIdentifier,
 				rowType,
@@ -414,7 +464,8 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				tableSource,
 				!isBatch,
 				ConnectorCatalogTable.source(tableSource, isBatch));
-			return LogicalTableScan.create(relBuilder.getCluster(), tableSourceTable);
+			return LogicalTableScan.create(relBuilder.getCluster(), tableSourceTable,
+				Collections.emptyList());
 		}
 
 		private RelNode convertToDataStreamScan(DataStreamQueryOperation<?> operation) {
@@ -441,13 +492,12 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				names,
 				rowType,
 				operation.getDataStream(),
-				operation.isProducesUpdates(),
-				operation.isAccRetract(),
 				operation.getFieldIndices(),
 				operation.getTableSchema().getFieldNames(),
 				operation.getStatistic(),
 				scala.Option.apply(operation.getFieldNullables()));
-			return LogicalTableScan.create(relBuilder.getCluster(), dataStreamTable);
+			return LogicalTableScan.create(relBuilder.getCluster(), dataStreamTable,
+				Collections.emptyList());
 		}
 
 		private RelNode convertToDataStreamScan(
@@ -476,13 +526,12 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				names,
 				rowType,
 				dataStream,
-				false,
-				false,
 				fieldIndices,
 				tableSchema.getFieldNames(),
 				FlinkStatistic.UNKNOWN(),
 				scala.Option.empty());
-			return LogicalTableScan.create(relBuilder.getCluster(), dataStreamTable);
+			return LogicalTableScan.create(relBuilder.getCluster(), dataStreamTable,
+				Collections.emptyList());
 		}
 
 		private List<RexNode> convertToRexNodes(List<ResolvedExpression> expressions) {
@@ -604,7 +653,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 			public AggCallVisitor(RelBuilder relBuilder, ExpressionConverter expressionConverter, String name,
 					boolean isDistinct) {
 				this.relBuilder = relBuilder;
-				this.sqlAggFunctionVisitor = new SqlAggFunctionVisitor((FlinkTypeFactory) relBuilder.getTypeFactory());
+				this.sqlAggFunctionVisitor = new SqlAggFunctionVisitor(relBuilder);
 				this.expressionConverter = expressionConverter;
 				this.name = name;
 				this.isDistinct = isDistinct;
@@ -658,7 +707,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 
 			public TableAggCallVisitor(RelBuilder relBuilder, ExpressionConverter expressionConverter) {
 				this.relBuilder = relBuilder;
-				this.sqlAggFunctionVisitor = new SqlAggFunctionVisitor((FlinkTypeFactory) relBuilder.getTypeFactory());
+				this.sqlAggFunctionVisitor = new SqlAggFunctionVisitor(relBuilder);
 				this.expressionConverter = expressionConverter;
 			}
 

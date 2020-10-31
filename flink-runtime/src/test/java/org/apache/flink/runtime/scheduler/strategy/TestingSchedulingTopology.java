@@ -19,6 +19,8 @@
 package org.apache.flink.runtime.scheduler.strategy;
 
 import org.apache.flink.api.common.InputDependencyConstraint;
+import org.apache.flink.runtime.execution.ExecutionState;
+import org.apache.flink.runtime.executiongraph.failover.flip1.PipelinedRegionComputeUtil;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
@@ -28,22 +30,26 @@ import org.apache.flink.runtime.jobgraph.JobVertexID;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * A simple scheduling topology for testing purposes.
  */
-public class TestingSchedulingTopology
-	implements SchedulingTopology<TestingSchedulingExecutionVertex, TestingSchedulingResultPartition> {
+public class TestingSchedulingTopology implements SchedulingTopology {
 
 	// Use linked map here to so we can get the values in inserted order
 	private final Map<ExecutionVertexID, TestingSchedulingExecutionVertex> schedulingExecutionVertices = new LinkedHashMap<>();
 
 	private final Map<IntermediateResultPartitionID, TestingSchedulingResultPartition> schedulingResultPartitions = new HashMap<>();
+
+	private Map<ExecutionVertexID, TestingSchedulingPipelinedRegion> vertexRegions;
 
 	private boolean containsCoLocationConstraints;
 
@@ -79,11 +85,50 @@ public class TestingSchedulingTopology
 		return resultPartition;
 	}
 
+	@Override
+	public Iterable<SchedulingPipelinedRegion> getAllPipelinedRegions() {
+		return new HashSet<>(getVertexRegions().values());
+	}
+
+	@Override
+	public SchedulingPipelinedRegion getPipelinedRegionOfVertex(ExecutionVertexID vertexId) {
+		return getVertexRegions().get(vertexId);
+	}
+
+	private Map<ExecutionVertexID, TestingSchedulingPipelinedRegion> getVertexRegions() {
+		if (vertexRegions == null) {
+			generatePipelinedRegions();
+		}
+		return vertexRegions;
+	}
+
+	private void generatePipelinedRegions() {
+		vertexRegions = new HashMap<>();
+
+		final Set<Set<SchedulingExecutionVertex>> rawRegions =
+			PipelinedRegionComputeUtil.computePipelinedRegions(this);
+
+		for (Set<SchedulingExecutionVertex> rawRegion : rawRegions) {
+			final Set<TestingSchedulingExecutionVertex> vertices = rawRegion.stream()
+				.map(vertex -> schedulingExecutionVertices.get(vertex.getId()))
+				.collect(Collectors.toSet());
+			final TestingSchedulingPipelinedRegion region = new TestingSchedulingPipelinedRegion(vertices);
+			for (TestingSchedulingExecutionVertex vertex : vertices) {
+				vertexRegions.put(vertex.getId(), region);
+			}
+		}
+	}
+
+	private void resetPipelinedRegions() {
+		vertexRegions = null;
+	}
+
 	void addSchedulingExecutionVertex(TestingSchedulingExecutionVertex schedulingExecutionVertex) {
 		checkState(!schedulingExecutionVertices.containsKey(schedulingExecutionVertex.getId()));
 
 		schedulingExecutionVertices.put(schedulingExecutionVertex.getId(), schedulingExecutionVertex);
 		updateVertexResultPartitions(schedulingExecutionVertex);
+		resetPipelinedRegions();
 	}
 
 	private void updateVertexResultPartitions(final TestingSchedulingExecutionVertex schedulingExecutionVertex) {
@@ -108,9 +153,28 @@ public class TestingSchedulingTopology
 	}
 
 	public TestingSchedulingExecutionVertex newExecutionVertex() {
-		final TestingSchedulingExecutionVertex newVertex = new TestingSchedulingExecutionVertex(new JobVertexID(), 0);
+		return newExecutionVertex(new JobVertexID(), 0);
+	}
+
+	public TestingSchedulingExecutionVertex newExecutionVertex(ExecutionState executionState) {
+		final TestingSchedulingExecutionVertex newVertex =
+				TestingSchedulingExecutionVertex.newBuilder().withExecutionState(executionState).build();
 		addSchedulingExecutionVertex(newVertex);
 		return newVertex;
+	}
+
+	public TestingSchedulingExecutionVertex newExecutionVertex(final JobVertexID jobVertexId, final int subtaskIndex) {
+		final TestingSchedulingExecutionVertex newVertex =
+				TestingSchedulingExecutionVertex.withExecutionVertexID(jobVertexId, subtaskIndex);
+		addSchedulingExecutionVertex(newVertex);
+		return newVertex;
+	}
+
+	public TestingSchedulingTopology connect(
+			final TestingSchedulingExecutionVertex producer,
+			final TestingSchedulingExecutionVertex consumer) {
+
+		return connect(producer, consumer, ResultPartitionType.PIPELINED);
 	}
 
 	public TestingSchedulingTopology connect(
@@ -130,6 +194,8 @@ public class TestingSchedulingTopology
 
 		updateVertexResultPartitions(producer);
 		updateVertexResultPartitions(consumer);
+
+		resetPipelinedRegions();
 
 		return this;
 	}
@@ -293,12 +359,21 @@ public class TestingSchedulingTopology
 		public List<TestingSchedulingExecutionVertex> finish() {
 			final List<TestingSchedulingExecutionVertex> vertices = new ArrayList<>();
 			for (int subtaskIndex = 0; subtaskIndex < parallelism; subtaskIndex++) {
-				vertices.add(new TestingSchedulingExecutionVertex(jobVertexId, subtaskIndex, inputDependencyConstraint));
+				vertices.add(createTestingSchedulingExecutionVertex(subtaskIndex));
 			}
 
 			TestingSchedulingTopology.this.addSchedulingExecutionVertices(vertices);
 
 			return vertices;
+		}
+
+		private TestingSchedulingExecutionVertex createTestingSchedulingExecutionVertex(
+				final int subtaskIndex) {
+			return TestingSchedulingExecutionVertex
+					.newBuilder()
+					.withExecutionVertexID(jobVertexId, subtaskIndex)
+					.withInputDependencyConstraint(inputDependencyConstraint)
+					.build();
 		}
 	}
 }

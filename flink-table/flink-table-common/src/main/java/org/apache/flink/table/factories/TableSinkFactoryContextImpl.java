@@ -34,14 +34,20 @@ public class TableSinkFactoryContextImpl implements TableSinkFactory.Context {
 	private final ObjectIdentifier identifier;
 	private final CatalogTable table;
 	private final ReadableConfig config;
+	private final boolean isBounded;
+	private final boolean isTemporary;
 
 	public TableSinkFactoryContextImpl(
 			ObjectIdentifier identifier,
 			CatalogTable table,
-			ReadableConfig config) {
+			ReadableConfig config,
+			boolean isBounded,
+			boolean isTemporary) {
 		this.identifier = checkNotNull(identifier);
 		this.table = checkNotNull(table);
 		this.config = checkNotNull(config);
+		this.isBounded = isBounded;
+		this.isTemporary = isTemporary;
 	}
 
 	@Override
@@ -57,5 +63,15 @@ public class TableSinkFactoryContextImpl implements TableSinkFactory.Context {
 	@Override
 	public ReadableConfig getConfiguration() {
 		return config;
+	}
+
+	@Override
+	public boolean isBounded() {
+		return isBounded;
+	}
+
+	@Override
+	public boolean isTemporary() {
+		return isTemporary;
 	}
 }

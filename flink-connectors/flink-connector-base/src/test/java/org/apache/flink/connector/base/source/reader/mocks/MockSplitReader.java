@@ -1,19 +1,19 @@
 /*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.flink.connector.base.source.reader.mocks;
@@ -27,7 +27,6 @@ import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Queue;
 
 /**
  * A mock split reader for unit tests. The mock split reader provides configurable behaviours.
@@ -42,66 +41,83 @@ public class MockSplitReader implements SplitReader<int[], MockSourceSplit> {
 	private final Map<String, MockSourceSplit> splits = new LinkedHashMap<>();
 	private final int numRecordsPerSplitPerFetch;
 	private final boolean blockingFetch;
-	private final boolean handleSplitsInOneShot;
-	private volatile Thread runningThread;
+
+	private final Object wakeupLock = new Object();
+	private volatile Thread threadInBlocking;
+	private boolean wokenUp;
 
 	public MockSplitReader(
 			int numRecordsPerSplitPerFetch,
-			boolean blockingFetch,
-			boolean handleSplitsInOneShot) {
+			boolean blockingFetch) {
 		this.numRecordsPerSplitPerFetch = numRecordsPerSplitPerFetch;
 		this.blockingFetch = blockingFetch;
-		this.handleSplitsInOneShot = handleSplitsInOneShot;
-		this.runningThread = null;
 	}
 
 	@Override
-	public RecordsWithSplitIds<int[]> fetch() throws InterruptedException {
-		try {
-			if (runningThread == null) {
-				runningThread = Thread.currentThread();
-			}
-			return getRecords();
-		} catch (InterruptedException ie) {
-			if (!blockingFetch) {
-				throw new RuntimeException("Caught unexpected interrupted exception.");
-			} else {
-				throw ie;
-			}
+	public RecordsWithSplitIds<int[]> fetch() {
+		return getRecords();
+	}
+
+	@Override
+	public void handleSplitsChanges(SplitsChange<MockSourceSplit> splitsChange) {
+		if (splitsChange instanceof SplitsAddition) {
+			splitsChange.splits().forEach(s -> splits.put(s.splitId(), s));
+		} else {
+			throw new IllegalArgumentException("Do not recognize split change: " + splitsChange);
 		}
-	}
-
-	@Override
-	public void handleSplitsChanges(Queue<SplitsChange<MockSourceSplit>> splitsChanges) {
-		do {
-			SplitsChange<MockSourceSplit> splitsChange = splitsChanges.poll();
-			if (splitsChange instanceof SplitsAddition) {
-				splitsChange.splits().forEach(s -> splits.put(s.splitId(), s));
-			}
-		} while (handleSplitsInOneShot && !splitsChanges.isEmpty());
 	}
 
 	@Override
 	public void wakeUp() {
-		if (blockingFetch) {
-			runningThread.interrupt();
+		synchronized (wakeupLock) {
+			wokenUp = true;
+			if (threadInBlocking != null) {
+				threadInBlocking.interrupt();
+			}
 		}
 	}
 
-	private RecordsBySplits<int[]> getRecords() throws InterruptedException {
-		RecordsBySplits<int[]> records = new RecordsBySplits<>();
-		for (Map.Entry<String, MockSourceSplit> entry : splits.entrySet()) {
-			MockSourceSplit split = entry.getValue();
-			for (int i = 0; i < numRecordsPerSplitPerFetch && !split.isFinished(); i++) {
-				int[] record = split.getNext(blockingFetch);
-				if (record != null) {
-					records.add(entry.getKey(), record);
-					if (split.isFinished()) {
-						records.addFinishedSplit(entry.getKey());
+	private RecordsBySplits<int[]> getRecords() {
+		final RecordsBySplits.Builder<int[]> records = new RecordsBySplits.Builder<>();
+
+		// after this locked section, the thread might be interrupted
+		synchronized (wakeupLock) {
+			if (wokenUp) {
+				wokenUp = false;
+				return records.build();
+			}
+			threadInBlocking = Thread.currentThread();
+		}
+
+		try {
+			for (Map.Entry<String, MockSourceSplit> entry : splits.entrySet()) {
+				MockSourceSplit split = entry.getValue();
+				for (int i = 0; i < numRecordsPerSplitPerFetch && !split.isFinished(); i++) {
+					// This call may throw InterruptedException.
+					int[] record = split.getNext(blockingFetch);
+					if (record != null) {
+						records.add(entry.getKey(), record);
 					}
 				}
+				if (split.isFinished()) {
+					records.addFinishedSplit(entry.getKey());
+				}
+			}
+		} catch (InterruptedException ie) {
+			// Catch the exception and return the records that are already read.
+			if (!blockingFetch) {
+				throw new RuntimeException("Caught unexpected interrupted exception.");
+			}
+		} finally {
+			// after this locked section, the thread may not be interrupted any more
+			synchronized (wakeupLock) {
+				wokenUp = false;
+				//noinspection ResultOfMethodCallIgnored
+				Thread.interrupted();
+				threadInBlocking = null;
 			}
 		}
-		return records;
+
+		return records.build();
 	}
 }

@@ -38,7 +38,7 @@ library makes when [dealing with lateness](#handling-lateness-in-event-time) in 
 
 ## Getting Started
 
-If you want to jump right in, [set up a Flink program]({{ site.baseurl }}/dev/projectsetup/dependencies.html) and
+If you want to jump right in, [set up a Flink program]({{ site.baseurl }}/dev/project-configuration.html) and
 add the FlinkCEP dependency to the `pom.xml` of your project.
 
 <div class="codetabs" markdown="1">
@@ -63,7 +63,7 @@ add the FlinkCEP dependency to the `pom.xml` of your project.
 </div>
 </div>
 
-{% info %} FlinkCEP is not part of the binary distribution. See how to link with it for cluster execution [here]({{site.baseurl}}/dev/projectsetup/dependencies.html).
+{% info %} FlinkCEP is not part of the binary distribution. See how to link with it for cluster execution [here]({{site.baseurl}}/dev/project-configuration.html).
 
 Now you can start writing your first CEP program using the Pattern API.
 
@@ -1697,7 +1697,6 @@ The whole processing is done with event time.
 <div data-lang="java" markdown="1">
 {% highlight java %}
 StreamExecutionEnvironment env = ...
-env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
 DataStream<Event> input = ...
 
@@ -1735,7 +1734,6 @@ DataStream<Alert> alerts = patternStream.select(new PatternSelectFunction<Event,
 <div data-lang="scala" markdown="1">
 {% highlight scala %}
 val env : StreamExecutionEnvironment = ...
-env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
 val input : DataStream[Event] = ...
 

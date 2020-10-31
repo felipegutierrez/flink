@@ -19,9 +19,8 @@
 package org.apache.flink.table.filesystem;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.dataformat.BaseRow;
-import org.apache.flink.table.dataformat.GenericRow;
-import org.apache.flink.table.dataformat.TypeGetterSetters;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 
@@ -32,10 +31,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * {@link PartitionComputer} for {@link BaseRow}.
+ * {@link PartitionComputer} for {@link RowData}.
  */
 @Internal
-public class RowDataPartitionComputer implements PartitionComputer<BaseRow> {
+public class RowDataPartitionComputer implements PartitionComputer<RowData> {
 
 	private static final long serialVersionUID = 1L;
 
@@ -43,11 +42,13 @@ public class RowDataPartitionComputer implements PartitionComputer<BaseRow> {
 	protected final String[] partitionColumns;
 	protected final int[] partitionIndexes;
 	protected final LogicalType[] partitionTypes;
+	protected final RowData.FieldGetter[] partitionFieldGetters;
 
 	private final int[] nonPartitionIndexes;
 	private final LogicalType[] nonPartitionTypes;
+	protected final RowData.FieldGetter[] nonPartitionFieldGetters;
 
-	private transient GenericRow reuseRow;
+	private transient GenericRowData reuseRow;
 
 	public RowDataPartitionComputer(
 			String defaultPartValue,
@@ -68,6 +69,9 @@ public class RowDataPartitionComputer implements PartitionComputer<BaseRow> {
 		this.partitionTypes = Arrays.stream(partitionIndexes)
 				.mapToObj(columnTypeList::get)
 				.toArray(LogicalType[]::new);
+		this.partitionFieldGetters = IntStream.range(0, partitionTypes.length)
+			.mapToObj(i -> RowData.createFieldGetter(partitionTypes[i], partitionIndexes[i]))
+			.toArray(RowData.FieldGetter[]::new);
 
 		List<Integer> partitionIndexList = Arrays.stream(partitionIndexes).boxed().collect(Collectors.toList());
 		this.nonPartitionIndexes = IntStream.range(0, columnNames.length)
@@ -76,14 +80,17 @@ public class RowDataPartitionComputer implements PartitionComputer<BaseRow> {
 		this.nonPartitionTypes = Arrays.stream(nonPartitionIndexes)
 				.mapToObj(columnTypeList::get)
 				.toArray(LogicalType[]::new);
+		this.nonPartitionFieldGetters = IntStream.range(0, nonPartitionTypes.length)
+			.mapToObj(i -> RowData.createFieldGetter(nonPartitionTypes[i], nonPartitionIndexes[i]))
+			.toArray(RowData.FieldGetter[]::new);
 	}
 
 	@Override
-	public LinkedHashMap<String, String> generatePartValues(BaseRow in) {
+	public LinkedHashMap<String, String> generatePartValues(RowData in) {
 		LinkedHashMap<String, String> partSpec = new LinkedHashMap<>();
 
 		for (int i = 0; i < partitionIndexes.length; i++) {
-			Object field = TypeGetterSetters.get(in, partitionIndexes[i], partitionTypes[i]);
+			Object field = partitionFieldGetters[i].getFieldOrNull(in);
 			String partitionValue = field != null ? field.toString() : null;
 			if (partitionValue == null || "".equals(partitionValue)) {
 				partitionValue = defaultPartValue;
@@ -94,18 +101,17 @@ public class RowDataPartitionComputer implements PartitionComputer<BaseRow> {
 	}
 
 	@Override
-	public BaseRow projectColumnsToWrite(BaseRow in) {
+	public RowData projectColumnsToWrite(RowData in) {
 		if (partitionIndexes.length == 0) {
 			return in;
 		}
 
 		if (reuseRow == null) {
-			this.reuseRow = new GenericRow(nonPartitionIndexes.length);
+			this.reuseRow = new GenericRowData(nonPartitionIndexes.length);
 		}
 
 		for (int i = 0; i < nonPartitionIndexes.length; i++) {
-			reuseRow.setField(i, TypeGetterSetters.get(
-					in, nonPartitionIndexes[i], nonPartitionTypes[i]));
+			reuseRow.setField(i, nonPartitionFieldGetters[i].getFieldOrNull(in));
 		}
 		return reuseRow;
 	}

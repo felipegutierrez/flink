@@ -25,7 +25,7 @@ import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.checkpoint.PrioritizedOperatorSubtaskState;
 import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
-import org.apache.flink.runtime.checkpoint.channel.ChannelStateReader;
+import org.apache.flink.runtime.checkpoint.channel.SequentialChannelStateReader;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.taskmanager.CheckpointResponder;
@@ -46,6 +46,8 @@ import java.util.Map;
 public class TestTaskStateManager implements TaskStateManager {
 
 	private long reportedCheckpointId;
+	private long notifiedCompletedCheckpointId;
+	private long notifiedAbortedCheckpointId;
 
 	private JobID jobId;
 	private ExecutionAttemptID executionAttemptID;
@@ -86,6 +88,8 @@ public class TestTaskStateManager implements TaskStateManager {
 		this.jobManagerTaskStateSnapshotsByCheckpointId = new HashMap<>();
 		this.taskManagerTaskStateSnapshotsByCheckpointId = new HashMap<>();
 		this.reportedCheckpointId = -1L;
+		this.notifiedCompletedCheckpointId = -1L;
+		this.notifiedAbortedCheckpointId = -1L;
 	}
 
 	@Override
@@ -160,8 +164,8 @@ public class TestTaskStateManager implements TaskStateManager {
 	}
 
 	@Override
-	public ChannelStateReader getChannelStateReader() {
-		return ChannelStateReader.NO_OP;
+	public SequentialChannelStateReader getSequentialChannelStateReader() {
+		return SequentialChannelStateReader.NO_OP;
 	}
 
 	public void setLocalRecoveryConfig(LocalRecoveryConfig recoveryDirectoryProvider) {
@@ -170,7 +174,12 @@ public class TestTaskStateManager implements TaskStateManager {
 
 	@Override
 	public void notifyCheckpointComplete(long checkpointId) throws Exception {
+		this.notifiedCompletedCheckpointId = checkpointId;
+	}
 
+	@Override
+	public void notifyCheckpointAborted(long checkpointId) {
+		this.notifiedAbortedCheckpointId = checkpointId;
 	}
 
 	public JobID getJobId() {
@@ -219,6 +228,14 @@ public class TestTaskStateManager implements TaskStateManager {
 
 	public long getReportedCheckpointId() {
 		return reportedCheckpointId;
+	}
+
+	public long getNotifiedCompletedCheckpointId() {
+		return notifiedCompletedCheckpointId;
+	}
+
+	public long getNotifiedAbortedCheckpointId() {
+		return notifiedAbortedCheckpointId;
 	}
 
 	public void setReportedCheckpointId(long reportedCheckpointId) {

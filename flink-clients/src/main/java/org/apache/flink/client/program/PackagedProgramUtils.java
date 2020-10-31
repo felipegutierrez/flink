@@ -21,14 +21,32 @@ package org.apache.flink.client.program;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.dag.Pipeline;
 import org.apache.flink.client.FlinkPipelineTranslationUtil;
+import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.optimizer.CompilerException;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 
+import org.apache.commons.collections.CollectionUtils;
+
 import javax.annotation.Nullable;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -38,9 +56,9 @@ import static org.apache.flink.util.Preconditions.checkState;
 public enum PackagedProgramUtils {
 	;
 
-	private static final String PYTHON_DRIVER_CLASS_NAME = "org.apache.flink.client.python.PythonDriver";
-
 	private static final String PYTHON_GATEWAY_CLASS_NAME = "org.apache.flink.client.python.PythonGatewayServer";
+
+	private static final String PYTHON_DRIVER_CLASS_NAME = "org.apache.flink.client.python.PythonDriver";
 
 	/**
 	 * Creates a {@link JobGraph} with a specified {@link JobID}
@@ -60,8 +78,11 @@ public enum PackagedProgramUtils {
 			@Nullable JobID jobID,
 			boolean suppressOutput) throws ProgramInvocationException {
 		final Pipeline pipeline = getPipelineFromProgram(packagedProgram, configuration,  defaultParallelism, suppressOutput);
-		final JobGraph jobGraph = FlinkPipelineTranslationUtil.getJobGraph(pipeline, configuration, defaultParallelism);
-
+		final JobGraph jobGraph = FlinkPipelineTranslationUtil.getJobGraphUnderUserClassLoader(
+				packagedProgram.getUserCodeClassLoader(),
+				pipeline,
+				configuration,
+				defaultParallelism);
 		if (jobID != null) {
 			jobGraph.setJobID(jobID);
 		}
@@ -117,9 +138,15 @@ public enum PackagedProgramUtils {
 		}
 
 		// temporary hack to support the optimizer plan preview
-		OptimizerPlanEnvironment benv = new OptimizerPlanEnvironment(configuration, parallelism);
+		OptimizerPlanEnvironment benv = new OptimizerPlanEnvironment(
+			configuration,
+			program.getUserCodeClassLoader(),
+			parallelism);
 		benv.setAsContext();
-		StreamPlanEnvironment senv = new StreamPlanEnvironment(configuration, parallelism);
+		StreamPlanEnvironment senv = new StreamPlanEnvironment(
+			configuration,
+			program.getUserCodeClassLoader(),
+			parallelism);
 		senv.setAsContext();
 
 		try {
@@ -164,6 +191,53 @@ public enum PackagedProgramUtils {
 	public static Boolean isPython(String entryPointClassName) {
 		return (entryPointClassName != null) &&
 			(entryPointClassName.equals(PYTHON_DRIVER_CLASS_NAME) || entryPointClassName.equals(PYTHON_GATEWAY_CLASS_NAME));
+	}
+
+	public static boolean isPython(String[] programArguments){
+		return CollectionUtils.containsAny(Arrays.asList(programArguments), Arrays.asList("-py", "-pym", "--python",
+			"--pyModule"));
+	}
+
+	public static URL getPythonJar() {
+		String flinkOptPath = System.getenv(ConfigConstants.ENV_FLINK_OPT_DIR);
+		final List<Path> pythonJarPath = new ArrayList<>();
+		try {
+			Files.walkFileTree(FileSystems.getDefault().getPath(flinkOptPath), new SimpleFileVisitor<Path>() {
+				@Override
+				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+					FileVisitResult result = super.visitFile(file, attrs);
+					if (file.getFileName().toString().startsWith("flink-python")) {
+						pythonJarPath.add(file);
+					}
+					return result;
+				}
+			});
+		} catch (IOException e) {
+			throw new RuntimeException(
+				"Exception encountered during finding the flink-python jar. This should not happen.", e);
+		}
+
+		if (pythonJarPath.size() != 1) {
+			throw new RuntimeException("Found " + pythonJarPath.size() + " flink-python jar.");
+		}
+
+		try {
+			return pythonJarPath.get(0).toUri().toURL();
+		} catch (MalformedURLException e) {
+			throw new RuntimeException("URL is invalid. This should not happen.", e);
+		}
+	}
+
+	public static String getPythonDriverClassName() {
+		return PYTHON_DRIVER_CLASS_NAME;
+	}
+
+	public static URI resolveURI(String path) throws URISyntaxException {
+		final URI uri = new URI(path);
+		if (uri.getScheme() != null) {
+			return uri;
+		}
+		return new File(path).getAbsoluteFile().toURI();
 	}
 
 	private static ProgramInvocationException generateException(

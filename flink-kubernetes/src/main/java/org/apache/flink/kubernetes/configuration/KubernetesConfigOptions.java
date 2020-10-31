@@ -19,9 +19,15 @@
 package org.apache.flink.kubernetes.configuration;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.annotation.docs.Documentation;
 import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ExternalResourceOptions;
+import org.apache.flink.configuration.description.Description;
+import org.apache.flink.configuration.description.TextElement;
+import org.apache.flink.runtime.util.EnvironmentInformation;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.apache.flink.configuration.ConfigOptions.key;
@@ -98,7 +104,7 @@ public class KubernetesConfigOptions {
 	public static final ConfigOption<String> CONTAINER_START_COMMAND_TEMPLATE =
 		key("kubernetes.container-start-command-template")
 		.stringType()
-		.defaultValue("%java% %classpath% %jvmmem% %jvmopts% %logging% %class% %args% %redirects%")
+		.defaultValue("%java% %classpath% %jvmmem% %jvmopts% %logging% %class% %args%")
 		.withDescription("Template for the kubernetes jobmanager and taskmanager container start invocation.");
 
 	public static final ConfigOption<Map<String, String>> JOB_MANAGER_LABELS =
@@ -133,14 +139,17 @@ public class KubernetesConfigOptions {
 		key("kubernetes.cluster-id")
 		.stringType()
 		.noDefaultValue()
-		.withDescription("The cluster id used for identifying the unique flink cluster. If it's not set, " +
-			"the client will generate a random UUID name.");
+		.withDescription("The cluster-id, which should be no more than 45 characters, is used for identifying " +
+			"a unique Flink cluster. If not set, the client will automatically generate it with a random ID.");
 
+	@Documentation.OverrideDefault("The default value depends on the actually running version. In general it looks like \"flink:<FLINK_VERSION>-scala_<SCALA_VERSION>\"")
 	public static final ConfigOption<String> CONTAINER_IMAGE =
 		key("kubernetes.container.image")
 		.stringType()
-		.defaultValue("flink:latest")
-		.withDescription("Image to use for Flink containers.");
+		.defaultValue(getDefaultFlinkImage())
+		.withDescription("Image to use for Flink containers. " +
+			"The specified image must be based upon the same Apache Flink and Scala versions as used by the application. " +
+			"Visit https://hub.docker.com/_/flink?tab=tags for the images provided by the Flink project.");
 
 	/**
 	 * The following config options need to be set according to the image.
@@ -148,7 +157,7 @@ public class KubernetesConfigOptions {
 	public static final ConfigOption<String> KUBERNETES_ENTRY_PATH =
 		key("kubernetes.entry.path")
 		.stringType()
-		.defaultValue("/opt/flink/bin/kubernetes-entry.sh")
+		.defaultValue("/docker-entrypoint.sh")
 		.withDescription("The entrypoint script of kubernetes in the image. It will be used as command for jobmanager " +
 			"and taskmanager container.");
 
@@ -203,6 +212,58 @@ public class KubernetesConfigOptions {
 			.withDescription("The user-specified tolerations to be set to the TaskManager pod. The value should be " +
 				"in the form of key:key1,operator:Equal,value:value1,effect:NoSchedule;" +
 				"key:key2,operator:Exists,effect:NoExecute,tolerationSeconds:6000");
+
+	public static final ConfigOption<Map<String, String>> REST_SERVICE_ANNOTATIONS =
+		key("kubernetes.rest-service.annotations")
+			.mapType()
+			.noDefaultValue()
+			.withDescription("The user-specified annotations that are set to the rest Service. The value should be " +
+				"in the form of a1:v1,a2:v2");
+
+	/** Defines the configuration key of that external resource in Kubernetes. This is used as a suffix in an actual config. */
+	public static final String EXTERNAL_RESOURCE_KUBERNETES_CONFIG_KEY_SUFFIX = "kubernetes.config-key";
+
+	public static final ConfigOption<Map<String, String>> KUBERNETES_SECRETS =
+		key("kubernetes.secrets")
+			.mapType()
+			.noDefaultValue()
+			.withDescription(
+				Description.builder()
+					.text("The user-specified secrets that will be mounted into Flink container. The value should be in " +
+						"the form of %s.", TextElement.code("foo:/opt/secrets-foo,bar:/opt/secrets-bar"))
+					.build());
+
+	public static final ConfigOption<List<Map<String, String>>> KUBERNETES_ENV_SECRET_KEY_REF =
+		key("kubernetes.env.secretKeyRef")
+			.mapType()
+			.asList()
+			.noDefaultValue()
+			.withDescription(
+				Description.builder()
+					.text("The user-specified secrets to set env variables in Flink container. The value should be in " +
+						"the form of %s.", TextElement.code("env:FOO_ENV,secret:foo_secret,key:foo_key;env:BAR_ENV,secret:bar_secret,key:bar_key"))
+					.build());
+
+	/**
+	 * If configured, Flink will add "resources.limits.&gt;config-key&lt;" and "resources.requests.&gt;config-key&lt;" to the main
+	 * container of TaskExecutor and set the value to {@link ExternalResourceOptions#EXTERNAL_RESOURCE_AMOUNT}.
+	 *
+	 * <p>It is intentionally included into user docs while unused.
+	 */
+	@SuppressWarnings("unused")
+	public static final ConfigOption<String> EXTERNAL_RESOURCE_KUBERNETES_CONFIG_KEY =
+		key(ExternalResourceOptions.genericKeyWithSuffix(EXTERNAL_RESOURCE_KUBERNETES_CONFIG_KEY_SUFFIX))
+			.stringType()
+			.noDefaultValue()
+			.withDescription("If configured, Flink will add \"resources.limits.<config-key>\" and \"resources.requests.<config-key>\" " +
+				"to the main container of TaskExecutor and set the value to the value of " + ExternalResourceOptions.EXTERNAL_RESOURCE_AMOUNT.key() + ".");
+
+	private static String getDefaultFlinkImage() {
+		// The default container image that ties to the exact needed versions of both Flink and Scala.
+		boolean snapshot = EnvironmentInformation.getVersion().toLowerCase(Locale.ENGLISH).contains("snapshot");
+		String tag = snapshot ? "latest" : EnvironmentInformation.getVersion() + "-scala_" + EnvironmentInformation.getScalaVersion();
+		return "flink:" + tag;
+	}
 
 	/**
 	 * The flink rest service exposed type.

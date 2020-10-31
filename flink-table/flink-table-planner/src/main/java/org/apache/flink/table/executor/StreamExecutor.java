@@ -23,6 +23,7 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.dag.Pipeline;
 import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
@@ -50,7 +51,9 @@ public class StreamExecutor implements Executor {
 			throw new IllegalStateException("No operators defined in streaming topology. Cannot generate StreamGraph.");
 		}
 		return new StreamGraphGenerator(
-			transformations, executionEnvironment.getConfig(), executionEnvironment.getCheckpointConfig())
+				transformations,
+				executionEnvironment.getConfig(),
+				executionEnvironment.getCheckpointConfig())
 			.setStateBackend(executionEnvironment.getStateBackend())
 			.setChaining(executionEnvironment.isChainingEnabled())
 			.setUserArtifacts(executionEnvironment.getCachedFiles())
@@ -63,6 +66,11 @@ public class StreamExecutor implements Executor {
 	@Override
 	public JobExecutionResult execute(Pipeline pipeline) throws Exception {
 		return executionEnvironment.execute((StreamGraph) pipeline);
+	}
+
+	@Override
+	public JobClient executeAsync(Pipeline pipeline) throws Exception {
+		return executionEnvironment.executeAsync((StreamGraph) pipeline);
 	}
 
 	public StreamExecutionEnvironment getExecutionEnvironment() {

@@ -1,19 +1,19 @@
 /*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.flink.connector.base.source.reader.splitreader;
@@ -21,7 +21,7 @@ package org.apache.flink.connector.base.source.reader.splitreader;
 import org.apache.flink.api.connector.source.SourceSplit;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 
-import java.util.Queue;
+import java.io.IOException;
 
 /**
  * An interface used to read from splits. The implementation could either read from a single split or from
@@ -41,16 +41,16 @@ public interface SplitReader<E, SplitT extends SourceSplit> {
 	 *
 	 * @return the Ids of the finished splits.
 	 *
-	 * @throws InterruptedException when interrupted
+	 * @throws IOException when encountered IO errors, such as deserialization failures.
 	 */
-	RecordsWithSplitIds<E> fetch() throws InterruptedException;
+	RecordsWithSplitIds<E> fetch() throws IOException;
 
 	/**
 	 * Handle the split changes. This call should be non-blocking.
 	 *
-	 * @param splitsChanges a queue with split changes that has not been handled by this SplitReader.
+	 * @param splitsChanges the split changes that the SplitReader needs to handle.
 	 */
-	void handleSplitsChanges(Queue<SplitsChange<SplitT>> splitsChanges);
+	void handleSplitsChanges(SplitsChange<SplitT> splitsChanges);
 
 	/**
 	 * Wake up the split reader in case the fetcher thread is blocking in

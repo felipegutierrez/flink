@@ -18,11 +18,13 @@
 
 package org.apache.flink.table.planner.calcite;
 
+import org.apache.flink.sql.parser.hive.impl.FlinkHiveSqlParserImpl;
 import org.apache.flink.sql.parser.impl.FlinkSqlParserImpl;
 import org.apache.flink.table.api.SqlParserException;
 
 import org.apache.calcite.sql.SqlIdentifier;
 import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.parser.SqlAbstractParserImpl;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.util.SourceStringReader;
@@ -56,6 +58,22 @@ public class CalciteParser {
 	}
 
 	/**
+	 * Parses a SQL expression into a {@link SqlNode}. The {@link SqlNode} is not yet validated.
+	 *
+	 * @param sqlExpression a SQL expression string to parse
+	 * @return a parsed SQL node
+	 * @throws SqlParserException if an exception is thrown when parsing the statement
+	 */
+	public SqlNode parseExpression(String sqlExpression) {
+		try {
+			final SqlParser parser = SqlParser.create(sqlExpression, config);
+			return parser.parseExpression();
+		} catch (SqlParseException e) {
+			throw new SqlParserException("SQL parse failed. " + e.getMessage(), e);
+		}
+	}
+
+	/**
 	 * Parses a SQL string as an identifier into a {@link SqlIdentifier}.
 	 *
 	 * @param identifier a sql string to parse as an identifier
@@ -64,10 +82,17 @@ public class CalciteParser {
 	 */
 	public SqlIdentifier parseIdentifier(String identifier) {
 		try {
-			return createFlinkParser(identifier).TableApiIdentifier();
+			SqlAbstractParserImpl flinkParser = createFlinkParser(identifier);
+			if (flinkParser instanceof FlinkSqlParserImpl) {
+				return ((FlinkSqlParserImpl) flinkParser).TableApiIdentifier();
+			} else if (flinkParser instanceof FlinkHiveSqlParserImpl) {
+				return ((FlinkHiveSqlParserImpl) flinkParser).TableApiIdentifier();
+			} else {
+				throw new IllegalArgumentException("Unrecognized sql parser type " + flinkParser.getClass().getName());
+			}
 		} catch (Exception e) {
 			throw new SqlParserException(String.format(
-				"Invalid SQL identifier %s.", identifier));
+				"Invalid SQL identifier %s.", identifier), e);
 		}
 	}
 
@@ -77,9 +102,9 @@ public class CalciteParser {
 	 *
 	 * <p>It is so that we can access specific parsing methods not accessible through the {@code SqlParser}.
 	 */
-	private FlinkSqlParserImpl createFlinkParser(String expr) {
+	private SqlAbstractParserImpl createFlinkParser(String expr) {
 		SourceStringReader reader = new SourceStringReader(expr);
-		FlinkSqlParserImpl parser = (FlinkSqlParserImpl) config.parserFactory().getParser(reader);
+		SqlAbstractParserImpl parser = config.parserFactory().getParser(reader);
 		parser.setTabSize(1);
 		parser.setQuotedCasing(config.quotedCasing());
 		parser.setUnquotedCasing(config.unquotedCasing());
@@ -87,13 +112,13 @@ public class CalciteParser {
 		parser.setConformance(config.conformance());
 		switch (config.quoting()) {
 			case DOUBLE_QUOTE:
-				parser.switchTo("DQID");
+				parser.switchTo(SqlAbstractParserImpl.LexicalState.DQID);
 				break;
 			case BACK_TICK:
-				parser.switchTo("BTID");
+				parser.switchTo(SqlAbstractParserImpl.LexicalState.BTID);
 				break;
 			case BRACKET:
-				parser.switchTo("DEFAULT");
+				parser.switchTo(SqlAbstractParserImpl.LexicalState.DEFAULT);
 				break;
 		}
 

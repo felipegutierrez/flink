@@ -74,6 +74,7 @@ public class TaxiRideCountPreAggregate2 {
 			slotGroup02_2 = SLOT_GROUP_02_02;
 		}
 
+		/*
 		DataStream<TaxiRide> rides01 = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_1);
 		DataStream<TaxiRide> rides02 = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).slotSharingGroup(slotGroup01_2);
 		DataStream<Tuple2<Long, Long>> tuples01 = rides01.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).setParallelism(parallelisGroup01).slotSharingGroup(slotGroup01_1);
@@ -110,6 +111,8 @@ public class TaxiRideCountPreAggregate2 {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideCountPreAggregate2.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************

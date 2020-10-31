@@ -146,6 +146,7 @@ public class WordCountPreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
+		/*
 		// get input data
 		DataStream<String> text;
 		if (Strings.isNullOrEmpty(input)) {
@@ -233,6 +234,8 @@ public class WordCountPreAggregate {
 		System.err.println(env.getExecutionPlan());
 		// execute program
 		env.execute(WordCountPreAggregate.class.getSimpleName());
+		
+		 */
 	}
 
 	// *************************************************************************

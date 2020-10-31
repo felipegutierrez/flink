@@ -56,14 +56,6 @@ public class CliFrontendParser {
 	public static final Option PARALLELISM_OPTION = new Option("p", "parallelism", true,
 			"The parallelism with which to run the program. Optional flag to override the default value " +
 			"specified in the configuration.");
-
-	/**
-	 * @deprecated This has no effect anymore, we're keeping it to not break existing bash scripts.
-	 */
-	@Deprecated
-	static final Option LOGGING_OPTION = new Option("q", "sysoutLogging", false, "If present, " +
-			"suppress logging output to standard out.");
-
 	public static final Option DETACHED_OPTION = new Option("d", "detached", false, "If present, runs " +
 			"the job in detached mode");
 
@@ -79,11 +71,11 @@ public class CliFrontendParser {
 	public static final Option YARN_DETACHED_OPTION = new Option("yd", "yarndetached", false, "If present, runs " +
 		"the job in detached mode (deprecated; use non-YARN specific option instead)");
 
-	static final Option ARGS_OPTION = new Option("a", "arguments", true,
+	public static final Option ARGS_OPTION = new Option("a", "arguments", true,
 			"Program arguments. Arguments can also be added without -a, simply as trailing parameters.");
 
 	public static final Option ADDRESS_OPTION = new Option("m", "jobmanager", true,
-			"Address of the JobManager (master) to which to connect. " +
+			"Address of the JobManager to which to connect. " +
 			"Use this flag to connect to a different JobManager than the one specified in the configuration.");
 
 	public static final Option SAVEPOINT_PATH_OPTION = new Option("s", "fromSavepoint", true,
@@ -128,7 +120,7 @@ public class CliFrontendParser {
 		"Python script with the program entry point. " +
 			"The dependent resources can be configured with the `--pyFiles` option.");
 
-	static final Option PYFILES_OPTION = new Option("pyfs", "pyFiles", true,
+	public static final Option PYFILES_OPTION = new Option("pyfs", "pyFiles", true,
 		"Attach custom python files for job. " +
 			"These files will be added to the PYTHONPATH of both the local client and the remote python UDF worker. " +
 			"The standard python resource file suffixes such as .py/.egg/.zip or directory are all supported. " +
@@ -139,14 +131,14 @@ public class CliFrontendParser {
 		"Python module with the program entry point. " +
 			"This option must be used in conjunction with `--pyFiles`.");
 
-	static final Option PYREQUIREMENTS_OPTION = new Option("pyreq", "pyRequirements", true,
+	public static final Option PYREQUIREMENTS_OPTION = new Option("pyreq", "pyRequirements", true,
 		"Specify a requirements.txt file which defines the third-party dependencies. " +
 			"These dependencies will be installed and added to the PYTHONPATH of the python UDF worker. " +
 			"A directory which contains the installation packages of these dependencies could be specified " +
 			"optionally. Use '#' as the separator if the optional parameter exists " +
 			"(e.g.: --pyRequirements file:///tmp/requirements.txt#file:///tmp/cached_dir).");
 
-	static final Option PYARCHIVE_OPTION = new Option("pyarch", "pyArchives", true,
+	public static final Option PYARCHIVE_OPTION = new Option("pyarch", "pyArchives", true,
 		"Add python archive files for job. The archive files will be extracted to the working directory " +
 			"of python UDF worker. Currently only zip-format is supported. For each archive file, a target directory " +
 			"be specified. If the target directory name is specified, the archive file will be extracted to a " +
@@ -159,10 +151,10 @@ public class CliFrontendParser {
 			"py37.zip/py37/bin/python). The data files could be accessed in Python UDF, e.g.: " +
 			"f = open('data/data.txt', 'r').");
 
-	static final Option PYEXEC_OPTION = new Option("pyexec", "pyExecutable", true,
+	public static final Option PYEXEC_OPTION = new Option("pyexec", "pyExecutable", true,
 		"Specify the path of the python interpreter used to execute the python UDF worker " +
 			"(e.g.: --pyExecutable /usr/local/bin/python3). " +
-			"The python UDF worker depends on Python 3.5+, Apache Beam (version == 2.19.0), " +
+			"The python UDF worker depends on Python 3.5+, Apache Beam (version == 2.23.0), " +
 			"Pip (version >= 7.1.0) and SetupTools (version >= 37.0.0). " +
 			"Please ensure that the specified environment meets the above requirements.");
 
@@ -184,7 +176,6 @@ public class CliFrontendParser {
 		PARALLELISM_OPTION.setRequired(false);
 		PARALLELISM_OPTION.setArgName("parallelism");
 
-		LOGGING_OPTION.setRequired(false);
 		DETACHED_OPTION.setRequired(false);
 		SHUTDOWN_IF_ATTACHED_OPTION.setRequired(false);
 		YARN_DETACHED_OPTION.setRequired(false);
@@ -245,7 +236,6 @@ public class CliFrontendParser {
 		options.addOption(CLASSPATH_OPTION);
 		options.addOption(PARALLELISM_OPTION);
 		options.addOption(ARGS_OPTION);
-		options.addOption(LOGGING_OPTION);
 		options.addOption(DETACHED_OPTION);
 		options.addOption(SHUTDOWN_IF_ATTACHED_OPTION);
 		options.addOption(YARN_DETACHED_OPTION);

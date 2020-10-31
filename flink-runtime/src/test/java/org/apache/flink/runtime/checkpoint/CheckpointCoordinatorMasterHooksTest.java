@@ -21,7 +21,6 @@ package org.apache.flink.runtime.checkpoint;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.concurrent.Executors;
 import org.apache.flink.runtime.concurrent.ManuallyTriggeredScheduledExecutor;
 import org.apache.flink.runtime.concurrent.ScheduledExecutor;
@@ -142,9 +141,8 @@ public class CheckpointCoordinatorMasterHooksTest {
 		cc.addMasterHook(hook2);
 
 		// initialize the hooks
-		cc.restoreLatestCheckpointedState(
+		cc.restoreLatestCheckpointedStateToAll(
 			Collections.emptySet(),
-			false,
 			false);
 		verify(hook1, times(1)).reset();
 		verify(hook2, times(1)).reset();
@@ -199,8 +197,7 @@ public class CheckpointCoordinatorMasterHooksTest {
 		cc.addMasterHook(statefulHook2);
 
 		// trigger a checkpoint
-		final CompletableFuture<CompletedCheckpoint> checkpointFuture =
-			cc.triggerCheckpoint(System.currentTimeMillis(), false);
+		final CompletableFuture<CompletedCheckpoint> checkpointFuture = cc.triggerCheckpoint(false);
 		manuallyTriggeredScheduledExecutor.triggerAll();
 		assertFalse(checkpointFuture.isCompletedExceptionally());
 		assertEquals(1, cc.getNumberOfPendingCheckpoints());
@@ -211,8 +208,6 @@ public class CheckpointCoordinatorMasterHooksTest {
 
 		final long checkpointId = cc.getPendingCheckpoints().values().iterator().next().getCheckpointId();
 		cc.receiveAcknowledgeMessage(new AcknowledgeCheckpoint(jid, execId, checkpointId), "Unknown location");
-		// CheckpointCoordinator#completePendingCheckpoint is async, we have to finish the completion manually
-		manuallyTriggeredScheduledExecutor.triggerAll();
 		assertEquals(0, cc.getNumberOfPendingCheckpoints());
 
 		assertEquals(1, cc.getNumberOfRetainedSuccessfulCheckpoints());
@@ -274,7 +269,8 @@ public class CheckpointCoordinatorMasterHooksTest {
 				Collections.<OperatorID, OperatorState>emptyMap(),
 				masterHookStates,
 				CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION),
-				new TestCompletedCheckpointStorageLocation());
+				new TestCompletedCheckpointStorageLocation()
+		);
 		final ExecutionAttemptID execId = new ExecutionAttemptID();
 		final ExecutionVertex ackVertex = mockExecutionVertex(execId);
 		final CheckpointCoordinator cc = instantiateCheckpointCoordinator(jid, ackVertex);
@@ -283,10 +279,10 @@ public class CheckpointCoordinatorMasterHooksTest {
 		cc.addMasterHook(statelessHook);
 		cc.addMasterHook(statefulHook2);
 
-		cc.getCheckpointStore().addCheckpoint(checkpoint);
-		cc.restoreLatestCheckpointedState(
+		cc.getCheckpointStore().addCheckpoint(checkpoint, new CheckpointsCleaner(), () -> {
+		});
+		cc.restoreLatestCheckpointedStateToAll(
 				Collections.emptySet(),
-				true,
 				false);
 
 		verify(statefulHook1, times(1)).restoreCheckpoint(eq(checkpointId), eq(state1));
@@ -326,7 +322,8 @@ public class CheckpointCoordinatorMasterHooksTest {
 				Collections.<OperatorID, OperatorState>emptyMap(),
 				masterHookStates,
 				CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION),
-				new TestCompletedCheckpointStorageLocation());
+				new TestCompletedCheckpointStorageLocation()
+		);
 
 		final ExecutionAttemptID execId = new ExecutionAttemptID();
 		final ExecutionVertex ackVertex = mockExecutionVertex(execId);
@@ -335,22 +332,21 @@ public class CheckpointCoordinatorMasterHooksTest {
 		cc.addMasterHook(statefulHook);
 		cc.addMasterHook(statelessHook);
 
-		cc.getCheckpointStore().addCheckpoint(checkpoint);
+		cc.getCheckpointStore().addCheckpoint(checkpoint, new CheckpointsCleaner(), () -> {
+		});
 
 		// since we have unmatched state, this should fail
 		try {
-			cc.restoreLatestCheckpointedState(
+			cc.restoreLatestCheckpointedStateToAll(
 					Collections.emptySet(),
-					true,
 					false);
 			fail("exception expected");
 		}
 		catch (IllegalStateException ignored) {}
 
 		// permitting unmatched state should succeed
-		cc.restoreLatestCheckpointedState(
+		cc.restoreLatestCheckpointedStateToAll(
 				Collections.emptySet(),
-				true,
 				true);
 
 		verify(statefulHook, times(1)).restoreCheckpoint(eq(checkpointId), eq(state1));
@@ -397,8 +393,7 @@ public class CheckpointCoordinatorMasterHooksTest {
 		cc.addMasterHook(hook);
 
 		// trigger a checkpoint
-		final CompletableFuture<CompletedCheckpoint> checkpointFuture =
-			cc.triggerCheckpoint(System.currentTimeMillis(), false);
+		final CompletableFuture<CompletedCheckpoint> checkpointFuture = cc.triggerCheckpoint(false);
 		manuallyTriggeredScheduledExecutor.triggerAll();
 		assertFalse(checkpointFuture.isCompletedExceptionally());
 	}
@@ -445,7 +440,7 @@ public class CheckpointCoordinatorMasterHooksTest {
 
 	private CheckpointCoordinator instantiateCheckpointCoordinator(
 		JobID jid,
-		ScheduledExecutor mainThreadExecutor,
+		ScheduledExecutor testingScheduledExecutor,
 		ExecutionVertex... ackVertices) {
 
 		CheckpointCoordinatorConfiguration chkConfig = new CheckpointCoordinatorConfiguration(
@@ -456,8 +451,10 @@ public class CheckpointCoordinatorMasterHooksTest {
 			CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION,
 			true,
 			false,
+			false,
 			0);
-		final CheckpointCoordinator checkpointCoordinator = new CheckpointCoordinator(
+		Executor executor = Executors.directExecutor();
+		return new CheckpointCoordinator(
 				jid,
 				chkConfig,
 				new ExecutionVertex[0],
@@ -467,17 +464,13 @@ public class CheckpointCoordinatorMasterHooksTest {
 				new StandaloneCheckpointIDCounter(),
 				new StandaloneCompletedCheckpointStore(10),
 				new MemoryStateBackend(),
-				Executors.directExecutor(),
-				new ManuallyTriggeredScheduledExecutor(),
+				executor,
+				new CheckpointsCleaner(),
+				testingScheduledExecutor,
 				SharedStateRegistry.DEFAULT_FACTORY,
 				new CheckpointFailureManager(
 					0,
 					NoOpFailJobCall.INSTANCE));
-		checkpointCoordinator.start(
-			new ComponentMainThreadExecutorServiceAdapter(
-				mainThreadExecutor,
-				Thread.currentThread()));
-		return checkpointCoordinator;
 	}
 
 	private static <T> T mockGeneric(Class<?> clazz) {

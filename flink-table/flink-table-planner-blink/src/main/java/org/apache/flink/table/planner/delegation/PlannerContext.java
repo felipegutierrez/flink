@@ -19,7 +19,6 @@
 package org.apache.flink.table.planner.delegation;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.sql.parser.impl.FlinkSqlParserImpl;
 import org.apache.flink.sql.parser.validate.FlinkSqlConformance;
 import org.apache.flink.table.api.SqlDialect;
 import org.apache.flink.table.api.TableConfig;
@@ -35,6 +34,7 @@ import org.apache.flink.table.planner.calcite.FlinkPlannerImpl;
 import org.apache.flink.table.planner.calcite.FlinkRelBuilder;
 import org.apache.flink.table.planner.calcite.FlinkRelFactories;
 import org.apache.flink.table.planner.calcite.FlinkRelOptClusterFactory;
+import org.apache.flink.table.planner.calcite.FlinkRexBuilder;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
 import org.apache.flink.table.planner.calcite.FlinkTypeSystem;
 import org.apache.flink.table.planner.calcite.SqlExprToRexConverter;
@@ -42,6 +42,7 @@ import org.apache.flink.table.planner.calcite.SqlExprToRexConverterImpl;
 import org.apache.flink.table.planner.catalog.FunctionCatalogOperatorTable;
 import org.apache.flink.table.planner.codegen.ExpressionReducer;
 import org.apache.flink.table.planner.functions.sql.FlinkSqlOperatorTable;
+import org.apache.flink.table.planner.hint.FlinkHintStrategies;
 import org.apache.flink.table.planner.plan.FlinkCalciteCatalogReader;
 import org.apache.flink.table.planner.plan.cost.FlinkCostFactory;
 import org.apache.flink.table.planner.utils.JavaScalaConversionUtil;
@@ -57,11 +58,11 @@ import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeSystem;
-import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.parser.SqlParser;
-import org.apache.calcite.sql.util.ChainedSqlOperatorTable;
+import org.apache.calcite.sql.util.SqlOperatorTables;
+import org.apache.calcite.sql.validate.SqlConformance;
 import org.apache.calcite.sql2rel.SqlToRelConverter;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
@@ -116,10 +117,10 @@ public class PlannerContext {
 		for (RelTraitDef traitDef : frameworkConfig.getTraitDefs()) {
 			planner.addRelTraitDef(traitDef);
 		}
-		this.cluster = FlinkRelOptClusterFactory.create(planner, new RexBuilder(typeFactory));
+		this.cluster = FlinkRelOptClusterFactory.create(planner, new FlinkRexBuilder(typeFactory));
 	}
 
-	private SqlExprToRexConverter createSqlExprToRexConverter(RelDataType rowType) {
+	public SqlExprToRexConverter createSqlExprToRexConverter(RelDataType rowType) {
 		return new SqlExprToRexConverterImpl(
 				checkNotNull(frameworkConfig),
 				checkNotNull(typeFactory),
@@ -235,16 +236,19 @@ public class PlannerContext {
 	 * Returns the SQL parser config for this environment including a custom Calcite configuration.
 	 */
 	private SqlParser.Config getSqlParserConfig() {
-		return JavaScalaConversionUtil.toJava(getCalciteConfig(tableConfig).getSqlParserConfig()).orElseGet(
+		return JavaScalaConversionUtil.<SqlParser.Config>toJava(getCalciteConfig(tableConfig).getSqlParserConfig()).orElseGet(
 				// we use Java lex because back ticks are easier than double quotes in programming
 				// and cases are preserved
-				() -> SqlParser
-						.configBuilder()
-						.setParserFactory(FlinkSqlParserImpl.FACTORY)
-						.setConformance(getSqlConformance())
-						.setLex(Lex.JAVA)
-						.setIdentifierMaxLength(256)
-						.build());
+				() -> {
+					SqlConformance conformance = getSqlConformance();
+					return SqlParser
+							.config()
+							.withParserFactory(FlinkSqlParserFactories.create(conformance))
+							.withConformance(conformance)
+							.withLex(Lex.JAVA)
+							.withIdentifierMaxLength(256);
+				}
+		);
 	}
 
 	private FlinkSqlConformance getSqlConformance() {
@@ -265,13 +269,13 @@ public class PlannerContext {
 	 * <p>`expand` is set as false, and each sub-query becomes a [[org.apache.calcite.rex.RexSubQuery]].
 	 */
 	private SqlToRelConverter.Config getSqlToRelConverterConfig(CalciteConfig calciteConfig) {
-		return JavaScalaConversionUtil.toJava(calciteConfig.getSqlToRelConverterConfig()).orElseGet(
-				() -> SqlToRelConverter.configBuilder()
+		return JavaScalaConversionUtil.<SqlToRelConverter.Config>toJava(calciteConfig.getSqlToRelConverterConfig()).orElseGet(
+				() -> SqlToRelConverter.config()
 						.withTrimUnusedFields(false)
+						.withHintStrategyTable(FlinkHintStrategies.createHintStrategyTable())
 						.withInSubQueryThreshold(Integer.MAX_VALUE)
 						.withExpand(false)
 						.withRelBuilderFactory(FlinkRelFactories.FLINK_REL_BUILDER())
-						.build()
 		);
 	}
 
@@ -279,11 +283,11 @@ public class PlannerContext {
 	 * Returns the operator table for this environment including a custom Calcite configuration.
 	 */
 	private SqlOperatorTable getSqlOperatorTable(CalciteConfig calciteConfig) {
-		return JavaScalaConversionUtil.toJava(calciteConfig.getSqlOperatorTable()).map(operatorTable -> {
+		return JavaScalaConversionUtil.<SqlOperatorTable>toJava(calciteConfig.getSqlOperatorTable()).map(operatorTable -> {
 					if (calciteConfig.replacesSqlOperatorTable()) {
 						return operatorTable;
 					} else {
-						return ChainedSqlOperatorTable.of(getBuiltinSqlOperatorTable(), operatorTable);
+						return SqlOperatorTables.chain(getBuiltinSqlOperatorTable(), operatorTable);
 					}
 				}
 		).orElseGet(this::getBuiltinSqlOperatorTable);
@@ -293,7 +297,7 @@ public class PlannerContext {
 	 * Returns builtin the operator table and external the operator for this environment.
 	 */
 	private SqlOperatorTable getBuiltinSqlOperatorTable() {
-		return ChainedSqlOperatorTable.of(
+		return SqlOperatorTables.chain(
 				new FunctionCatalogOperatorTable(
 						context.getFunctionCatalog(),
 						context.getCatalogManager().getDataTypeFactory(),

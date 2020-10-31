@@ -23,6 +23,7 @@ import org.apache.flink.table.annotation.FunctionHint;
 import org.apache.flink.table.annotation.InputGroup;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.TableAggregateFunction;
@@ -49,13 +50,13 @@ import org.junit.runners.Parameterized.Parameters;
 import javax.annotation.Nullable;
 
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.apache.flink.util.CoreMatchers.containsCause;
+import static org.apache.flink.core.testutils.FlinkMatchers.containsCause;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -66,7 +67,7 @@ import static org.junit.Assert.assertThat;
 @SuppressWarnings("unused")
 public class TypeInferenceExtractorTest {
 
-	@Parameters
+	@Parameters(name = "{index}: {0}")
 	public static List<TestSpec> testData() {
 		return Arrays.asList(
 			// function hint defines everything
@@ -248,16 +249,16 @@ public class TypeInferenceExtractorTest {
 			TestSpec
 				.forAggregateFunction(InputDependentAccumulatorFunction.class)
 				.expectAccumulatorMapping(
-					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.STRING())),
-					TypeStrategies.explicit(DataTypes.ROW(DataTypes.FIELD("f", DataTypes.STRING()))))
-				.expectAccumulatorMapping(
 					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.BIGINT())),
 					TypeStrategies.explicit(DataTypes.ROW(DataTypes.FIELD("f", DataTypes.BIGINT()))))
-				.expectOutputMapping(
+				.expectAccumulatorMapping(
 					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.STRING())),
-					TypeStrategies.explicit(DataTypes.STRING()))
+					TypeStrategies.explicit(DataTypes.ROW(DataTypes.FIELD("f", DataTypes.STRING()))))
 				.expectOutputMapping(
 					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.BIGINT())),
+					TypeStrategies.explicit(DataTypes.STRING()))
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.STRING())),
 					TypeStrategies.explicit(DataTypes.STRING())),
 
 			// input, accumulator, and output are spread across the function
@@ -342,7 +343,89 @@ public class TypeInferenceExtractorTest {
 					InputTypeStrategies.varyingSequence(
 						new String[]{"o"},
 						new ArgumentTypeStrategy[]{InputTypeStrategies.ANY}),
-					TypeStrategies.explicit(DataTypes.STRING()))
+					TypeStrategies.explicit(DataTypes.STRING())),
+
+			TestSpec
+				.forScalarFunction(
+					"Scalar function with implicit overloading order",
+					OrderedScalarFunction.class)
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(
+						new String[]{"i"},
+						new ArgumentTypeStrategy[]{InputTypeStrategies.explicit(DataTypes.INT())}),
+					TypeStrategies.explicit(DataTypes.INT()))
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(
+						new String[]{"l"},
+						new ArgumentTypeStrategy[]{InputTypeStrategies.explicit(DataTypes.BIGINT())}),
+					TypeStrategies.explicit(DataTypes.BIGINT())),
+
+			TestSpec
+				.forScalarFunction(
+					"Scalar function with explicit overloading order by class annotations",
+					OrderedScalarFunction2.class)
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.BIGINT())),
+					TypeStrategies.explicit(DataTypes.BIGINT()))
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.INT())),
+					TypeStrategies.explicit(DataTypes.INT())),
+
+			TestSpec
+				.forScalarFunction(
+					"Scalar function with explicit overloading order by method annotations",
+					OrderedScalarFunction3.class)
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.BIGINT())),
+					TypeStrategies.explicit(DataTypes.BIGINT()))
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(InputTypeStrategies.explicit(DataTypes.INT())),
+					TypeStrategies.explicit(DataTypes.INT())),
+
+			TestSpec
+				.forTableFunction(
+					"A data type hint on the class is used instead of a function output hint",
+					DataTypeHintOnTableFunctionClass.class)
+				.expectNamedArguments()
+				.expectTypedArguments()
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(
+						new String[]{},
+						new ArgumentTypeStrategy[]{}),
+					TypeStrategies.explicit(DataTypes.ROW(DataTypes.FIELD("i", DataTypes.INT())))),
+
+			TestSpec
+				.forTableFunction(
+					"A data type hint on the method is used instead of a function output hint",
+					DataTypeHintOnTableFunctionMethod.class)
+				.expectNamedArguments("i")
+				.expectTypedArguments(DataTypes.INT())
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(
+						new String[]{"i"},
+						new ArgumentTypeStrategy[]{InputTypeStrategies.explicit(DataTypes.INT())}),
+					TypeStrategies.explicit(DataTypes.ROW(DataTypes.FIELD("i", DataTypes.INT())))),
+
+			TestSpec
+				.forTableFunction(
+					"Invalid data type hint on top of method and class",
+					InvalidDataTypeHintOnTableFunction.class)
+				.expectErrorMessage(
+					"More than one data type hint found for output of function. " +
+						"Please use a function hint instead."),
+
+			TestSpec
+				.forScalarFunction(
+					"A data type hint on the method is used for enriching (not a function output hint)",
+					DataTypeHintOnScalarFunction.class)
+				.expectNamedArguments()
+				.expectTypedArguments()
+				.expectOutputMapping(
+					InputTypeStrategies.sequence(
+						new String[]{},
+						new ArgumentTypeStrategy[]{}),
+					TypeStrategies.explicit(
+						DataTypes.ROW(DataTypes.FIELD("i", DataTypes.INT())).bridgedTo(RowData.class)))
 		);
 	}
 
@@ -375,6 +458,18 @@ public class TypeInferenceExtractorTest {
 			assertThat(
 				testSpec.typeInferenceExtraction.get().getTypedArguments(),
 				equalTo(Optional.empty()));
+		}
+	}
+
+	@Test
+	public void testInputTypeStrategy() {
+		if (!testSpec.expectedOutputStrategies.isEmpty()) {
+			assertThat(
+				testSpec.typeInferenceExtraction.get().getInputTypeStrategy(),
+				equalTo(
+					testSpec.expectedOutputStrategies.keySet().stream()
+						.reduce(InputTypeStrategies::or)
+						.orElseThrow(AssertionError::new)));
 		}
 	}
 
@@ -417,6 +512,8 @@ public class TypeInferenceExtractorTest {
 	 */
 	static class TestSpec {
 
+		private final String description;
+
 		final Supplier<TypeInference> typeInferenceExtraction;
 
 		@Nullable List<String> expectedArgumentNames;
@@ -429,30 +526,51 @@ public class TypeInferenceExtractorTest {
 
 		@Nullable String expectedErrorMessage;
 
-		private TestSpec(Supplier<TypeInference> typeInferenceExtraction) {
+		private TestSpec(String description, Supplier<TypeInference> typeInferenceExtraction) {
+			this.description = description;
 			this.typeInferenceExtraction = typeInferenceExtraction;
-			this.expectedAccumulatorStrategies = new HashMap<>();
-			this.expectedOutputStrategies = new HashMap<>();
+			this.expectedAccumulatorStrategies = new LinkedHashMap<>();
+			this.expectedOutputStrategies = new LinkedHashMap<>();
 		}
 
 		static TestSpec forScalarFunction(Class<? extends ScalarFunction> function) {
-			return new TestSpec(() ->
-				TypeInferenceExtractor.forScalarFunction(new DataTypeFactoryMock(), function));
+			return forScalarFunction(null, function);
+		}
+
+		static TestSpec forScalarFunction(String description, Class<? extends ScalarFunction> function) {
+			return new TestSpec(
+				description == null ? function.getSimpleName() : description,
+				() -> TypeInferenceExtractor.forScalarFunction(new DataTypeFactoryMock(), function));
 		}
 
 		static TestSpec forAggregateFunction(Class<? extends AggregateFunction<?, ?>> function) {
-			return new TestSpec(() ->
-				TypeInferenceExtractor.forAggregateFunction(new DataTypeFactoryMock(), function));
+			return forAggregateFunction(null, function);
+		}
+
+		static TestSpec forAggregateFunction(String description, Class<? extends AggregateFunction<?, ?>> function) {
+			return new TestSpec(
+				description == null ? function.getSimpleName() : description,
+				() -> TypeInferenceExtractor.forAggregateFunction(new DataTypeFactoryMock(), function));
 		}
 
 		static TestSpec forTableFunction(Class<? extends TableFunction<?>> function) {
-			return new TestSpec(() ->
-				TypeInferenceExtractor.forTableFunction(new DataTypeFactoryMock(), function));
+			return forTableFunction(null, function);
+		}
+
+		static TestSpec forTableFunction(String description, Class<? extends TableFunction<?>> function) {
+			return new TestSpec(
+				description == null ? function.getSimpleName() : description,
+				() -> TypeInferenceExtractor.forTableFunction(new DataTypeFactoryMock(), function));
 		}
 
 		static TestSpec forTableAggregateFunction(Class<? extends TableAggregateFunction<?, ?>> function) {
-			return new TestSpec(() ->
-				TypeInferenceExtractor.forTableAggregateFunction(new DataTypeFactoryMock(), function));
+			return forTableAggregateFunction(null, function);
+		}
+
+		static TestSpec forTableAggregateFunction(String description, Class<? extends TableAggregateFunction<?, ?>> function) {
+			return new TestSpec(
+				description == null ? function.getSimpleName() : description,
+				() -> TypeInferenceExtractor.forTableAggregateFunction(new DataTypeFactoryMock(), function));
 		}
 
 		TestSpec expectNamedArguments(String... expectedArgumentNames) {
@@ -478,6 +596,11 @@ public class TypeInferenceExtractorTest {
 		TestSpec expectErrorMessage(String expectedErrorMessage) {
 			this.expectedErrorMessage = expectedErrorMessage;
 			return this;
+		}
+
+		@Override
+		public String toString() {
+			return description;
 		}
 	}
 
@@ -753,6 +876,63 @@ public class TypeInferenceExtractorTest {
 	private static class VarArgInputGroupScalarFunction extends ScalarFunction {
 		public String eval(@DataTypeHint(inputGroup = InputGroup.ANY) Object... o) {
 			return Arrays.toString(o);
+		}
+	}
+
+	// extracted order is f(INT) || f(BIGINT) due to method signature sorting
+	private static class OrderedScalarFunction extends ScalarFunction {
+		public Long eval(Long l) {
+			return l;
+		}
+
+		public Integer eval(Integer i) {
+			return i;
+		}
+	}
+
+	// extracted order is f(BIGINT) || f(INT)
+	@FunctionHint(input = @DataTypeHint("BIGINT"), output = @DataTypeHint("BIGINT"))
+	@FunctionHint(input = @DataTypeHint("INT"), output = @DataTypeHint("INT"))
+	private static class OrderedScalarFunction2 extends ScalarFunction {
+		public Number eval(Number n) {
+			return n;
+		}
+	}
+
+	// extracted order is f(BIGINT) || f(INT)
+	private static class OrderedScalarFunction3 extends ScalarFunction {
+		@FunctionHint(input = @DataTypeHint("BIGINT"), output = @DataTypeHint("BIGINT"))
+		@FunctionHint(input = @DataTypeHint("INT"), output = @DataTypeHint("INT"))
+		public Number eval(Number n) {
+			return n;
+		}
+	}
+
+	@DataTypeHint("ROW<i INT>")
+	private static class DataTypeHintOnTableFunctionClass extends TableFunction<Row> {
+		public void eval() {
+			// nothing to do
+		}
+	}
+
+	private static class DataTypeHintOnTableFunctionMethod extends TableFunction<Row> {
+		@DataTypeHint("ROW<i INT>")
+		public void eval(Integer i) {
+			// nothing to do
+		}
+	}
+
+	@DataTypeHint("ROW<i BOOLEAN>")
+	private static class InvalidDataTypeHintOnTableFunction extends TableFunction<Row> {
+		@DataTypeHint("ROW<i INT>")
+		public void eval(Integer i) {
+			// nothing to do
+		}
+	}
+
+	private static class DataTypeHintOnScalarFunction extends ScalarFunction {
+		public @DataTypeHint("ROW<i INT>") RowData eval() {
+			return null;
 		}
 	}
 }

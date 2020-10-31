@@ -32,7 +32,7 @@ import org.apache.flink.runtime.query.TaskKvStateRegistry;
 import org.apache.flink.runtime.state.AbstractKeyedStateBackend;
 import org.apache.flink.runtime.state.AbstractStateBackend;
 import org.apache.flink.runtime.state.BackendBuildingException;
-import org.apache.flink.runtime.state.CheckpointStorage;
+import org.apache.flink.runtime.state.CheckpointStorageAccess;
 import org.apache.flink.runtime.state.ConfigurableStateBackend;
 import org.apache.flink.runtime.state.DefaultOperatorStateBackendBuilder;
 import org.apache.flink.runtime.state.KeyGroupRange;
@@ -44,6 +44,7 @@ import org.apache.flink.runtime.state.TaskStateManager;
 import org.apache.flink.runtime.state.heap.HeapKeyedStateBackendBuilder;
 import org.apache.flink.runtime.state.heap.HeapPriorityQueueSetFactory;
 import org.apache.flink.runtime.state.ttl.TtlTimeProvider;
+import org.apache.flink.util.MathUtils;
 import org.apache.flink.util.TernaryBoolean;
 
 import org.slf4j.LoggerFactory;
@@ -55,6 +56,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Collection;
 
+import static org.apache.flink.configuration.CheckpointingOptions.FS_SMALL_FILE_THRESHOLD;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -363,22 +365,24 @@ public class FsStateBackend extends AbstractFileStateBackend implements Configur
 		this.asynchronousSnapshots = original.asynchronousSnapshots.resolveUndefined(
 				configuration.get(CheckpointingOptions.ASYNC_SNAPSHOTS));
 
-		final int sizeThreshold = original.fileStateThreshold >= 0 ?
-				original.fileStateThreshold :
-				configuration.get(CheckpointingOptions.FS_SMALL_FILE_THRESHOLD);
+		if (getValidFileStateThreshold(original.fileStateThreshold) >= 0) {
+			this.fileStateThreshold = original.fileStateThreshold;
+		} else {
+			final int configuredStateThreshold =
+				getValidFileStateThreshold(configuration.get(FS_SMALL_FILE_THRESHOLD).getBytes());
 
-		if (sizeThreshold >= 0 && sizeThreshold <= MAX_FILE_STATE_THRESHOLD) {
-			this.fileStateThreshold = sizeThreshold;
-		}
-		else {
-			this.fileStateThreshold = CheckpointingOptions.FS_SMALL_FILE_THRESHOLD.defaultValue();
+			if (configuredStateThreshold >= 0) {
+				this.fileStateThreshold = configuredStateThreshold;
+			} else {
+				this.fileStateThreshold = MathUtils.checkedDownCast(FS_SMALL_FILE_THRESHOLD.defaultValue().getBytes());
 
-			// because this is the only place we (unlikely) ever log, we lazily
-			// create the logger here
-			LoggerFactory.getLogger(AbstractFileStateBackend.class).warn(
+				// because this is the only place we (unlikely) ever log, we lazily
+				// create the logger here
+				LoggerFactory.getLogger(AbstractFileStateBackend.class).warn(
 					"Ignoring invalid file size threshold value ({}): {} - using default value {} instead.",
-					CheckpointingOptions.FS_SMALL_FILE_THRESHOLD.key(), sizeThreshold,
-					CheckpointingOptions.FS_SMALL_FILE_THRESHOLD.defaultValue());
+					FS_SMALL_FILE_THRESHOLD.key(), configuration.get(FS_SMALL_FILE_THRESHOLD).getBytes(),
+					FS_SMALL_FILE_THRESHOLD.defaultValue());
+			}
 		}
 
 		final int bufferSize = original.writeBufferSize >= 0 ?
@@ -386,6 +390,13 @@ public class FsStateBackend extends AbstractFileStateBackend implements Configur
 			configuration.get(CheckpointingOptions.FS_WRITE_BUFFER_SIZE);
 
 		this.writeBufferSize = Math.max(bufferSize, this.fileStateThreshold);
+	}
+
+	private int getValidFileStateThreshold(long fileStateThreshold) {
+		if (fileStateThreshold >= 0 && fileStateThreshold <= MAX_FILE_STATE_THRESHOLD) {
+			return (int) fileStateThreshold;
+		}
+		return -1;
 	}
 
 	// ------------------------------------------------------------------------
@@ -432,7 +443,7 @@ public class FsStateBackend extends AbstractFileStateBackend implements Configur
 	public int getMinFileSizeThreshold() {
 		return fileStateThreshold >= 0 ?
 				fileStateThreshold :
-				CheckpointingOptions.FS_SMALL_FILE_THRESHOLD.defaultValue();
+				MathUtils.checkedDownCast(FS_SMALL_FILE_THRESHOLD.defaultValue().getBytes());
 	}
 
 	/**
@@ -480,9 +491,9 @@ public class FsStateBackend extends AbstractFileStateBackend implements Configur
 	// ------------------------------------------------------------------------
 
 	@Override
-	public CheckpointStorage createCheckpointStorage(JobID jobId) throws IOException {
+	public CheckpointStorageAccess createCheckpointStorage(JobID jobId) throws IOException {
 		checkNotNull(jobId, "jobId");
-		return new FsCheckpointStorage(
+		return new FsCheckpointStorageAccess(
 			getCheckpointPath(),
 			getSavepointPath(),
 			jobId,
@@ -516,7 +527,7 @@ public class FsStateBackend extends AbstractFileStateBackend implements Configur
 		return new HeapKeyedStateBackendBuilder<>(
 			kvStateRegistry,
 			keySerializer,
-			env.getUserClassLoader(),
+			env.getUserCodeClassLoader().asClassLoader(),
 			numberOfKeyGroups,
 			keyGroupRange,
 			env.getExecutionConfig(),
@@ -537,7 +548,7 @@ public class FsStateBackend extends AbstractFileStateBackend implements Configur
 		CloseableRegistry cancelStreamRegistry) throws BackendBuildingException {
 
 		return new DefaultOperatorStateBackendBuilder(
-			env.getUserClassLoader(),
+			env.getUserCodeClassLoader().asClassLoader(),
 			env.getExecutionConfig(),
 			isUsingAsynchronousSnapshots(),
 			stateHandles,

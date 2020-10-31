@@ -21,12 +21,11 @@ package org.apache.flink.streaming.api.operators;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.accumulators.Accumulator;
+import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.functions.util.AbstractRuntimeUDFContext;
 import org.apache.flink.api.common.state.AggregatingState;
 import org.apache.flink.api.common.state.AggregatingStateDescriptor;
-import org.apache.flink.api.common.state.FoldingState;
-import org.apache.flink.api.common.state.FoldingStateDescriptor;
 import org.apache.flink.api.common.state.KeyedStateStore;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -39,9 +38,11 @@ import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.execution.Environment;
+import org.apache.flink.runtime.externalresource.ExternalResourceInfoProvider;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
 import org.apache.flink.runtime.taskexecutor.GlobalAggregateManager;
+import org.apache.flink.runtime.taskmanager.TaskManagerRuntimeInfo;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
@@ -50,6 +51,7 @@ import javax.annotation.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -66,39 +68,43 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 	private final String operatorUniqueID;
 	private final ProcessingTimeService processingTimeService;
 	private @Nullable KeyedStateStore keyedStateStore;
+	private final ExternalResourceInfoProvider externalResourceInfoProvider;
 
 	@VisibleForTesting
 	public StreamingRuntimeContext(
-			AbstractStreamOperator<?> operator,
-			Environment env,
-			Map<String, Accumulator<?, ?>> accumulators) {
+		AbstractStreamOperator<?> operator,
+		Environment env,
+		Map<String, Accumulator<?, ?>> accumulators) {
 		this(
 			env,
 			accumulators,
 			operator.getMetricGroup(),
 			operator.getOperatorID(),
 			operator.getProcessingTimeService(),
-			operator.getKeyedStateStore());
+			operator.getKeyedStateStore(),
+			env.getExternalResourceInfoProvider());
 	}
 
 	public StreamingRuntimeContext(
-			Environment env,
-			Map<String, Accumulator<?, ?>> accumulators,
-			MetricGroup operatorMetricGroup,
-			OperatorID operatorID,
-			ProcessingTimeService processingTimeService,
-			@Nullable KeyedStateStore keyedStateStore) {
+		Environment env,
+		Map<String, Accumulator<?, ?>> accumulators,
+		MetricGroup operatorMetricGroup,
+		OperatorID operatorID,
+		ProcessingTimeService processingTimeService,
+		@Nullable KeyedStateStore keyedStateStore,
+		ExternalResourceInfoProvider externalResourceInfoProvider) {
 		super(checkNotNull(env).getTaskInfo(),
-				env.getUserClassLoader(),
-				env.getExecutionConfig(),
-				accumulators,
-				env.getDistributedCacheEntries(),
-				operatorMetricGroup);
+			env.getUserCodeClassLoader(),
+			env.getExecutionConfig(),
+			accumulators,
+			env.getDistributedCacheEntries(),
+			operatorMetricGroup);
 		this.taskEnvironment = env;
 		this.streamConfig = new StreamConfig(env.getTaskConfiguration());
 		this.operatorUniqueID = checkNotNull(operatorID).toString();
 		this.processingTimeService = processingTimeService;
 		this.keyedStateStore = keyedStateStore;
+		this.externalResourceInfoProvider = externalResourceInfoProvider;
 	}
 
 	public void setKeyedStateStore(@Nullable KeyedStateStore keyedStateStore) {
@@ -138,6 +144,20 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 	 */
 	public String getOperatorUniqueID() {
 		return operatorUniqueID;
+	}
+
+	/**
+	 * Returns the task manager runtime info of the task manager running this stream task.
+	 *
+	 * @return The task manager runtime info.
+	 */
+	public TaskManagerRuntimeInfo getTaskManagerRuntimeInfo() {
+		return taskEnvironment.getTaskManagerInfo();
+	}
+
+	@Override
+	public Set<ExternalResourceInfo> getExternalResourceInfos(String resourceName) {
+		return externalResourceInfoProvider.getExternalResourceInfos(resourceName);
 	}
 
 	// ------------------------------------------------------------------------
@@ -192,13 +212,6 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 	}
 
 	@Override
-	public <T, ACC> FoldingState<T, ACC> getFoldingState(FoldingStateDescriptor<T, ACC> stateProperties) {
-		KeyedStateStore keyedStateStore = checkPreconditionsAndGetKeyedStateStore(stateProperties);
-		stateProperties.initializeSerializerUnlessSet(getExecutionConfig());
-		return keyedStateStore.getFoldingState(stateProperties);
-	}
-
-	@Override
 	public <UK, UV> MapState<UK, UV> getMapState(MapStateDescriptor<UK, UV> stateProperties) {
 		KeyedStateStore keyedStateStore = checkPreconditionsAndGetKeyedStateStore(stateProperties);
 		stateProperties.initializeSerializerUnlessSet(getExecutionConfig());
@@ -230,15 +243,4 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
 	public CheckpointingMode getCheckpointMode() {
 		return streamConfig.getCheckpointMode();
 	}
-
-	/**
-	 * Returns the buffer timeout of the job.
-	 *
-	 * @return buffer timeout (in milliseconds)
-	 */
-	public long getBufferTimeout() {
-		return streamConfig.getBufferTimeout();
-	}
-
-	public Environment getTaskEnvironment() { return this.taskEnvironment; }
 }

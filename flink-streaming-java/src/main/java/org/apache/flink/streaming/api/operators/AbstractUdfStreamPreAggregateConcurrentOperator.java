@@ -109,7 +109,8 @@ public abstract class AbstractUdfStreamPreAggregateConcurrentOperator<K, V, IN, 
 			.key("rest.address")
 			.stringType()
 			.noDefaultValue();
-		String restAddress = this.getRuntimeContext().getTaskEnvironment().getTaskManagerInfo().getConfiguration().getValue(restAddressOption);
+//		String restAddress = this.getRuntimeContext().getTaskEnvironment().getTaskManagerInfo().getConfiguration().getValue(restAddressOption);
+		String restAddress = "127.0.0.1";
 		System.out.println("rest.address: " + restAddress);
 
 		// initiate the Controller with the histogram metrics
@@ -181,15 +182,15 @@ public abstract class AbstractUdfStreamPreAggregateConcurrentOperator<K, V, IN, 
 		OperatorMetricGroup operatorMetricGroup = (OperatorMetricGroup) this.getMetricGroup();
 		TaskMetricGroup taskMetricGroup = operatorMetricGroup.parent();
 		MetricGroup metricGroup = taskMetricGroup.getGroup("buffers");
-		Gauge<Float> gaugeOutPoolUsage = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
-		if (gaugeOutPoolUsage != null && gaugeOutPoolUsage.getValue() != null) {
-			outPoolUsage = gaugeOutPoolUsage.getValue().floatValue();
-			this.preAggregateMonitor.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
-		}
-
-		MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsOutPerSecond");
-		MeterView meterNumRecordsInPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsInPerSecond");
-		this.preAggregateMonitor.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
-		this.preAggregateMonitor.setNumRecordsInPerSecond(meterNumRecordsInPerSecond.getRate());
+//		Gauge<Float> gaugeOutPoolUsage = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
+//		if (gaugeOutPoolUsage != null && gaugeOutPoolUsage.getValue() != null) {
+//			outPoolUsage = gaugeOutPoolUsage.getValue().floatValue();
+//			this.preAggregateMonitor.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
+//		}
+//
+//		MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsOutPerSecond");
+//		MeterView meterNumRecordsInPerSecond = (MeterView) taskMetricGroup.getMetric("numRecordsInPerSecond");
+//		this.preAggregateMonitor.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
+//		this.preAggregateMonitor.setNumRecordsInPerSecond(meterNumRecordsInPerSecond.getRate());
 	}
 }

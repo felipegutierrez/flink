@@ -1,12 +1,12 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-import io.airlift.tpch.LineItem;
+//import io.airlift.tpch.LineItem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
+//import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
 import org.apache.flink.streaming.examples.utils.DataRateListener;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
@@ -71,8 +71,8 @@ public class TPCHQuery06PreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
+		/*
 		DataStream<LineItem> lineItems = env.addSource(new LineItemSource()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
-
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			lineItems
@@ -88,6 +88,8 @@ public class TPCHQuery06PreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TPCHQuery06PreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************
@@ -126,7 +128,6 @@ public class TPCHQuery06PreAggregate {
 			return Tuple2.of(value1.f0, value1.f1 + value2.f1);
 		}
 	}
-	*/
 
 	private static class LineItemsOutMap implements MapFunction<LineItem, String> {
 		@Override
@@ -139,4 +140,5 @@ public class TPCHQuery06PreAggregate {
 				lineItem.getShipInstructions() + "|" + lineItem.getShipMode() + "|" + lineItem.getComment();
 		}
 	}
+	 */
 }

@@ -41,6 +41,7 @@ public class ProgramDeployer {
 	private final Configuration configuration;
 	private final Pipeline pipeline;
 	private final String jobName;
+	private final ClassLoader userCodeClassloader;
 
 	/**
 	 * Deploys a table program on the cluster.
@@ -52,13 +53,15 @@ public class ProgramDeployer {
 	public ProgramDeployer(
 			Configuration configuration,
 			String jobName,
-			Pipeline pipeline) {
+			Pipeline pipeline,
+			ClassLoader userCodeClassloader) {
 		this.configuration = configuration;
 		this.pipeline = pipeline;
 		this.jobName = jobName;
+		this.userCodeClassloader = userCodeClassloader;
 	}
 
-	public CompletableFuture<? extends JobClient> deploy() {
+	public CompletableFuture<JobClient> deploy() {
 		LOG.info("Submitting job {} for query {}`", pipeline, jobName);
 		if (LOG.isDebugEnabled()) {
 			LOG.debug("Submitting job {} with configuration: \n{}", pipeline, configuration);
@@ -68,7 +71,7 @@ public class ProgramDeployer {
 			throw new RuntimeException("No execution.target specified in your configuration file.");
 		}
 
-		PipelineExecutorServiceLoader executorServiceLoader = DefaultExecutorServiceLoader.INSTANCE;
+		PipelineExecutorServiceLoader executorServiceLoader = new DefaultExecutorServiceLoader();
 		final PipelineExecutorFactory executorFactory;
 		try {
 			executorFactory = executorServiceLoader.getExecutorFactory(configuration);
@@ -77,9 +80,9 @@ public class ProgramDeployer {
 		}
 
 		final PipelineExecutor executor = executorFactory.getExecutor(configuration);
-		CompletableFuture<? extends JobClient> jobClient;
+		CompletableFuture<JobClient> jobClient;
 		try {
-			jobClient = executor.execute(pipeline, configuration);
+			jobClient = executor.execute(pipeline, configuration, userCodeClassloader);
 		} catch (Exception e) {
 			throw new RuntimeException("Could not execute program.", e);
 		}

@@ -1,41 +1,50 @@
 /*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.flink.connector.base.source.reader;
 
 import org.apache.flink.api.connector.source.Boundedness;
+import org.apache.flink.api.connector.source.SourceReader;
 import org.apache.flink.api.connector.source.mocks.MockSourceSplit;
+import org.apache.flink.api.connector.source.mocks.TestingReaderContext;
+import org.apache.flink.api.connector.source.mocks.TestingReaderOutput;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.source.reader.mocks.MockSourceReader;
 import org.apache.flink.connector.base.source.reader.mocks.MockSplitReader;
+import org.apache.flink.connector.base.source.reader.mocks.PassThroughRecordEmitter;
+import org.apache.flink.connector.base.source.reader.mocks.TestingRecordsWithSplitIds;
+import org.apache.flink.connector.base.source.reader.mocks.TestingSourceSplit;
+import org.apache.flink.connector.base.source.reader.mocks.TestingSplitReader;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
-import org.apache.flink.connector.base.source.reader.synchronization.FutureNotifier;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Queue;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * A unit test class for {@link SourceReaderBase}.
@@ -51,55 +60,75 @@ public class SourceReaderBaseTest extends SourceReaderTestBase<MockSourceSplit> 
 		expectedException.expectMessage("One or more fetchers have encountered exception");
 		final String errMsg = "Testing Exception";
 
-		FutureNotifier futureNotifier = new FutureNotifier();
 		FutureCompletingBlockingQueue<RecordsWithSplitIds<int[]>> elementsQueue =
-				new FutureCompletingBlockingQueue<>(futureNotifier);
-		MockSourceReader reader = new MockSourceReader(
-				futureNotifier,
-				elementsQueue,
-				() -> new SplitReader<int[], MockSourceSplit>() {
-					@Override
-					public RecordsWithSplitIds<int[]> fetch() {
-						throw new RuntimeException(errMsg);
-					}
+			new FutureCompletingBlockingQueue<>();
+		// We have to handle split changes first, otherwise fetch will not be called.
+		try (MockSourceReader reader = new MockSourceReader(
+			elementsQueue,
+			() -> new SplitReader<int[], MockSourceSplit>() {
+				@Override
+				public RecordsWithSplitIds<int[]> fetch() {
+					throw new RuntimeException(errMsg);
+				}
 
-					@Override
-					public void handleSplitsChanges(Queue<SplitsChange<MockSourceSplit>> splitsChanges) {
-						// We have to handle split changes first, otherwise fetch will not be called.
-						splitsChanges.clear();
-					}
+				@Override
+				public void handleSplitsChanges(SplitsChange<MockSourceSplit> splitsChanges) {}
 
-					@Override
-					public void wakeUp() {}
-				},
-				getConfig(),
-				null);
-
-		ValidatingSourceOutput output = new ValidatingSourceOutput();
-		reader.addSplits(Collections.singletonList(getSplit(0, NUM_RECORDS_PER_SPLIT, Boundedness.CONTINUOUS_UNBOUNDED)));
-		// This is not a real infinite loop, it is supposed to throw exception after two polls.
-		while (true) {
-			reader.pollNext(output);
-			// Add a sleep to avoid tight loop.
-			Thread.sleep(1);
+				@Override
+				public void wakeUp() {
+				}
+			},
+			getConfig(),
+			null)) {
+			ValidatingSourceOutput output = new ValidatingSourceOutput();
+			reader.addSplits(Collections.singletonList(getSplit(0,
+				NUM_RECORDS_PER_SPLIT,
+				Boundedness.CONTINUOUS_UNBOUNDED)));
+			// This is not a real infinite loop, it is supposed to throw exception after two polls.
+			while (true) {
+				reader.pollNext(output);
+				// Add a sleep to avoid tight loop.
+				Thread.sleep(1);
+			}
 		}
+	}
+
+	@Test
+	public void testRecordsWithSplitsNotRecycledWhenRecordsLeft() throws Exception {
+		final TestingRecordsWithSplitIds<String> records = new TestingRecordsWithSplitIds<>("test-split", "value1", "value2");
+		final SourceReader<?, ?> reader = createReaderAndAwaitAvailable("test-split", records);
+
+		reader.pollNext(new TestingReaderOutput<>());
+
+		assertFalse(records.isRecycled());
+	}
+
+	@Test
+	public void testRecordsWithSplitsRecycledWhenEmpty() throws Exception {
+		final TestingRecordsWithSplitIds<String> records = new TestingRecordsWithSplitIds<>("test-split", "value1", "value2");
+		final SourceReader<?, ?> reader = createReaderAndAwaitAvailable("test-split", records);
+
+		// poll thrice: twice to get all records, one more to trigger recycle and moving to the next split
+		reader.pollNext(new TestingReaderOutput<>());
+		reader.pollNext(new TestingReaderOutput<>());
+		reader.pollNext(new TestingReaderOutput<>());
+
+		assertTrue(records.isRecycled());
 	}
 
 	// ---------------- helper methods -----------------
 
 	@Override
 	protected MockSourceReader createReader() {
-		FutureNotifier futureNotifier = new FutureNotifier();
 		FutureCompletingBlockingQueue<RecordsWithSplitIds<int[]>> elementsQueue =
-				new FutureCompletingBlockingQueue<>(futureNotifier);
+			new FutureCompletingBlockingQueue<>();
 		MockSplitReader mockSplitReader =
-				new MockSplitReader(2, true, true);
+			new MockSplitReader(2, true);
 		return new MockSourceReader(
-				futureNotifier,
-				elementsQueue,
-				() -> mockSplitReader,
-				getConfig(),
-				null);
+			elementsQueue,
+			() -> mockSplitReader,
+			getConfig(),
+			null);
 	}
 
 	@Override
@@ -126,7 +155,7 @@ public class SourceReaderBaseTest extends SourceReaderTestBase<MockSourceSplit> 
 	}
 
 	@Override
-	protected long getIndex(MockSourceSplit split) {
+	protected long getNextRecordIndex(MockSourceSplit split) {
 		return split.index();
 	}
 
@@ -135,5 +164,48 @@ public class SourceReaderBaseTest extends SourceReaderTestBase<MockSourceSplit> 
 		config.setInteger(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY, 1);
 		config.setLong(SourceReaderOptions.SOURCE_READER_CLOSE_TIMEOUT, 30000L);
 		return config;
+	}
+
+	// ------------------------------------------------------------------------
+	//  Testing Setup Helpers
+	// ------------------------------------------------------------------------
+
+	private static <E> SourceReader<E, ?> createReaderAndAwaitAvailable(
+		final String splitId,
+		final RecordsWithSplitIds<E> records) throws Exception {
+
+		final FutureCompletingBlockingQueue<RecordsWithSplitIds<E>> elementsQueue =
+			new FutureCompletingBlockingQueue<>();
+
+		final SourceReader<E, TestingSourceSplit> reader = new SingleThreadMultiplexSourceReaderBase<E, E, TestingSourceSplit, TestingSourceSplit>(
+			elementsQueue,
+			() -> new TestingSplitReader<E, TestingSourceSplit>(records),
+			new PassThroughRecordEmitter<E, TestingSourceSplit>(),
+			new Configuration(),
+			new TestingReaderContext()) {
+
+			@Override
+			protected void onSplitFinished(Collection<String> finishedSplitIds) {
+			}
+
+			@Override
+			protected TestingSourceSplit initializedState(TestingSourceSplit split) {
+				return split;
+			}
+
+			@Override
+			protected TestingSourceSplit toSplitType(String splitId, TestingSourceSplit splitState) {
+				return splitState;
+			}
+		};
+
+		reader.start();
+
+		final List<TestingSourceSplit> splits = Collections.singletonList(new TestingSourceSplit(splitId));
+		reader.addSplits(splits);
+
+		reader.isAvailable().get();
+
+		return reader;
 	}
 }

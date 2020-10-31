@@ -1,19 +1,19 @@
 /*
- Licensed to the Apache Software Foundation (ASF) under one
- or more contributor license agreements.  See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership.  The ASF licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.flink.connector.base.source.reader.fetcher;
@@ -23,16 +23,15 @@ import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.SourceReaderBase;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
-import org.apache.flink.connector.base.source.reader.synchronization.FutureNotifier;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +64,7 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
 	private final AtomicReference<Throwable> uncaughtFetcherException;
 
 	/** The element queue that the split fetchers will put elements into. */
-	private final BlockingQueue<RecordsWithSplitIds<E>> elementsQueue;
+	private final FutureCompletingBlockingQueue<RecordsWithSplitIds<E>> elementsQueue;
 
 	/** A map keeping track of all the split fetchers. */
 	protected final Map<Integer, SplitFetcher<E, SplitT>> fetchers;
@@ -73,15 +72,16 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
 	/** An executor service with two threads. One for the fetcher and one for the future completing thread. */
 	private final ExecutorService executors;
 
+	/** Indicating the split fetcher manager has closed or not. */
+	private volatile boolean closed;
+
 	/**
 	 * Create a split fetcher manager.
 	 *
-	 * @param futureNotifier a notifier to notify the complete of a future.
 	 * @param elementsQueue the queue that split readers will put elements into.
 	 * @param splitReaderFactory a supplier that could be used to create split readers.
 	 */
 	public SplitFetcherManager(
-			FutureNotifier futureNotifier,
 			FutureCompletingBlockingQueue<RecordsWithSplitIds<E>> elementsQueue,
 			Supplier<SplitReader<E, SplitT>> splitReaderFactory) {
 		this.elementsQueue = elementsQueue;
@@ -92,19 +92,21 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
 				if (!uncaughtFetcherException.compareAndSet(null, t)) {
 					// Add the exception to the exception list.
 					uncaughtFetcherException.get().addSuppressed(t);
-					// Wake up the main thread to let it know the exception.
-					futureNotifier.notifyComplete();
 				}
+				// Wake up the main thread to let it know the exception.
+				elementsQueue.notifyAvailable();
 			}
 		};
 		this.splitReaderFactory = splitReaderFactory;
 		this.uncaughtFetcherException = new AtomicReference<>(null);
 		this.fetcherIdGenerator = new AtomicInteger(0);
-		this.fetchers = new HashMap<>();
+		this.fetchers = new ConcurrentHashMap<>();
 
 		// Create the executor with a thread factory that fails the source reader if one of
 		// the fetcher thread exits abnormally.
-		this.executors = Executors.newCachedThreadPool(r -> new Thread(r, "SourceFetcher"));
+		final String taskThreadName = Thread.currentThread().getName();
+		this.executors = Executors.newCachedThreadPool(r -> new Thread(r, "Source Data Fetcher for " + taskThreadName));
+		this.closed = false;
 	}
 
 	public abstract void addSplits(List<SplitT> splitsToAdd);
@@ -113,7 +115,16 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
 		executors.submit(new ThrowableCatchingRunnable(errorHandler, fetcher));
 	}
 
-	protected SplitFetcher<E, SplitT> createSplitFetcher() {
+	/**
+	 * Synchronize method to ensure no fetcher is created after the split fetcher manager has closed.
+	 *
+	 * @return the created split fetcher.
+	 * @throws IllegalStateException if the split fetcher manager has closed.
+	 */
+	protected synchronized SplitFetcher<E, SplitT> createSplitFetcher() {
+		if (closed) {
+			throw new IllegalStateException("The split fetcher manager has closed.");
+		}
 		// Create SplitReader.
 		SplitReader<E, SplitT> splitReader = splitReaderFactory.get();
 
@@ -127,7 +138,32 @@ public abstract class SplitFetcherManager<E, SplitT extends SourceSplit> {
 		return splitFetcher;
 	}
 
-	public void close(long timeoutMs) throws Exception {
+	/**
+	 * Check and shutdown the fetchers that have completed their work.
+	 *
+	 * @return true if all the fetchers have completed the work, false otherwise.
+	 */
+	public boolean maybeShutdownFinishedFetchers() {
+		Iterator<Map.Entry<Integer, SplitFetcher<E, SplitT>>> iter = fetchers.entrySet().iterator();
+		while (iter.hasNext()) {
+			Map.Entry<Integer, SplitFetcher<E, SplitT>> entry = iter.next();
+			SplitFetcher<E, SplitT> fetcher = entry.getValue();
+			if (fetcher.isIdle()) {
+				fetcher.shutdown();
+				iter.remove();
+			}
+		}
+		return fetchers.isEmpty();
+	}
+
+	/**
+	 * Close the split fetcher manager.
+	 *
+	 * @param timeoutMs the max time in milliseconds to wait.
+	 * @throws Exception when failed to close the split fetcher manager.
+	 */
+	public synchronized void close(long timeoutMs) throws Exception {
+		closed = true;
 		fetchers.values().forEach(SplitFetcher::shutdown);
 		executors.shutdown();
 		if (!executors.awaitTermination(timeoutMs, TimeUnit.MILLISECONDS)) {

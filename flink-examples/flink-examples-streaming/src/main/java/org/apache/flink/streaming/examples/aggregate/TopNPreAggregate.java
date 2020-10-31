@@ -112,6 +112,7 @@ public class TopNPreAggregate {
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
 
+		/*
 		// set up the execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		env.setStreamTimeCharacteristic(TimeCharacteristic.ProcessingTime);
@@ -200,6 +201,8 @@ public class TopNPreAggregate {
 		System.err.println(env.getExecutionPlan());
 		// execute program
 		env.execute(TopNPreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************

@@ -18,14 +18,14 @@
 
 package org.apache.flink.table.planner.plan.stream.table
 
-import java.sql.Timestamp
-
 import org.apache.flink.api.scala._
-import org.apache.flink.table.api.scala._
-import org.apache.flink.table.api.{Session, Slide, Tumble}
+import org.apache.flink.table.api._
 import org.apache.flink.table.planner.plan.utils.JavaUserDefinedAggFunctions.{WeightedAvg, WeightedAvgWithMerge}
 import org.apache.flink.table.planner.utils.{EmptyTableAggFunc, TableTestBase}
+
 import org.junit.Test
+
+import java.sql.Timestamp
 
 class GroupWindowTest extends TableTestBase {
 
@@ -95,7 +95,7 @@ class GroupWindowTest extends TableTestBase {
     val windowedTable = table
       .window(Tumble over 5.millis on 'rowtime as 'w)
       .groupBy('w, 'string)
-      .select('string, weightedAvg('long, 'int))
+      .select('string, call(weightedAvg, 'long, 'int))
     util.verifyPlan(windowedTable)
   }
 
@@ -162,7 +162,7 @@ class GroupWindowTest extends TableTestBase {
     val windowedTable = table
       .window(Slide over 8.millis every 10.millis on 'rowtime as 'w)
       .groupBy('w, 'string)
-      .select('string, weightedAvg('long, 'int))
+      .select('string, call(weightedAvg, 'long, 'int))
     util.verifyPlan(windowedTable)
   }
 
@@ -190,7 +190,7 @@ class GroupWindowTest extends TableTestBase {
     val windowedTable = table
       .window(Session withGap 7.millis on 'rowtime as 'w)
       .groupBy('w, 'string)
-      .select('string, weightedAvg('long, 'int))
+      .select('string, call(weightedAvg, 'long, 'int))
     util.verifyPlan(windowedTable)
   }
 
@@ -346,7 +346,7 @@ class GroupWindowTest extends TableTestBase {
     val windowedTable = table
       .window(Slide over 2.rows every 1.rows on 'proctime as 'w)
       .groupBy('w, 'int2, 'int3, 'string)
-      .select(weightAvgFun('long, 'int))
+      .select(call(weightAvgFun, 'long, 'int))
 
     util.verifyPlan(windowedTable)
   }

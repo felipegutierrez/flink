@@ -20,11 +20,7 @@ package org.apache.flink.runtime.operators.testutils;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
-import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
-
-import javax.annotation.Nullable;
 
 /**
  * An invokable that does nothing.
@@ -57,4 +53,5 @@ public class DummyInvokable extends AbstractInvokable {
 	public ExecutionConfig getExecutionConfig() {
 		return new ExecutionConfig();
 	}
+
 }

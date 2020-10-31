@@ -128,7 +128,7 @@ public class ProcessFailureCancelingITCase extends TestLogger {
 		config.setInteger(JobManagerOptions.PORT, jobManagerPort);
 
 		final DispatcherResourceManagerComponentFactory resourceManagerComponentFactory = DefaultDispatcherResourceManagerComponentFactory.createSessionComponentFactory(
-			StandaloneResourceManagerFactory.INSTANCE);
+			StandaloneResourceManagerFactory.getInstance());
 		DispatcherResourceManagerComponent dispatcherResourceManagerComponent = null;
 
 		final ScheduledExecutorService ioExecutor = TestingUtils.defaultExecutor();
@@ -233,7 +233,7 @@ public class ProcessFailureCancelingITCase extends TestLogger {
 			Throwable error = errorRef[0];
 			assertNotNull("The program did not fail properly", error);
 
-			assertTrue(error.getCause() instanceof ProgramInvocationException);
+			assertTrue(error instanceof ProgramInvocationException);
 			// all seems well :-)
 		}
 		catch (Exception e) {

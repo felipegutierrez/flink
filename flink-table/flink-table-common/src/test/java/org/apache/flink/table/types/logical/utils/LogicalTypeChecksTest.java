@@ -32,13 +32,13 @@ import org.apache.flink.table.types.utils.TypeConversions;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 import static org.apache.flink.table.api.DataTypes.FIELD;
 import static org.apache.flink.table.api.DataTypes.INT;
 import static org.apache.flink.table.api.DataTypes.ROW;
 import static org.apache.flink.table.api.DataTypes.STRING;
+import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.hasRoot;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
@@ -48,18 +48,18 @@ import static org.junit.Assert.assertThat;
 public class LogicalTypeChecksTest {
 
 	@Test
-	public void testHasNestedRoot() {
+	public void testHasNested() {
 		final DataType dataType = ROW(FIELD("f0", INT()), FIELD("f1", STRING()));
 		assertThat(
-			LogicalTypeChecks.hasNestedRoot(dataType.getLogicalType(), LogicalTypeRoot.VARCHAR),
+			LogicalTypeChecks.hasNested(dataType.getLogicalType(), t -> hasRoot(t, LogicalTypeRoot.VARCHAR)),
 			is(true));
 
 		assertThat(
-			LogicalTypeChecks.hasNestedRoot(dataType.getLogicalType(), LogicalTypeRoot.ROW),
+			LogicalTypeChecks.hasNested(dataType.getLogicalType(), t -> hasRoot(t, LogicalTypeRoot.ROW)),
 			is(true));
 
 		assertThat(
-			LogicalTypeChecks.hasNestedRoot(dataType.getLogicalType(), LogicalTypeRoot.BOOLEAN),
+			LogicalTypeChecks.hasNested(dataType.getLogicalType(), t -> hasRoot(t, LogicalTypeRoot.BOOLEAN)),
 			is(false));
 	}
 
@@ -99,10 +99,8 @@ public class LogicalTypeChecksTest {
 			))
 			.build();
 
-		Map<String, DataType> dataTypes = new HashMap<>();
-		dataTypes.put("f0", DataTypes.INT());
-		dataTypes.put("f1", DataTypes.STRING());
-		FieldsDataType dataType = new FieldsDataType(logicalType, dataTypes);
+		List<DataType> fieldDataTypes = Arrays.asList(DataTypes.INT(), DataTypes.STRING());
+		FieldsDataType dataType = new FieldsDataType(logicalType, fieldDataTypes);
 		boolean isCompositeType = LogicalTypeChecks.isCompositeType(dataType.getLogicalType());
 
 		assertThat(isCompositeType, is(true));
@@ -122,5 +120,17 @@ public class LogicalTypeChecksTest {
 		boolean isCompositeType = LogicalTypeChecks.isCompositeType(dataType.getLogicalType());
 
 		assertThat(isCompositeType, is(false));
+	}
+
+	@Test
+	public void testFieldNameExtraction() {
+		DataType dataType = ROW(FIELD("f0", INT()), FIELD("f1", STRING()));
+		assertThat(LogicalTypeChecks.getFieldNames(dataType.getLogicalType()), is(Arrays.asList("f0", "f1")));
+	}
+
+	@Test
+	public void testFieldCountExtraction() {
+		DataType dataType = ROW(FIELD("f0", INT()), FIELD("f1", STRING()));
+		assertThat(LogicalTypeChecks.getFieldCount(dataType.getLogicalType()), is(2));
 	}
 }

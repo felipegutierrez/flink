@@ -36,7 +36,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.flink.client.cli.CliFrontendRunTest.verifyCliFrontend;
-import static org.apache.flink.yarn.util.YarnTestUtils.getTestJarPath;
+import static org.apache.flink.yarn.util.TestUtils.getTestJarPath;
 
 /**
  * Tests for the RUN command using a {@link FlinkYarnSessionCli} inside the {@link CliFrontend}.
@@ -80,13 +80,13 @@ public class CliFrontendRunWithYarnTest extends CliFrontendTestBase {
 		// test detached mode
 		{
 			String[] parameters = {"-m", "yarn-cluster", "-p", "2", "-d", testJarPath};
-			verifyCliFrontend(testServiceLoader, yarnCLI, parameters, 2, true);
+			verifyCliFrontend(configuration, testServiceLoader, yarnCLI, parameters, 2, true);
 		}
 
 		// test detached mode
 		{
 			String[] parameters = {"-m", "yarn-cluster", "-p", "2", "-yd", testJarPath};
-			verifyCliFrontend(testServiceLoader, yarnCLI, parameters, 2, true);
+			verifyCliFrontend(configuration, testServiceLoader, yarnCLI, parameters, 2, true);
 		}
 	}
 }

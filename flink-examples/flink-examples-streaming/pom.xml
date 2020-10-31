@@ -7,9 +7,7 @@ regarding copyright ownership.  The ASF licenses this file
 to you under the Apache License, Version 2.0 (the
 "License"); you may not use this file except in compliance
 with the License.  You may obtain a copy of the License at
-
   http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing,
 software distributed under the License is distributed on an
 "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,21 +16,26 @@ specific language governing permissions and limitations
 under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
 		<groupId>org.apache.flink</groupId>
 		<artifactId>flink-examples</artifactId>
-		<version>1.11-SNAPSHOT</version>
+		<version>1.12-SNAPSHOT</version>
 		<relativePath>..</relativePath>
 	</parent>
 
 	<artifactId>flink-examples-streaming_${scala.binary.version}</artifactId>
-	<name>flink-examples-streaming</name>
+	<name>Flink : Examples : Streaming</name>
 
 	<packaging>jar</packaging>
+
+	<!-- Allow users to pass custom jcuda versions -->
+	<properties>
+		<jcuda.version>10.0.0</jcuda.version>
+	</properties>
 
 	<dependencies>
 
@@ -82,22 +85,40 @@ under the License.
 			<scope>test</scope>
 		</dependency>
 
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-statebackend-rocksdb_${scala.binary.version}</artifactId>
-            <version>${project.version}</version>
-        </dependency>
 		<dependency>
-			<groupId>joda-time</groupId>
-			<artifactId>joda-time</artifactId>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-statebackend-rocksdb_${scala.binary.version}</artifactId>
+			<version>${project.version}</version>
 		</dependency>
-        <dependency>
-            <groupId>io.airlift.tpch</groupId>
-            <artifactId>tpch</artifactId>
-			<version>0.10</version>
-        </dependency>
 
-    </dependencies>
+		<!-- Dependencies for MatrixVectorMul. We exclude native libraries
+		because it is not available in all the operating systems and architectures. Moreover,
+		we also want to enable users to compile and run MatrixVectorMul in different runtime environments.-->
+		<dependency>
+			<groupId>org.jcuda</groupId>
+			<artifactId>jcuda</artifactId>
+			<version>${jcuda.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.jcuda</groupId>
+					<artifactId>jcuda-natives</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>org.jcuda</groupId>
+			<artifactId>jcublas</artifactId>
+			<version>${jcuda.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.jcuda</groupId>
+					<artifactId>jcublas-natives</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+	</dependencies>
 
 	<build>
 		<plugins>
@@ -302,397 +323,6 @@ under the License.
 						</configuration>
 					</execution>
 
-					<!-- WordCountPreAggregate -->
-					<execution>
-						<id>WordCountPreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>WordCountPreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.WordCountPreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/WordCountPreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/WordCountPreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateVariationSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/WordCountPreAggregateData.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/OnlineDataSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/UrlSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TaxiRideCountPreAggregate -->
-					<execution>
-						<id>TaxiRideCountPreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TaxiRideCountPreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideCountPreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
-								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TaxiRideCountPreAggregate2 -->
-					<execution>
-						<id>TaxiRideCountPreAggregate2</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TaxiRideCountPreAggregate2</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideCountPreAggregate2</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate2.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate2$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
-								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TaxiRidePassengerAveragePreAggregate -->
-					<execution>
-						<id>TaxiRidePassengerAveragePreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TaxiRidePassengerAveragePreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRidePassengerAveragePreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRidePassengerAveragePreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRidePassengerAveragePreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
-								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TaxiRideDistanceAveragePreAggregate -->
-					<execution>
-						<id>TaxiRideDistanceAveragePreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TaxiRideDistanceAveragePreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideDistanceAveragePreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceAveragePreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceAveragePreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideDistanceCalculator.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
-								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TaxiRideAveragePreAggregate -->
-					<execution>
-						<id>TaxiRideAveragePreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TaxiRideAveragePreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideAveragePreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideAveragePreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideAveragePreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideDistanceCalculator.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
-								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TaxiRideDistanceTopNPreAggregate -->
-					<execution>
-						<id>TaxiRideDistanceTopNPreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TaxiRideDistanceTopNPreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideDistanceTopNPreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceTopNPreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceTopNPreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideDistanceCalculator.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRideSource$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
-								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TPCHQuery01PreAggregate -->
-					<execution>
-						<id>TPCHQuery01PreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TPCHQuery01PreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TPCHQuery01PreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>io/airlift/tpch/LineItem.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/LineItemSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/LineItemSource$*.class</include>
-								<include>org/apache/flink/streaming/examples/utils/DataRateListener.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- MqttDataProducer -->
-					<execution>
-						<id>MqttDataProducer</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>MqttDataProducer</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.utils.MqttDataProducer</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/utils/MqttDataProducer.class</include>
-								<include>org/apache/flink/streaming/examples/utils/MqttDataProducer$*.class</include>
-								<include>org/apache/flink/streaming/examples/utils/MqttDataType.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- TopNPreAggregate -->
-					<execution>
-						<id>TopNPreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>TopNPreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.TopNPreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/TopNPreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/TopNPreAggregate*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateVariationSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/WordCountPreAggregateData.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/OnlineDataSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/UrlSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- AveragePreAggregate -->
-					<execution>
-						<id>AveragePreAggregate</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>AveragePreAggregate</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.aggregate.AveragePreAggregate</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/aggregate/AveragePreAggregate.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/AveragePreAggregate$*.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateVariationSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/WordCountPreAggregateData.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/OnlineDataSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/UrlSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSource.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/util/MqttDataSink.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- WordCountPartitioning -->
-					<execution>
-						<id>WordCountPartitioning</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>WordCountPartitioning</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.partitioning.WordCountPartitioning</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/partitioning/WordCountPartitioning.class</include>
-								<include>org/apache/flink/streaming/examples/partitioning/WordCountPartitioning$*.class</include>
-								<include>org/apache/flink/streaming/examples/partitioning/util/WordCountPartitionData.class</include>
-								<include>org/apache/flink/streaming/examples/partitioning/util/WordSource.class</include>
-								<include>org/apache/flink/streaming/examples/partitioning/util/WordSourceType.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
-					<!-- WordCountKeyPartitioning -->
-					<execution>
-						<id>WordCountKeyPartitioning</id>
-						<phase>package</phase>
-						<goals>
-							<goal>jar</goal>
-						</goals>
-						<configuration>
-							<classifier>WordCountKeyPartitioning</classifier>
-
-							<archive>
-								<manifestEntries>
-									<program-class>org.apache.flink.streaming.examples.partitioning.WordCountKeyPartitioning</program-class>
-								</manifestEntries>
-							</archive>
-
-							<includes>
-								<include>org/apache/flink/streaming/examples/partitioning/WordCountKeyPartitioning.class</include>
-								<include>org/apache/flink/streaming/examples/partitioning/WordCountKeyPartitioning$*.class</include>
-								<include>org/apache/flink/streaming/examples/partitioning/util/WordCountPartitionData.class</include>
-							</includes>
-						</configuration>
-					</execution>
-
 					<!-- SocketWindowWordCount -->
 					<execution>
 						<id>SocketWindowWordCount</id>
@@ -765,6 +395,42 @@ under the License.
 				</executions>
 			</plugin>
 
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>MatrixVectorMul</id>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<shadeTestJar>false</shadeTestJar>
+							<finalName>MatrixVectorMul</finalName>
+							<artifactSet>
+								<includes>
+									<include>org.jcuda:*</include>
+								</includes>
+							</artifactSet>
+							<filters>
+								<filter>
+									<artifact>org.apache.flink:*</artifact>
+									<includes>
+										<include>org/apache/flink/streaming/examples/gpu/MatrixVectorMul.class</include>
+										<include>org/apache/flink/streaming/examples/gpu/MatrixVectorMul$*.class</include>
+									</includes>
+								</filter>
+							</filters>
+							<transformers>
+								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+									<mainClass>org.apache.flink.streaming.examples.gpu.MatrixVectorMul</mainClass>
+								</transformer>
+							</transformers>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 
 			<!-- Scala Compiler -->
 			<plugin>
@@ -877,19 +543,6 @@ under the License.
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TopSpeedWindowing.jar" tofile="${project.basedir}/target/TopSpeedWindowing.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WindowJoin.jar" tofile="${project.basedir}/target/WindowJoin.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCount.jar" tofile="${project.basedir}/target/WordCount.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountPreAggregate.jar" tofile="${project.basedir}/target/WordCountPreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideCountPreAggregate.jar" tofile="${project.basedir}/target/TaxiRideCountPreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideCountPreAggregate2.jar" tofile="${project.basedir}/target/TaxiRideCountPreAggregate2.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRidePassengerAveragePreAggregate.jar" tofile="${project.basedir}/target/TaxiRidePassengerAveragePreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideDistanceAveragePreAggregate.jar" tofile="${project.basedir}/target/TaxiRideDistanceAveragePreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideAveragePreAggregate.jar" tofile="${project.basedir}/target/TaxiRideAveragePreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TaxiRideDistanceTopNPreAggregate.jar" tofile="${project.basedir}/target/TaxiRideDistanceTopNPreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TPCHQuery01PreAggregate.jar" tofile="${project.basedir}/target/TPCHQuery01PreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-MqttDataProducer.jar" tofile="${project.basedir}/target/MqttDataProducer.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-TopNPreAggregate.jar" tofile="${project.basedir}/target/TopNPreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-AveragePreAggregate.jar" tofile="${project.basedir}/target/AveragePreAggregate.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountPartitioning.jar" tofile="${project.basedir}/target/WordCountPartitioning.jar" />
-								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-WordCountKeyPartitioning.jar" tofile="${project.basedir}/target/WordCountKeyPartitioning.jar" />
 								<copy file="${project.basedir}/target/flink-examples-streaming_${scala.binary.version}-${project.version}-SocketWindowWordCount.jar" tofile="${project.basedir}/target/SocketWindowWordCount.jar" />
 							</target>
 						</configuration>

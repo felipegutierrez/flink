@@ -81,6 +81,7 @@ public class TaxiRideDistanceTopNPreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
+		/*
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<Integer, Double[]>> preAggregatedStream = null;
@@ -123,6 +124,8 @@ public class TaxiRideDistanceTopNPreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideDistanceTopNPreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************

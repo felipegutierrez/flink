@@ -120,12 +120,12 @@ public class TaskStateStats implements Serializable {
 		return summaryStats.getStateSizeStats().getSum();
 	}
 
-	/**
-	 * @return Total buffered bytes during alignment over all subtasks or <code>-1</code> if the
-	 * runtime did not report this..
-	 */
-	public long getAlignmentBuffered() {
-		return summaryStats.getAlignmentBufferedStats().getSum();
+	public long getProcessedDataStats() {
+		return summaryStats.getProcessedDataStats().getSum();
+	}
+
+	public long getPersistedDataStats() {
+		return summaryStats.getPersistedDataStats().getSum();
 	}
 
 	/**
@@ -176,7 +176,8 @@ public class TaskStateStats implements Serializable {
 		private MinMaxAvgStats ackTimestamp = new MinMaxAvgStats();
 		private MinMaxAvgStats syncCheckpointDuration = new MinMaxAvgStats();
 		private MinMaxAvgStats asyncCheckpointDuration = new MinMaxAvgStats();
-		private MinMaxAvgStats alignmentBuffered = new MinMaxAvgStats();
+		private MinMaxAvgStats processedData = new MinMaxAvgStats();
+		private MinMaxAvgStats persistedData = new MinMaxAvgStats();
 		private MinMaxAvgStats alignmentDuration = new MinMaxAvgStats();
 		private MinMaxAvgStats checkpointStartDelay = new MinMaxAvgStats();
 
@@ -185,7 +186,8 @@ public class TaskStateStats implements Serializable {
 			ackTimestamp.add(subtaskStats.getAckTimestamp());
 			syncCheckpointDuration.add(subtaskStats.getSyncCheckpointDuration());
 			asyncCheckpointDuration.add(subtaskStats.getAsyncCheckpointDuration());
-			alignmentBuffered.add(subtaskStats.getAlignmentBuffered());
+			processedData.add(subtaskStats.getProcessedData());
+			persistedData.add(subtaskStats.getPersistedData());
 			alignmentDuration.add(subtaskStats.getAlignmentDuration());
 			checkpointStartDelay.add(subtaskStats.getCheckpointStartDelay());
 		}
@@ -206,8 +208,12 @@ public class TaskStateStats implements Serializable {
 			return asyncCheckpointDuration;
 		}
 
-		public MinMaxAvgStats getAlignmentBufferedStats() {
-			return alignmentBuffered;
+		public MinMaxAvgStats getProcessedDataStats() {
+			return processedData;
+		}
+
+		public MinMaxAvgStats getPersistedDataStats() {
+			return persistedData;
 		}
 
 		public MinMaxAvgStats getAlignmentDurationStats() {

@@ -39,6 +39,7 @@ import org.apache.flink.runtime.checkpoint.CheckpointFailureManager;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.runtime.checkpoint.CheckpointStatsSnapshot;
 import org.apache.flink.runtime.checkpoint.CheckpointStatsTracker;
+import org.apache.flink.runtime.checkpoint.CheckpointsCleaner;
 import org.apache.flink.runtime.checkpoint.CompletedCheckpointStore;
 import org.apache.flink.runtime.checkpoint.MasterTriggerRestoreHook;
 import org.apache.flink.runtime.checkpoint.OperatorCoordinatorCheckpointContext;
@@ -46,6 +47,7 @@ import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.concurrent.FutureUtils.ConjunctFuture;
 import org.apache.flink.runtime.concurrent.ScheduledExecutorServiceAdapter;
+import org.apache.flink.runtime.entrypoint.ClusterEntryPointExceptionUtils;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.execution.SuppressRestartsException;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
@@ -60,12 +62,10 @@ import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
-import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.jobgraph.ScheduleMode;
 import org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguration;
 import org.apache.flink.runtime.jobmanager.scheduler.CoLocationGroup;
 import org.apache.flink.runtime.jobmaster.slotpool.SlotProvider;
-import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.query.KvStateLocationRegistry;
 import org.apache.flink.runtime.scheduler.InternalFailuresListener;
 import org.apache.flink.runtime.scheduler.adapter.DefaultExecutionTopology;
@@ -315,6 +315,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	/** Shuffle master to register partitions for task deployment. */
 	private final ShuffleMaster<?> shuffleMaster;
 
+	private final ExecutionDeploymentListener executionDeploymentListener;
+	private final ExecutionStateUpdateListener executionStateUpdateListener;
+
 	// --------------------------------------------------------------------------------------------
 	//   Constructors
 	// --------------------------------------------------------------------------------------------
@@ -334,7 +337,10 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			PartitionReleaseStrategy.Factory partitionReleaseStrategyFactory,
 			ShuffleMaster<?> shuffleMaster,
 			JobMasterPartitionTracker partitionTracker,
-			ScheduleMode scheduleMode) throws IOException {
+			ScheduleMode scheduleMode,
+			ExecutionDeploymentListener executionDeploymentListener,
+			ExecutionStateUpdateListener executionStateUpdateListener,
+			long initializationTimestamp) throws IOException {
 
 		this.jobInformation = Preconditions.checkNotNull(jobInformation);
 
@@ -361,6 +367,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		this.jobStatusListeners  = new ArrayList<>();
 
 		this.stateTimestamps = new long[JobStatus.values().length];
+		this.stateTimestamps[JobStatus.INITIALIZING.ordinal()] = initializationTimestamp;
 		this.stateTimestamps[JobStatus.CREATED.ordinal()] = System.currentTimeMillis();
 
 		this.rpcTimeout = checkNotNull(rpcTimeout);
@@ -392,13 +399,13 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		this.resultPartitionAvailabilityChecker = new ExecutionGraphResultPartitionAvailabilityChecker(
 			this::createResultPartitionId,
 			partitionTracker);
+
+		this.executionDeploymentListener = executionDeploymentListener;
+		this.executionStateUpdateListener = executionStateUpdateListener;
 	}
 
 	public void start(@Nonnull ComponentMainThreadExecutor jobMasterMainThreadExecutor) {
 		this.jobMasterMainThreadExecutor = jobMasterMainThreadExecutor;
-		if (checkpointCoordinator != null) {
-			checkpointCoordinator.start(this.jobMasterMainThreadExecutor);
-		}
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -413,7 +420,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		return this.verticesInCreationOrder.size();
 	}
 
-	public SchedulingTopology<?, ?> getSchedulingTopology() {
+	public SchedulingTopology getSchedulingTopology() {
 		return executionTopology;
 	}
 
@@ -467,14 +474,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			new CheckpointFailureManager.FailJobCallback() {
 				@Override
 				public void failJob(Throwable cause) {
-					assertRunningInJobMasterMainThread();
-					failGlobal(cause);
+					getJobMasterMainThreadExecutor().execute(() -> failGlobal(cause));
 				}
 
 				@Override
 				public void failJobDueToTaskFailure(Throwable cause, ExecutionAttemptID failingTask) {
-					assertRunningInJobMasterMainThread();
-					failGlobalIfExecutionIsStillRunning(cause, failingTask);
+					getJobMasterMainThreadExecutor().execute(() -> failGlobalIfExecutionIsStillRunning(cause, failingTask));
 				}
 			}
 		);
@@ -497,6 +502,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			checkpointStore,
 			checkpointStateBackend,
 			ioExecutor,
+			new CheckpointsCleaner(),
 			new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer),
 			SharedStateRegistry.DEFAULT_FACTORY,
 			failureManager);
@@ -575,13 +581,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	private Collection<OperatorCoordinatorCheckpointContext> buildOpCoordinatorCheckpointContexts() {
 		final ArrayList<OperatorCoordinatorCheckpointContext> contexts = new ArrayList<>();
 		for (final ExecutionJobVertex vertex : verticesInCreationOrder) {
-			for (final Map.Entry<OperatorID, OperatorCoordinator> coordinator : vertex.getOperatorCoordinatorMap().entrySet()) {
-				contexts.add(new OperatorCoordinatorCheckpointContext(
-						coordinator.getValue(),
-						coordinator.getKey(),
-						vertex.getMaxParallelism(),
-						vertex.getParallelism()));
-			}
+			contexts.addAll(vertex.getOperatorCoordinators());
 		}
 		contexts.trimToSize();
 		return contexts;
@@ -1301,6 +1301,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 				}
 				catch (Throwable t) {
 					ExceptionUtils.rethrowIfFatalError(t);
+					ClusterEntryPointExceptionUtils.tryEnrichClusterEntryPointError(t);
 					failGlobal(new Exception("Failed to finalize execution on master", t));
 					return;
 				}
@@ -1546,9 +1547,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	ResultPartitionID createResultPartitionId(final IntermediateResultPartitionID resultPartitionId) {
-		final SchedulingResultPartition<?, ?> schedulingResultPartition =
+		final SchedulingResultPartition schedulingResultPartition =
 			getSchedulingTopology().getResultPartition(resultPartitionId);
-		final SchedulingExecutionVertex<?, ?> producer = schedulingResultPartition.getProducer();
+		final SchedulingExecutionVertex producer = schedulingResultPartition.getProducer();
 		final ExecutionVertexID producerId = producer.getId();
 		final JobVertexID jobVertexId = producerId.getJobVertexId();
 		final ExecutionJobVertex jobVertex = getJobVertex(jobVertexId);
@@ -1688,6 +1689,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			return;
 		}
 
+		executionStateUpdateListener.onStateUpdate(execution.getAttemptId(), newExecutionState);
+
 		// see what this means for us. currently, the first FAILED state means -> FAILED
 		if (newExecutionState == ExecutionState.FAILED) {
 			final Throwable ex = error != null ? error : new FlinkException("Unknown Error (missing cause)");
@@ -1738,5 +1741,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 	PartitionReleaseStrategy getPartitionReleaseStrategy() {
 		return partitionReleaseStrategy;
+	}
+
+	ExecutionDeploymentListener getExecutionDeploymentListener() {
+		return executionDeploymentListener;
 	}
 }

@@ -31,10 +31,13 @@ import org.apache.flink.core.execution.PipelineExecutorServiceLoader;
 import org.apache.flink.runtime.client.JobStatusMessage;
 import org.apache.flink.runtime.clusterframework.ApplicationStatus;
 import org.apache.flink.runtime.jobgraph.JobGraph;
+import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
 import org.apache.flink.runtime.jobmaster.JobResult;
 import org.apache.flink.runtime.jobmaster.JobResult.Builder;
 import org.apache.flink.runtime.messages.Acknowledge;
+import org.apache.flink.runtime.operators.coordination.CoordinationRequest;
+import org.apache.flink.runtime.operators.coordination.CoordinationResponse;
 import org.apache.flink.streaming.api.environment.RemoteStreamEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraph;
@@ -149,7 +152,7 @@ public class RemoteStreamEnvironmentTest extends TestLogger {
 
 				@Override
 				public PipelineExecutor getExecutor(@Nonnull Configuration configuration) {
-					return (pipeline, config) -> {
+					return (pipeline, config, classLoader) -> {
 						assertTrue(pipeline instanceof StreamGraph);
 
 						actualSavepointRestoreSettings =
@@ -158,7 +161,7 @@ public class RemoteStreamEnvironmentTest extends TestLogger {
 						clusterClient = new TestClusterClient(configuration, jobID);
 
 						return CompletableFuture.completedFuture(
-								new ClusterClientJobClientAdapter<>(() -> clusterClient, jobID));
+								new ClusterClientJobClientAdapter<>(() -> clusterClient, jobID, classLoader));
 					};
 				}
 			};
@@ -272,6 +275,14 @@ public class RemoteStreamEnvironmentTest extends TestLogger {
 		public CompletableFuture<String> triggerSavepoint(
 				JobID jobId,
 				@Nullable String savepointDirectory) {
+			return null;
+		}
+
+		@Override
+		public CompletableFuture<CoordinationResponse> sendCoordinationRequest(
+				JobID jobId,
+				OperatorID operatorId,
+				CoordinationRequest request) {
 			return null;
 		}
 	}

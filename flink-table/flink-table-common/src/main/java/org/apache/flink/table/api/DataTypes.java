@@ -24,6 +24,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.annotation.DataTypeHint;
 import org.apache.flink.table.catalog.DataTypeFactory;
+import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.types.AbstractDataType;
 import org.apache.flink.table.types.AtomicDataType;
 import org.apache.flink.table.types.CollectionDataType;
@@ -52,6 +53,8 @@ import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
+import org.apache.flink.table.types.logical.StructuredType;
+import org.apache.flink.table.types.logical.StructuredType.StructuredAttribute;
 import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.TinyIntType;
@@ -73,6 +76,8 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.apache.flink.table.types.extraction.ExtractionUtils.validateStructuredClass;
 
 /**
  * A {@link DataType} can be used to declare input and/or output types of operations. This class
@@ -560,11 +565,11 @@ public final class DataTypes {
 	 *
 	 * @see ArrayType
 	 */
-	public static UnresolvedDataType ARRAY(UnresolvedDataType unresolvedElementDataType) {
-		Preconditions.checkNotNull(unresolvedElementDataType, "Element data type must not be null.");
+	public static UnresolvedDataType ARRAY(AbstractDataType<?> elementDataType) {
+		Preconditions.checkNotNull(elementDataType, "Element data type must not be null.");
 		return new UnresolvedDataType(
-			() -> String.format(ArrayType.FORMAT, unresolvedElementDataType),
-			factory -> ARRAY(factory.createDataType(unresolvedElementDataType)));
+			() -> String.format(ArrayType.FORMAT, elementDataType),
+			factory -> ARRAY(factory.createDataType(elementDataType)));
 	}
 
 	/**
@@ -596,11 +601,11 @@ public final class DataTypes {
 	 *
 	 * @see MultisetType
 	 */
-	public static UnresolvedDataType MULTISET(UnresolvedDataType unresolvedElementDataType) {
-		Preconditions.checkNotNull(unresolvedElementDataType, "Element data type must not be null.");
+	public static UnresolvedDataType MULTISET(AbstractDataType<?> elementDataType) {
+		Preconditions.checkNotNull(elementDataType, "Element data type must not be null.");
 		return new UnresolvedDataType(
-			() -> String.format(MultisetType.FORMAT, unresolvedElementDataType),
-			factory -> MULTISET(factory.createDataType(unresolvedElementDataType)));
+			() -> String.format(MultisetType.FORMAT, elementDataType),
+			factory -> MULTISET(factory.createDataType(elementDataType)));
 	}
 
 	/**
@@ -661,8 +666,9 @@ public final class DataTypes {
 			.map(f -> Preconditions.checkNotNull(f, "Field definition must not be null."))
 			.map(f -> new RowField(f.name, f.dataType.getLogicalType(), f.description))
 			.collect(Collectors.toList());
-		final Map<String, DataType> fieldDataTypes = Stream.of(fields)
-			.collect(Collectors.toMap(f -> f.name, f -> f.dataType));
+		final List<DataType> fieldDataTypes = Stream.of(fields)
+			.map(f -> f.dataType)
+			.collect(Collectors.toList());
 		return new FieldsDataType(new RowType(logicalFields), fieldDataTypes);
 	}
 
@@ -684,7 +690,7 @@ public final class DataTypes {
 	 * <p>Compared to the SQL standard, an optional field description simplifies the handling with
 	 * complex structures.
 	 *
-	 * <p>Use {@link #FIELD(String, UnresolvedDataType)} or {@link #FIELD(String, UnresolvedDataType, String)}
+	 * <p>Use {@link #FIELD(String, AbstractDataType)} or {@link #FIELD(String, AbstractDataType, String)}
 	 * to construct fields.
 	 *
 	 * <p>Note: Compared to {@link #ROW(Field...)} )}, this method produces an {@link UnresolvedDataType}
@@ -693,7 +699,7 @@ public final class DataTypes {
 	 *
 	 * @see RowType
 	 */
-	public static UnresolvedDataType ROW(AbstractField<?>... fields) {
+	public static UnresolvedDataType ROW(AbstractField... fields) {
 		Stream.of(fields)
 			.forEach(f -> Preconditions.checkNotNull(f, "Field definition must not be null."));
 		return new UnresolvedDataType(
@@ -702,7 +708,7 @@ public final class DataTypes {
 				Stream.of(fields).map(Object::toString).collect(Collectors.joining(", "))),
 			factory -> {
 				final Field[] fieldsArray = Stream.of(fields)
-					.map(f -> new Field(f.name, factory.createDataType(f.dataType), f.description))
+					.map(f -> new Field(f.name, factory.createDataType(f.getAbstractDataType()), f.description))
 					.toArray(Field[]::new);
 				return ROW(fieldsArray);
 			}
@@ -717,6 +723,10 @@ public final class DataTypes {
 	 * as well as bridging to formats such as JSON or Avro that define such a type as well.
 	 *
 	 * <p>The null type is an extension to the SQL standard.
+	 *
+	 * <p>Note: The runtime does not support this type. It is a pure helper type during translation and
+	 * planning. Table columns cannot be declared with this type. Functions cannot declare return types
+	 * of this type.
 	 *
 	 * @see NullType
 	 */
@@ -779,6 +789,54 @@ public final class DataTypes {
 	 */
 	public static <T> DataType RAW(TypeInformation<T> typeInformation) {
 		return new AtomicDataType(new TypeInformationRawType<>(typeInformation));
+	}
+
+	/**
+	 * Data type of a user-defined object structured type. Structured types contain zero, one or more
+	 * attributes. Each attribute consists of a name and a type. A type cannot be defined so that one of
+	 * its attribute types (transitively) uses itself.
+	 *
+	 * <p>There are two kinds of structured types. Types that are stored in a catalog and are identified
+	 * by an {@link ObjectIdentifier} or anonymously defined, unregistered types (usually reflectively
+	 * extracted) that are identified by an implementation {@link Class}.
+	 *
+	 * <p>This method helps in manually constructing anonymous, unregistered types. This is useful in
+	 * cases where the reflective extraction using {@link DataTypes#of(Class)} is not applicable. However,
+	 * {@link DataTypes#of(Class)} is the recommended way of creating inline structured types as it also
+	 * considers {@link DataTypeHint}s.
+	 *
+	 * <p>Structured types are converted to internal data structures by the runtime. The given implementation
+	 * class is only used at the edges of the table ecosystem (e.g. when bridging to a function or connector).
+	 * Serialization and equality ({@code hashCode/equals}) are handled by the runtime based on the logical
+	 * type. An implementation class must offer a default constructor with zero arguments or a full constructor
+	 * that assigns all attributes.
+	 *
+	 * <p>Note: A caller of this method must make sure that the {@link DataType#getConversionClass()} of the
+	 * given fields matches with the attributes of the given implementation class, otherwise an exception
+	 * might be thrown during runtime.
+	 *
+	 * @see DataTypes#of(Class)
+	 * @see StructuredType
+	 */
+	public static <T> DataType STRUCTURED(Class<T> implementationClass, Field... fields) {
+		// some basic validation of the class to prevent common mistakes
+		validateStructuredClass(implementationClass);
+
+		final StructuredType.Builder builder = StructuredType.newBuilder(implementationClass);
+		final List<StructuredAttribute> attributes = Stream.of(fields)
+			.map(f ->
+				new StructuredAttribute(
+					f.getName(),
+					f.getDataType().getLogicalType(),
+					f.getDescription().orElse(null)))
+			.collect(Collectors.toList());
+		builder.attributes(attributes);
+		builder.setFinal(true);
+		builder.setInstantiable(true);
+		final List<DataType> fieldDataTypes = Stream.of(fields)
+			.map(DataTypes.Field::getDataType)
+			.collect(Collectors.toList());
+		return new FieldsDataType(builder.build(), implementationClass, fieldDataTypes);
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -888,12 +946,12 @@ public final class DataTypes {
 	 * Unresolved field definition with field name and data type.
 	 *
 	 * <p>Note: Compared to {@link #FIELD(String, DataType)}, this method produces an {@link UnresolvedField}
-	 * containing an {@link UnresolvedDataType}.
+	 * that can contain an {@link UnresolvedDataType}.
 	 */
-	public static UnresolvedField FIELD(String name, UnresolvedDataType unresolvedDataType) {
+	public static UnresolvedField FIELD(String name, AbstractDataType<?> fieldDataType) {
 		return new UnresolvedField(
 			Preconditions.checkNotNull(name, "Field name must not be null."),
-			Preconditions.checkNotNull(unresolvedDataType, "Field data type must not be null."),
+			Preconditions.checkNotNull(fieldDataType, "Field data type must not be null."),
 			null);
 	}
 
@@ -901,12 +959,12 @@ public final class DataTypes {
 	 * Unresolved field definition with field name, unresolved data type, and a description.
 	 *
 	 * <p>Note: Compared to {@link #FIELD(String, DataType, String)}, this method produces an {@link UnresolvedField}
-	 * containing an {@link UnresolvedDataType}.
+	 * that can contain an {@link UnresolvedDataType}.
 	 */
-	public static UnresolvedField FIELD(String name, UnresolvedDataType unresolvedDataType, String description) {
+	public static UnresolvedField FIELD(String name, AbstractDataType<?> fieldDataType, String description) {
 		return new UnresolvedField(
 			Preconditions.checkNotNull(name, "Field name must not be null."),
-			Preconditions.checkNotNull(unresolvedDataType, "Field data type must not be null."),
+			Preconditions.checkNotNull(fieldDataType, "Field data type must not be null."),
 			Preconditions.checkNotNull(description, "Field description must not be null."));
 	}
 
@@ -1026,20 +1084,17 @@ public final class DataTypes {
 	 *
 	 * @see #FIELD(String, DataType)
 	 * @see #FIELD(String, DataType, String)
-	 * @see #FIELD(String, UnresolvedDataType)
-	 * @see #FIELD(String, UnresolvedDataType, String)
+	 * @see #FIELD(String, AbstractDataType)
+	 * @see #FIELD(String, AbstractDataType, String)
 	 */
-	public static class AbstractField<T extends AbstractDataType<T>> {
+	public abstract static class AbstractField {
 
 		protected final String name;
 
-		protected final T dataType;
-
 		protected final @Nullable String description;
 
-		private AbstractField(String name, T dataType, @Nullable String description) {
+		private AbstractField(String name, @Nullable String description) {
 			this.name = name;
-			this.dataType = dataType;
 			this.description = description;
 		}
 
@@ -1047,13 +1102,11 @@ public final class DataTypes {
 			return name;
 		}
 
-		public T getDataType() {
-			return dataType;
-		}
-
 		public Optional<String> getDescription() {
 			return Optional.ofNullable(description);
 		}
+
+		protected abstract AbstractDataType<?> getAbstractDataType();
 
 		@Override
 		public String toString() {
@@ -1061,13 +1114,13 @@ public final class DataTypes {
 				return String.format(
 					RowField.FIELD_FORMAT_WITH_DESCRIPTION,
 					name,
-					dataType,
+					getAbstractDataType(),
 					description);
 			}
 			return String.format(
 				RowField.FIELD_FORMAT_NO_DESCRIPTION,
 				name,
-				dataType);
+				getAbstractDataType());
 		}
 	}
 
@@ -1077,25 +1130,48 @@ public final class DataTypes {
 	 * @see #FIELD(String, DataType)
 	 * @see #FIELD(String, DataType, String)
 	 */
-	public static final class Field extends AbstractField<DataType> {
+	public static final class Field extends AbstractField {
+
+		private final DataType dataType;
 
 		private Field(String name, DataType dataType, @Nullable String description) {
-			super(name, dataType, description);
+			super(name, description);
+			this.dataType = dataType;
+		}
+
+		public DataType getDataType() {
+			return dataType;
+		}
+
+		@Override
+		protected AbstractDataType<?> getAbstractDataType() {
+			return dataType;
 		}
 	}
 
 	/**
 	 * Helper class for defining the unresolved field of a row or structured type.
 	 *
-	 * <p>Compared to {@link Field}, an unresolved field contains an {@link UnresolvedDataType}.
+	 * <p>Compared to {@link Field}, an unresolved field can contain an {@link UnresolvedDataType}.
 	 *
-	 * @see #FIELD(String, UnresolvedDataType)
-	 * @see #FIELD(String, UnresolvedDataType, String)
+	 * @see #FIELD(String, AbstractDataType)
+	 * @see #FIELD(String, AbstractDataType, String)
 	 */
-	public static final class UnresolvedField extends AbstractField<UnresolvedDataType> {
+	public static final class UnresolvedField extends AbstractField {
 
-		private UnresolvedField(String name, UnresolvedDataType unresolvedDataType, @Nullable String description) {
-			super(name, unresolvedDataType, description);
+		private final AbstractDataType<?> dataType;
+
+		private UnresolvedField(
+				String name,
+				AbstractDataType<?> dataType,
+				@Nullable String description) {
+			super(name, description);
+			this.dataType = dataType;
+		}
+
+		@Override
+		protected AbstractDataType<?> getAbstractDataType() {
+			return dataType;
 		}
 	}
 

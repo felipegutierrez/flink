@@ -20,8 +20,13 @@ package org.apache.flink.test.checkpointing;
 
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobStatus;
+import org.apache.flink.api.common.eventtime.AscendingTimestampsWatermarks;
+import org.apache.flink.api.common.eventtime.TimestampAssigner;
+import org.apache.flink.api.common.eventtime.TimestampAssignerSupplier;
+import org.apache.flink.api.common.eventtime.WatermarkGenerator;
+import org.apache.flink.api.common.eventtime.WatermarkGeneratorSupplier;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.client.ClientUtils;
 import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
@@ -29,24 +34,21 @@ import org.apache.flink.configuration.HighAvailabilityOptions;
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
-import org.apache.flink.runtime.state.CheckpointListener;
 import org.apache.flink.runtime.state.StateBackend;
 import org.apache.flink.runtime.state.filesystem.FsStateBackend;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.test.state.ManualWindowSpeedITCase;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
-import org.apache.flink.testutils.junit.category.AlsoRunWithLegacyScheduler;
 import org.apache.flink.util.TestLogger;
 
 import org.apache.curator.test.TestingServer;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.experimental.categories.Category;
 import org.junit.rules.TemporaryFolder;
 
 import javax.annotation.Nullable;
@@ -70,7 +72,6 @@ import static org.junit.Assert.assertNotNull;
  *
  * <p>This tests considers full and incremental checkpoints and was introduced to guard against problems like FLINK-6964.
  */
-@Category(AlsoRunWithLegacyScheduler.class)
 public class ResumeCheckpointManuallyITCase extends TestLogger {
 
 	private static final int PARALLELISM = 2;
@@ -298,15 +299,13 @@ public class ResumeCheckpointManuallyITCase extends TestLogger {
 	private static String runJobAndGetExternalizedCheckpoint(StateBackend backend, File checkpointDir, @Nullable String externalCheckpoint, ClusterClient<?> client) throws Exception {
 		JobGraph initialJobGraph = getJobGraph(backend, externalCheckpoint);
 		NotifyingInfiniteTupleSource.countDownLatch = new CountDownLatch(PARALLELISM);
-		NotifyingInfiniteTupleSource.checkpointCompletedLatch = new CountDownLatch(PARALLELISM);
 
-		ClientUtils.submitJob(client, initialJobGraph);
+		client.submitJob(initialJobGraph).get();
 
 		// wait until all sources have been started
 		NotifyingInfiniteTupleSource.countDownLatch.await();
-		// wait the checkpoint completing
-		NotifyingInfiniteTupleSource.checkpointCompletedLatch.await();
 
+		waitUntilExternalizedCheckpointCreated(checkpointDir, initialJobGraph.getJobID());
 		client.cancel(initialJobGraph.getJobID()).get();
 		waitUntilCanceled(initialJobGraph.getJobID(), client);
 
@@ -319,6 +318,16 @@ public class ResumeCheckpointManuallyITCase extends TestLogger {
 			throw new AssertionError("No complete checkpoint could be found.");
 		} else {
 			return checkpoint.get().toString();
+		}
+	}
+
+	private static void waitUntilExternalizedCheckpointCreated(File checkpointDir, JobID jobId) throws InterruptedException, IOException {
+		while (true) {
+			Thread.sleep(50);
+			Optional<Path> externalizedCheckpoint = findExternalizedCheckpoint(checkpointDir, jobId);
+			if (externalizedCheckpoint.isPresent()) {
+				break;
+			}
 		}
 	}
 
@@ -348,15 +357,16 @@ public class ResumeCheckpointManuallyITCase extends TestLogger {
 
 		env.enableCheckpointing(500);
 		env.setStateBackend(backend);
-		env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime);
 		env.setParallelism(PARALLELISM);
 		env.getCheckpointConfig().enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
 
-		env.addSource(new NotifyingInfiniteTupleSource(10_000))
-			.keyBy(0)
-			.timeWindow(Time.seconds(3))
-			.reduce((value1, value2) -> Tuple2.of(value1.f0, value1.f1 + value2.f1))
-			.filter(value -> value.f0.startsWith("Tuple 0"));
+		env
+				.addSource(new NotifyingInfiniteTupleSource(10_000))
+				.assignTimestampsAndWatermarks(IngestionTimeWatermarkStrategy.create())
+				.keyBy(0)
+				.window(TumblingEventTimeWindows.of(Time.seconds(3)))
+				.reduce((value1, value2) -> Tuple2.of(value1.f0, value1.f1 + value2.f1))
+				.filter(value -> value.f0.startsWith("Tuple 0"));
 
 		StreamGraph streamGraph = env.getStreamGraph("Test");
 
@@ -373,15 +383,11 @@ public class ResumeCheckpointManuallyITCase extends TestLogger {
 	/**
 	 * Infinite source which notifies when all of its sub tasks have been started via the count down latch.
 	 */
-	public static class NotifyingInfiniteTupleSource
-		extends ManualWindowSpeedITCase.InfiniteTupleSource
-		implements CheckpointListener {
+	public static class NotifyingInfiniteTupleSource extends ManualWindowSpeedITCase.InfiniteTupleSource {
 
 		private static final long serialVersionUID = 8120981235081181746L;
 
 		private static CountDownLatch countDownLatch;
-
-		private static CountDownLatch checkpointCompletedLatch;
 
 		public NotifyingInfiniteTupleSource(int numKeys) {
 			super(numKeys);
@@ -395,12 +401,30 @@ public class ResumeCheckpointManuallyITCase extends TestLogger {
 
 			super.run(out);
 		}
+	}
+
+	/**
+	 * This {@link WatermarkStrategy} assigns the current system time as the event-time timestamp.
+	 * In a real use case you should use proper timestamps and an appropriate {@link
+	 * WatermarkStrategy}.
+	 */
+	private static class IngestionTimeWatermarkStrategy<T> implements WatermarkStrategy<T> {
+
+		private IngestionTimeWatermarkStrategy() {
+		}
+
+		public static <T> IngestionTimeWatermarkStrategy<T> create() {
+			return new IngestionTimeWatermarkStrategy<>();
+		}
 
 		@Override
-		public void notifyCheckpointComplete(long checkpointId) throws Exception {
-			if (checkpointCompletedLatch != null) {
-				checkpointCompletedLatch.countDown();
-			}
+		public WatermarkGenerator<T> createWatermarkGenerator(WatermarkGeneratorSupplier.Context context) {
+			return new AscendingTimestampsWatermarks<>();
+		}
+
+		@Override
+		public TimestampAssigner<T> createTimestampAssigner(TimestampAssignerSupplier.Context context) {
+			return (event, timestamp) -> System.currentTimeMillis();
 		}
 	}
 }

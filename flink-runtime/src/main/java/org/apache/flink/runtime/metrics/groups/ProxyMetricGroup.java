@@ -67,8 +67,8 @@ public class ProxyMetricGroup<P extends MetricGroup> implements MetricGroup {
 		return parentMetricGroup.gauge(name, gauge);
 	}
 
-	@Override
-	public final Metric getMetric(String name) { return parentMetricGroup.getMetric(name); }
+//	@Override
+//	public final Metric getMetric(String name) { return parentMetricGroup.getMetric(name); }
 
 	@Override
 	public final <H extends Histogram> H histogram(String name, H histogram) {

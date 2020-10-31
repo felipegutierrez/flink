@@ -145,6 +145,7 @@ public class AveragePreAggregate {
 			rawSensorValues = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
+		/*
 		// split up the lines in pairs (2-tuples) containing: (word,1)
 		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
@@ -197,6 +198,8 @@ public class AveragePreAggregate {
 		System.err.println(env.getExecutionPlan());
 		// execute program
 		env.execute(AveragePreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************

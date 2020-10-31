@@ -24,12 +24,12 @@ import org.apache.flink.client.deployment.ClusterClientFactory;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.DeploymentOptions;
 import org.apache.flink.kubernetes.configuration.KubernetesConfigOptions;
-import org.apache.flink.kubernetes.executors.KubernetesSessionClusterExecutor;
-import org.apache.flink.kubernetes.kubeclient.KubeClientFactory;
+import org.apache.flink.kubernetes.configuration.KubernetesDeploymentTarget;
+import org.apache.flink.kubernetes.kubeclient.DefaultKubeClientFactory;
+import org.apache.flink.kubernetes.utils.Constants;
+import org.apache.flink.util.AbstractID;
 
 import javax.annotation.Nullable;
-
-import java.util.UUID;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -45,7 +45,7 @@ public class KubernetesClusterClientFactory extends AbstractContainerizedCluster
 	public boolean isCompatibleWith(Configuration configuration) {
 		checkNotNull(configuration);
 		final String deploymentTarget = configuration.getString(DeploymentOptions.TARGET);
-		return KubernetesSessionClusterExecutor.NAME.equalsIgnoreCase(deploymentTarget);
+		return KubernetesDeploymentTarget.isValidKubernetesTarget(deploymentTarget);
 	}
 
 	@Override
@@ -55,7 +55,8 @@ public class KubernetesClusterClientFactory extends AbstractContainerizedCluster
 			final String clusterId = generateClusterId();
 			configuration.setString(KubernetesConfigOptions.CLUSTER_ID, clusterId);
 		}
-		return new KubernetesClusterDescriptor(configuration, KubeClientFactory.fromConfiguration(configuration));
+		return new KubernetesClusterDescriptor(
+			configuration, DefaultKubeClientFactory.getInstance().fromConfiguration(configuration));
 	}
 
 	@Nullable
@@ -66,6 +67,7 @@ public class KubernetesClusterClientFactory extends AbstractContainerizedCluster
 	}
 
 	private String generateClusterId() {
-		return CLUSTER_ID_PREFIX + UUID.randomUUID();
+		final String randomID = new AbstractID().toString();
+		return (CLUSTER_ID_PREFIX + randomID).substring(0, Constants.MAXIMUM_CHARACTERS_OF_CLUSTER_ID);
 	}
 }

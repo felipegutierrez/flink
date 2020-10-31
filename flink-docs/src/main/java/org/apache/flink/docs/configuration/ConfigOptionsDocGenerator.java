@@ -77,7 +77,8 @@ public class ConfigOptionsDocGenerator {
 		new OptionsClassLocation("flink-state-backends/flink-statebackend-rocksdb", "org.apache.flink.contrib.streaming.state"),
 		new OptionsClassLocation("flink-table/flink-table-api-java", "org.apache.flink.table.api.config"),
 		new OptionsClassLocation("flink-python", "org.apache.flink.python"),
-		new OptionsClassLocation("flink-kubernetes", "org.apache.flink.kubernetes.configuration")
+		new OptionsClassLocation("flink-kubernetes", "org.apache.flink.kubernetes.configuration"),
+		new OptionsClassLocation("flink-clients", "org.apache.flink.client.cli")
 	};
 
 	static final Set<String> EXCLUSIONS = new HashSet<>(Arrays.asList(
@@ -196,15 +197,20 @@ public class ConfigOptionsDocGenerator {
 					if (!matcher.matches()) {
 						throw new RuntimeException("Pattern did not match for " + optionsClass.getSimpleName() + '.');
 					}
-					name = matcher.group(CLASS_PREFIX_GROUP).replaceAll("(.)(\\p{Upper})", "$1_$2").toLowerCase();
+					name = matcher.group(CLASS_PREFIX_GROUP);
 				} else {
-					name = group.f0.name().replaceAll("(.)(\\p{Upper})", "$1_$2").toLowerCase();
+					name = group.f0.name();
 				}
 
-				String outputFile = name + "_configuration.html";
+				String outputFile = toSnakeCase(name) + "_configuration.html";
 				Files.write(Paths.get(outputDirectory, outputFile), group.f1.getBytes(StandardCharsets.UTF_8));
 			}
 		});
+	}
+
+	@VisibleForTesting
+	static String toSnakeCase(String name) {
+		return name.replaceAll("(.)([A-Z][a-z])", "$1_$2").toLowerCase();
 	}
 
 	@VisibleForTesting
@@ -232,6 +238,10 @@ public class ConfigOptionsDocGenerator {
 		ConfigGroups configGroups = optionsClass.getAnnotation(ConfigGroups.class);
 		List<OptionWithMetaInfo> allOptions = extractConfigOptions(optionsClass);
 
+		if (allOptions.isEmpty()) {
+			return Collections.emptyList();
+		}
+
 		List<Tuple2<ConfigGroup, String>> tables;
 		if (configGroups != null) {
 			tables = new ArrayList<>(configGroups.groups().length + 1);
@@ -239,12 +249,16 @@ public class ConfigOptionsDocGenerator {
 
 			for (ConfigGroup group : configGroups.groups()) {
 				List<OptionWithMetaInfo> configOptions = tree.findConfigOptions(group);
-				sortOptions(configOptions);
-				tables.add(Tuple2.of(group, toHtmlTable(configOptions)));
+				if (!configOptions.isEmpty()) {
+					sortOptions(configOptions);
+					tables.add(Tuple2.of(group, toHtmlTable(configOptions)));
+				}
 			}
 			List<OptionWithMetaInfo> configOptions = tree.getDefaultOptions();
-			sortOptions(configOptions);
-			tables.add(Tuple2.of(null, toHtmlTable(configOptions)));
+			if (!configOptions.isEmpty()) {
+				sortOptions(configOptions);
+				tables.add(Tuple2.of(null, toHtmlTable(configOptions)));
+			}
 		} else {
 			sortOptions(allOptions);
 			tables = Collections.singletonList(Tuple2.of(null, toHtmlTable(allOptions)));

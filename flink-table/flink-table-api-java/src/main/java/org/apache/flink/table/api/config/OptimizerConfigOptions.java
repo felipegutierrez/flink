@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.api.config;
 
+import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.docs.Documentation;
 import org.apache.flink.configuration.ConfigOption;
 
@@ -30,6 +31,7 @@ import static org.apache.flink.configuration.ConfigOptions.key;
  *
  * <p>NOTE: All option keys in this class must start with "table.optimizer".
  */
+@PublicEvolving
 public class OptimizerConfigOptions {
 
 	// ------------------------------------------------------------------------
@@ -97,4 +99,12 @@ public class OptimizerConfigOptions {
 		key("table.optimizer.join-reorder-enabled")
 			.defaultValue(false)
 			.withDescription("Enables join reorder in optimizer. Default is disabled.");
+
+	@Documentation.TableOption(execMode = Documentation.ExecMode.BATCH_STREAMING)
+	public static final ConfigOption<Boolean> TABLE_OPTIMIZER_MULTIPLE_INPUT_ENABLED =
+		key("table.optimizer.multiple-input-enabled")
+			.defaultValue(false)
+			.withDescription("Enables creating multiple input operators to reduce shuffling. " +
+				"Default is disabled as currently its physical operators are not implemented. " +
+				"This option is currently only used for plan test cases.");
 }

@@ -20,6 +20,16 @@ package org.apache.flink.table.data;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.types.logical.ArrayType;
+import org.apache.flink.table.types.logical.DistinctType;
+import org.apache.flink.table.types.logical.LogicalType;
+
+import javax.annotation.Nullable;
+
+import java.io.Serializable;
+
+import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getFieldCount;
+import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision;
+import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getScale;
 
 /**
  * Base interface of an internal data structure representing data of {@link ArrayType}.
@@ -129,4 +139,124 @@ public interface ArrayData {
 	 */
 	RowData getRow(int pos, int numFields);
 
+	// ------------------------------------------------------------------------------------------
+	// Conversion Utilities
+	// ------------------------------------------------------------------------------------------
+
+	boolean[] toBooleanArray();
+
+	byte[] toByteArray();
+
+	short[] toShortArray();
+
+	int[] toIntArray();
+
+	long[] toLongArray();
+
+	float[] toFloatArray();
+
+	double[] toDoubleArray();
+
+	// ------------------------------------------------------------------------------------------
+	// Access Utilities
+	// ------------------------------------------------------------------------------------------
+
+	/**
+	 * Creates an accessor for getting elements in an internal array data structure at the
+	 * given position.
+	 *
+	 * @param elementType the element type of the array
+	 */
+	static ElementGetter createElementGetter(LogicalType elementType) {
+		final ElementGetter elementGetter;
+		// ordered by type root definition
+		switch (elementType.getTypeRoot()) {
+			case CHAR:
+			case VARCHAR:
+				elementGetter = ArrayData::getString;
+				break;
+			case BOOLEAN:
+				elementGetter = ArrayData::getBoolean;
+				break;
+			case BINARY:
+			case VARBINARY:
+				elementGetter = ArrayData::getBinary;
+				break;
+			case DECIMAL:
+				final int decimalPrecision = getPrecision(elementType);
+				final int decimalScale = getScale(elementType);
+				elementGetter = (array, pos) -> array.getDecimal(pos, decimalPrecision, decimalScale);
+				break;
+			case TINYINT:
+				elementGetter = ArrayData::getByte;
+				break;
+			case SMALLINT:
+				elementGetter = ArrayData::getShort;
+				break;
+			case INTEGER:
+			case DATE:
+			case TIME_WITHOUT_TIME_ZONE:
+			case INTERVAL_YEAR_MONTH:
+				elementGetter = ArrayData::getInt;
+				break;
+			case BIGINT:
+			case INTERVAL_DAY_TIME:
+				elementGetter = ArrayData::getLong;
+				break;
+			case FLOAT:
+				elementGetter = ArrayData::getFloat;
+				break;
+			case DOUBLE:
+				elementGetter = ArrayData::getDouble;
+				break;
+			case TIMESTAMP_WITHOUT_TIME_ZONE:
+			case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+				final int timestampPrecision = getPrecision(elementType);
+				elementGetter = (array, pos) -> array.getTimestamp(pos, timestampPrecision);
+				break;
+			case TIMESTAMP_WITH_TIME_ZONE:
+				throw new UnsupportedOperationException();
+			case ARRAY:
+				elementGetter = ArrayData::getArray;
+				break;
+			case MULTISET:
+			case MAP:
+				elementGetter = ArrayData::getMap;
+				break;
+			case ROW:
+			case STRUCTURED_TYPE:
+				final int rowFieldCount = getFieldCount(elementType);
+				elementGetter = (array, pos) -> array.getRow(pos, rowFieldCount);
+				break;
+			case DISTINCT_TYPE:
+				elementGetter = createElementGetter(((DistinctType) elementType).getSourceType());
+				break;
+			case RAW:
+				elementGetter = ArrayData::getRawValue;
+				break;
+			case NULL:
+			case SYMBOL:
+			case UNRESOLVED:
+			default:
+				throw new IllegalArgumentException();
+		}
+		if (!elementType.isNullable()) {
+			return elementGetter;
+		}
+		return (array, pos) -> {
+			if (array.isNullAt(pos)) {
+				return null;
+			}
+			return elementGetter.getElementOrNull(array, pos);
+		};
+	}
+
+	/**
+	 * Accessor for getting the elements of an array during runtime.
+	 *
+	 * @see #createElementGetter(LogicalType)
+	 */
+	interface ElementGetter extends Serializable {
+		@Nullable Object getElementOrNull(ArrayData array, int pos);
+	}
 }

@@ -393,10 +393,10 @@ public abstract class AbstractMetricGroup<A extends AbstractMetricGroup<?>> impl
 		return meter;
 	}
 
-	@Override
-	public Metric getMetric(String name) {
-		return metrics.get(name);
-	}
+	// @Override
+	// public Metric getMetric(String name) {
+	// 	return metrics.get(name);
+	// }
 
 	/**
 	 * Adds the given metric to the group and registers it at the registry, if the group

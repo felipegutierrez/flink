@@ -102,30 +102,31 @@ public class JobManagerOptions {
 
 	/**
 	 * JVM heap size for the JobManager with memory size.
+	 * @deprecated use {@link #TOTAL_FLINK_MEMORY} for standalone setups and {@link #TOTAL_PROCESS_MEMORY} for containerized setups.
 	 */
+	@Deprecated
 	@Documentation.Section(Documentation.Sections.ALL_JOB_MANAGER)
 	public static final ConfigOption<MemorySize> JOB_MANAGER_HEAP_MEMORY =
 		key("jobmanager.heap.size")
 		.memoryType()
-		.defaultValue(MemorySize.ofMebiBytes(1024))
+		.noDefaultValue()
 		.withDescription("JVM heap size for the JobManager.");
 
 	/**
 	 * JVM heap size (in megabytes) for the JobManager.
-	 * @deprecated use {@link #JOB_MANAGER_HEAP_MEMORY}
+	 * @deprecated use {@link #TOTAL_FLINK_MEMORY} for standalone setups and {@link #TOTAL_PROCESS_MEMORY} for containerized setups.
 	 */
 	@Deprecated
 	public static final ConfigOption<Integer> JOB_MANAGER_HEAP_MEMORY_MB =
 		key("jobmanager.heap.mb")
 		.intType()
-		.defaultValue(1024)
+		.noDefaultValue()
 		.withDescription("JVM heap size (in megabytes) for the JobManager.");
 
 	/**
 	 * Total Process Memory size for the JobManager.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<MemorySize> TOTAL_PROCESS_MEMORY =
 		key("jobmanager.memory.process.size")
 			.memoryType()
@@ -139,7 +140,6 @@ public class JobManagerOptions {
 	 * Total Flink Memory size for the JobManager.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<MemorySize> TOTAL_FLINK_MEMORY =
 		key("jobmanager.memory.flink.size")
 			.memoryType()
@@ -154,7 +154,6 @@ public class JobManagerOptions {
 	 * JVM Heap Memory size for the JobManager.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<MemorySize> JVM_HEAP_MEMORY =
 		key("jobmanager.memory.heap.size")
 			.memoryType()
@@ -166,20 +165,39 @@ public class JobManagerOptions {
 	 * Off-heap Memory size for the JobManager.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<MemorySize> OFF_HEAP_MEMORY =
 		key("jobmanager.memory.off-heap.size")
 			.memoryType()
 			.defaultValue(MemorySize.ofMebiBytes(128))
-			.withDescription("Off-heap Memory size for JobManager. The JVM direct memory limit of the Job Manager " +
-				"process (-XX:MaxDirectMemorySize) will be set to this value. This option covers all off-heap memory " +
-				"usage including direct and native memory allocation.");
+			.withDescription(Description
+				.builder()
+				.text(
+					"Off-heap Memory size for JobManager. This option covers all off-heap memory usage including " +
+						"direct and native memory allocation. The JVM direct memory limit of the JobManager process " +
+						"(-XX:MaxDirectMemorySize) will be set to this value if the limit is enabled by " +
+						"'jobmanager.memory.enable-jvm-direct-memory-limit'. ")
+				.build());
+
+	/**
+	 * Off-heap Memory size for the JobManager.
+	 */
+	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
+	public static final ConfigOption<Boolean> JVM_DIRECT_MEMORY_LIMIT_ENABLED =
+		key("jobmanager.memory.enable-jvm-direct-memory-limit")
+			.booleanType()
+			.defaultValue(false)
+			.withDescription(Description
+				.builder()
+				.text(
+					"Whether to enable the JVM direct memory limit of the JobManager process " +
+						"(-XX:MaxDirectMemorySize). The limit will be set to the value of '%s' option. ",
+					text(OFF_HEAP_MEMORY.key()))
+				.build());
 
 	/**
 	 * JVM Metaspace Size for the JobManager.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<MemorySize> JVM_METASPACE =
 		key("jobmanager.memory.jvm-metaspace.size")
 			.memoryType()
@@ -197,7 +215,6 @@ public class JobManagerOptions {
 	 * Min JVM Overhead size for the JobManager.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<MemorySize> JVM_OVERHEAD_MIN =
 		key("jobmanager.memory.jvm-overhead.min")
 			.memoryType()
@@ -208,7 +225,6 @@ public class JobManagerOptions {
 	 * Max JVM Overhead size for the TaskExecutors.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<MemorySize> JVM_OVERHEAD_MAX =
 		key("jobmanager.memory.jvm-overhead.max")
 			.memoryType()
@@ -219,7 +235,6 @@ public class JobManagerOptions {
 	 * Fraction of Total Process Memory to be reserved for JVM Overhead.
 	 */
 	@Documentation.Section(Documentation.Sections.COMMON_MEMORY)
-	@Documentation.ExcludeFromDocumentation("New JM memory model is still in development.")
 	public static final ConfigOption<Float> JVM_OVERHEAD_FRACTION =
 		key("jobmanager.memory.jvm-overhead.fraction")
 			.floatType()
@@ -238,17 +253,12 @@ public class JobManagerOptions {
 
 	/**
 	 * This option specifies the failover strategy, i.e. how the job computation recovers from task failures.
-	 *
-	 * <p>The option "individual" is intentionally not included for its known limitations.
-	 * It only works when all tasks are not connected, in which case the "region"
-	 * failover strategy would also restart failed tasks individually.
-	 * The new "region" strategy supersedes "individual" strategy and should always work.
 	 */
 	@Documentation.Section({Documentation.Sections.ALL_JOB_MANAGER, Documentation.Sections.EXPERT_FAULT_TOLERANCE})
-	@Documentation.OverrideDefault("region")
 	public static final ConfigOption<String> EXECUTION_FAILOVER_STRATEGY =
 		key("jobmanager.execution.failover-strategy")
-			.defaultValue("full")
+			.stringType()
+			.defaultValue("region")
 			.withDescription(Description.builder()
 				.text("This option specifies how the job computation recovers from task failures. " +
 					"Accepted values are:")
@@ -299,6 +309,19 @@ public class JobManagerOptions {
 			.withDescription("The max number of completed jobs that can be kept in the job store.");
 
 	/**
+	 * Flag indicating whether JobManager would retrieve canonical host name of TaskManager during registration.
+	 */
+	@Documentation.Section(Documentation.Sections.ALL_JOB_MANAGER)
+	public static final ConfigOption<Boolean> RETRIEVE_TASK_MANAGER_HOSTNAME =
+		key("jobmanager.retrieve-taskmanager-hostname")
+			.defaultValue(true)
+			.withDescription("Flag indicating whether JobManager would retrieve canonical "
+							+ "host name of TaskManager during registration. "
+							+ "If the option is set to \"false\", TaskManager registration with "
+							+ "JobManager could be faster, since no reverse DNS lookup is performed. "
+							+ "However, local input split assignment (such as for HDFS files) may be impacted.");
+
+	/**
 	 * The timeout in milliseconds for requesting a slot from Slot Pool.
 	 */
 	@Documentation.Section(Documentation.Sections.EXPERT_SCHEDULING)
@@ -316,6 +339,7 @@ public class JobManagerOptions {
 			// default matches heartbeat.timeout so that sticky allocation is not lost on timeouts for local recovery
 			.defaultValue(HeartbeatManagerOptions.HEARTBEAT_TIMEOUT.defaultValue())
 			.withDescription("The timeout in milliseconds for a idle slot in Slot Pool.");
+
 	/**
 	 * Config parameter determining the scheduler implementation.
 	 */
@@ -327,9 +351,25 @@ public class JobManagerOptions {
 			.withDescription(Description.builder()
 				.text("Determines which scheduler implementation is used to schedule tasks. Accepted values are:")
 				.list(
-					text("'legacy': legacy scheduler"),
 					text("'ng': new generation scheduler"))
 				.build());
+
+	/**
+	 * Config parameter determining the scheduling strategy.
+	 */
+	@Documentation.ExcludeFromDocumentation("User normally should not be expected to change this config.")
+	public static final ConfigOption<String> SCHEDULING_STRATEGY =
+		key("jobmanager.scheduler.scheduling-strategy")
+			.stringType()
+			.defaultValue("region")
+			.withDescription(Description.builder()
+				.text("Determines which scheduling strategy is used to schedule tasks. Accepted values are:")
+				.list(
+					text("'region': pipelined region scheduling"),
+					text("'legacy': legacy scheduling strategy, which is eager scheduling for streaming jobs " +
+						"and lazy from sources scheduling for batch jobs"))
+				.build());
+
 	/**
 	 * Config parameter controlling whether partitions should already be released during the job execution.
 	 */

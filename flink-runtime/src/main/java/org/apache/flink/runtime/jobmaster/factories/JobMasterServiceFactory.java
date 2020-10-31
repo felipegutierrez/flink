@@ -30,7 +30,6 @@ public interface JobMasterServiceFactory {
 	JobMasterService createJobMasterService(
 		JobGraph jobGraph,
 		OnCompletionActions jobCompletionActions,
-		ClassLoader userCodeClassloader) throws Exception;
-
-	String getRpcServiceAddress();
+		ClassLoader userCodeClassloader,
+		long initializationTimestamp) throws Exception;
 }

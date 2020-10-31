@@ -20,9 +20,7 @@ package org.apache.flink.runtime.jobmaster;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
-import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.concurrent.FutureUtils;
-import org.apache.flink.runtime.controller.PreAggregateControllerService;
 import org.apache.flink.runtime.execution.librarycache.LibraryCacheManager;
 import org.apache.flink.runtime.executiongraph.ArchivedExecutionGraph;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
@@ -38,10 +36,12 @@ import org.apache.flink.runtime.rpc.FatalErrorHandler;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkException;
 import org.apache.flink.util.function.FunctionUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -61,27 +61,19 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 
 	// ------------------------------------------------------------------------
 
-	/**
-	 * Lock to ensure that this runner can deal with leader election event and job completion notifies simultaneously.
-	 */
+	/** Lock to ensure that this runner can deal with leader election event and job completion notifies simultaneously. */
 	private final Object lock = new Object();
 
-	/**
-	 * The job graph needs to run.
-	 */
+	/** The job graph needs to run. */
 	private final JobGraph jobGraph;
 
-	/**
-	 * Used to check whether a job needs to be run.
-	 */
+	/** Used to check whether a job needs to be run. */
 	private final RunningJobsRegistry runningJobsRegistry;
 
-	/**
-	 * Leader election for this job.
-	 */
+	/** Leader election for this job. */
 	private final LeaderElectionService leaderElectionService;
 
-	private final LibraryCacheManager libraryCacheManager;
+	private final LibraryCacheManager.ClassLoaderLease classLoaderLease;
 
 	private final Executor executor;
 
@@ -92,12 +84,12 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	private final CompletableFuture<ArchivedExecutionGraph> resultFuture;
 
 	private final CompletableFuture<Void> terminationFuture;
-	private final PreAggregateControllerService preAggregateControllerService;
+
 	private CompletableFuture<Void> leadershipOperation;
-	/**
-	 * flag marking the runner as shut down.
-	 */
+
+	/** flag marking the runner as shut down. */
 	private volatile boolean shutdown;
+
 	private volatile CompletableFuture<JobMasterGateway> leaderGatewayFuture;
 
 	// ------------------------------------------------------------------------
@@ -113,57 +105,40 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 		final JobGraph jobGraph,
 		final JobMasterServiceFactory jobMasterFactory,
 		final HighAvailabilityServices haServices,
-		final LibraryCacheManager libraryCacheManager,
+		final LibraryCacheManager.ClassLoaderLease classLoaderLease,
 		final Executor executor,
-		final FatalErrorHandler fatalErrorHandler) throws Exception {
+		final FatalErrorHandler fatalErrorHandler,
+		long initializationTimestamp) throws Exception {
 
 		this.resultFuture = new CompletableFuture<>();
 		this.terminationFuture = new CompletableFuture<>();
 		this.leadershipOperation = CompletableFuture.completedFuture(null);
 
-		// make sure we cleanly shut down out JobManager services if initialization fails
+		this.jobGraph = checkNotNull(jobGraph);
+		this.classLoaderLease = checkNotNull(classLoaderLease);
+		this.executor = checkNotNull(executor);
+		this.fatalErrorHandler = checkNotNull(fatalErrorHandler);
+
+		checkArgument(jobGraph.getNumberOfVertices() > 0, "The given job is empty");
+
+		// libraries and class loader first
+		final ClassLoader userCodeLoader;
 		try {
-			this.jobGraph = checkNotNull(jobGraph);
-			this.libraryCacheManager = checkNotNull(libraryCacheManager);
-			this.executor = checkNotNull(executor);
-			this.fatalErrorHandler = checkNotNull(fatalErrorHandler);
-
-			checkArgument(jobGraph.getNumberOfVertices() > 0, "The given job is empty");
-
-			// libraries and class loader first
-			try {
-				libraryCacheManager.registerJob(
-					jobGraph.getJobID(), jobGraph.getUserJarBlobKeys(), jobGraph.getClasspaths());
-			} catch (IOException e) {
-				throw new Exception("Cannot set up the user code libraries: " + e.getMessage(), e);
-			}
-
-			final ClassLoader userCodeLoader = libraryCacheManager.getClassLoader(jobGraph.getJobID());
-			if (userCodeLoader == null) {
-				throw new Exception("The user code class loader could not be initialized.");
-			}
-
-			// high availability services next
-			this.runningJobsRegistry = haServices.getRunningJobsRegistry();
-			this.leaderElectionService = haServices.getJobManagerLeaderElectionService(jobGraph.getJobID());
-
-			this.leaderGatewayFuture = new CompletableFuture<>();
-
-			// now start the JobManager
-			this.jobMasterService = jobMasterFactory.createJobMasterService(jobGraph, this, userCodeLoader);
-
-			System.out.println("jobMasterFactory.address: " + jobMasterFactory.getRpcServiceAddress());
-			// System.out.println("jobMasterService.hostname: " + this.jobMasterService.getGateway().getHostname());
-
-			this.preAggregateControllerService = new PreAggregateControllerService(jobMasterFactory.getRpcServiceAddress());
-			this.preAggregateControllerService.connect();
-			this.preAggregateControllerService.start();
-		} catch (Throwable t) {
-			terminationFuture.completeExceptionally(t);
-			resultFuture.completeExceptionally(t);
-
-			throw new JobExecutionException(jobGraph.getJobID(), "Could not set up JobManager", t);
+			userCodeLoader = classLoaderLease.getOrResolveClassLoader(
+				jobGraph.getUserJarBlobKeys(),
+				jobGraph.getClasspaths()).asClassLoader();
+		} catch (IOException e) {
+			throw new Exception("Cannot set up the user code libraries: " + e.getMessage(), e);
 		}
+
+		// high availability services next
+		this.runningJobsRegistry = haServices.getRunningJobsRegistry();
+		this.leaderElectionService = haServices.getJobManagerLeaderElectionService(jobGraph.getJobID());
+
+		this.leaderGatewayFuture = new CompletableFuture<>();
+
+		// now start the JobManager
+		this.jobMasterService = jobMasterFactory.createJobMasterService(jobGraph, this, userCodeLoader, initializationTimestamp);
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -218,7 +193,7 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 							throwable = ExceptionUtils.firstOrSuppressed(t, ExceptionUtils.stripCompletionException(throwable));
 						}
 
-						libraryCacheManager.unregisterJob(jobGraph.getJobID());
+						classLoaderLease.release();
 
 						if (throwable != null) {
 							terminationFuture.completeExceptionally(
@@ -282,7 +257,8 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	private void unregisterJobFromHighAvailability() {
 		try {
 			runningJobsRegistry.setJobFinished(jobGraph.getJobID());
-		} catch (Throwable t) {
+		}
+		catch (Throwable t) {
 			log.error("Could not un-register from high-availability services job {} ({})." +
 					"Other JobManager's may attempt to recover it and re-execute it.",
 				jobGraph.getName(), jobGraph.getJobID(), t);
@@ -297,7 +273,7 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	public void grantLeadership(final UUID leaderSessionID) {
 		synchronized (lock) {
 			if (shutdown) {
-				log.info("JobManagerRunner already shutdown.");
+				log.debug("JobManagerRunner cannot be granted leadership because it is already shut down.");
 				return;
 			}
 
@@ -390,7 +366,7 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 	public void revokeLeadership() {
 		synchronized (lock) {
 			if (shutdown) {
-				log.info("JobManagerRunner already shutdown.");
+				log.debug("Ignoring revoking leadership because JobManagerRunner is already shut down.");
 				return;
 			}
 

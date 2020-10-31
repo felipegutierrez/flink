@@ -20,10 +20,8 @@ package org.apache.flink.table.planner.runtime.utils;
 
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.table.dataformat.SqlTimestamp;
-import org.apache.flink.table.functions.AggregateFunction;
+import org.apache.flink.table.annotation.DataTypeHint;
+import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.python.PythonEnv;
@@ -43,35 +41,6 @@ import static org.junit.Assert.fail;
 public class JavaUserDefinedScalarFunctions {
 
 	/**
-	 * Accumulator for test requiresOver.
-	 */
-	public static class AccumulatorOver extends Tuple2<Long, Integer> {}
-
-	/**
-	 * Test for requiresOver.
-	 */
-	public static class OverAgg0 extends AggregateFunction<Long, AccumulatorOver> {
-		@Override
-		public AccumulatorOver createAccumulator() {
-			return new AccumulatorOver();
-		}
-
-		@Override
-		public Long getValue(AccumulatorOver accumulator) {
-			return 1L;
-		}
-
-		//Overloaded accumulate method
-		public void accumulate(AccumulatorOver accumulator, long iValue, int iWeight) {
-		}
-
-		@Override
-		public boolean requiresOver() {
-			return true;
-		}
-	}
-
-	/**
 	 * Increment input.
 	 */
 	public static class JavaFunc0 extends ScalarFunction {
@@ -84,7 +53,7 @@ public class JavaUserDefinedScalarFunctions {
 	 * Concatenate inputs as strings.
 	 */
 	public static class JavaFunc1 extends ScalarFunction {
-		public String eval(Integer a, int b,  SqlTimestamp c) {
+		public String eval(Integer a, int b,  TimestampData c) {
 			Long ts = (c == null) ? null : c.getMillisecond();
 			return a + " and " + b + " and " + ts;
 		}
@@ -140,22 +109,19 @@ public class JavaUserDefinedScalarFunctions {
 			openCalled = true;
 		}
 
-		public Timestamp eval(SqlTimestamp sqlTimestamp, Integer offset) {
+		public @DataTypeHint("TIMESTAMP(3)") Timestamp eval(
+				@DataTypeHint("TIMESTAMP(3)") TimestampData timestampData,
+				Integer offset) {
 			if (!openCalled) {
 				fail("Open was not called before run.");
 			}
-			if (sqlTimestamp == null || offset == null) {
+			if (timestampData == null || offset == null) {
 				return null;
 			} else {
-				long ts = sqlTimestamp.getMillisecond() - offset;
+				long ts = timestampData.getMillisecond() - offset;
 				int tzOffset = TimeZone.getDefault().getOffset(ts);
 				return new Timestamp(ts - tzOffset);
 			}
-		}
-
-		@Override
-		public TypeInformation<?> getResultType(Class<?>[] signature) {
-			return Types.SQL_TIMESTAMP;
 		}
 
 		@Override

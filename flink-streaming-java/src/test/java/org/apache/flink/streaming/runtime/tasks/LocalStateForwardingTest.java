@@ -23,6 +23,7 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointMetrics;
+import org.apache.flink.runtime.checkpoint.CheckpointMetricsBuilder;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.checkpoint.StateObjectCollection;
 import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
@@ -95,7 +96,7 @@ public class LocalStateForwardingTest extends TestLogger {
 
 		StreamTask testStreamTask = new StreamTaskTest.NoOpStreamTask(streamMockEnvironment);
 		CheckpointMetaData checkpointMetaData = new CheckpointMetaData(0L, 0L);
-		CheckpointMetrics checkpointMetrics = new CheckpointMetrics();
+		CheckpointMetricsBuilder checkpointMetrics = new CheckpointMetricsBuilder();
 
 		Map<OperatorID, OperatorSnapshotFutures> snapshots = new HashMap<>(1);
 		OperatorSnapshotFutures osFuture = new OperatorSnapshotFutures();
@@ -116,10 +117,13 @@ public class LocalStateForwardingTest extends TestLogger {
 			checkpointMetrics,
 			0L,
 			testStreamTask.getName(),
-			testStreamTask.getCancelables(),
+			asyncCheckpointRunnable -> {},
+			asyncCheckpointRunnable -> {},
 			testStreamTask.getEnvironment(),
 			testStreamTask);
 
+		checkpointMetrics.setAlignmentDurationNanos(0L);
+		checkpointMetrics.setBytesProcessedDuringAlignment(0L);
 		checkpointRunnable.run();
 
 		TaskStateSnapshot lastJobManagerTaskStateSnapshot = taskStateManager.getLastJobManagerTaskStateSnapshot();

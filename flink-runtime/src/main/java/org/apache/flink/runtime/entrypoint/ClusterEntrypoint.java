@@ -26,6 +26,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ConfigurationUtils;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.configuration.HighAvailabilityOptions;
+import org.apache.flink.configuration.JMXServerOptions;
 import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.configuration.RestOptions;
 import org.apache.flink.configuration.WebOptions;
@@ -44,6 +45,7 @@ import org.apache.flink.runtime.entrypoint.parser.CommandLineParser;
 import org.apache.flink.runtime.heartbeat.HeartbeatServices;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServicesUtils;
+import org.apache.flink.runtime.management.JMXService;
 import org.apache.flink.runtime.metrics.MetricRegistryConfiguration;
 import org.apache.flink.runtime.metrics.MetricRegistryImpl;
 import org.apache.flink.runtime.metrics.ReporterSetup;
@@ -57,8 +59,8 @@ import org.apache.flink.runtime.rpc.akka.AkkaRpcServiceUtils;
 import org.apache.flink.runtime.security.SecurityConfiguration;
 import org.apache.flink.runtime.security.SecurityUtils;
 import org.apache.flink.runtime.security.contexts.SecurityContext;
+import org.apache.flink.runtime.util.ClusterEntrypointUtils;
 import org.apache.flink.runtime.util.ExecutorThreadFactory;
-import org.apache.flink.runtime.util.Hardware;
 import org.apache.flink.runtime.util.ZooKeeperUtils;
 import org.apache.flink.runtime.webmonitor.retriever.impl.RpcMetricQueryServiceRetriever;
 import org.apache.flink.util.AutoCloseableAsync;
@@ -89,6 +91,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.apache.flink.runtime.security.ExitTrappingSecurityManager.replaceGracefulExitWithHaltIfConfigured;
 
 /**
  * Base class for the Flink cluster entry points.
@@ -160,6 +164,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 		LOG.info("Starting {}.", getClass().getSimpleName());
 
 		try {
+			replaceGracefulExitWithHaltIfConfigured(configuration);
 			PluginManager pluginManager = PluginUtils.createPluginManagerFromRootFolder(configuration);
 			configureFileSystems(configuration, pluginManager);
 
@@ -256,12 +261,14 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 				configuration.getString(JobManagerOptions.BIND_HOST),
 				configuration.getOptional(JobManagerOptions.RPC_BIND_PORT));
 
+			JMXService.startInstance(configuration.getString(JMXServerOptions.JMX_SERVER_PORT));
+
 			// update the configuration used to create the high availability services
 			configuration.setString(JobManagerOptions.ADDRESS, commonRpcService.getAddress());
 			configuration.setInteger(JobManagerOptions.PORT, commonRpcService.getPort());
 
 			ioExecutor = Executors.newFixedThreadPool(
-				Hardware.getNumberCPUCores(),
+				ClusterEntrypointUtils.getPoolSize(configuration),
 				new ExecutorThreadFactory("cluster-io"));
 			haServices = createHaServices(configuration, ioExecutor);
 			blobServer = new BlobServer(configuration, haServices.createBlobStore());
@@ -269,7 +276,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 			heartbeatServices = createHeartbeatServices(configuration);
 			metricRegistry = createMetricRegistry(configuration, pluginManager);
 
-			final RpcService metricQueryServiceRpcService = MetricUtils.startMetricsRpcService(configuration, commonRpcService.getAddress());
+			final RpcService metricQueryServiceRpcService = MetricUtils.startRemoteMetricsRpcService(configuration, commonRpcService.getAddress());
 			metricRegistry.startQueryService(metricQueryServiceRpcService, null);
 
 			final String hostname = RpcUtils.getHostname(commonRpcService);
@@ -376,6 +383,12 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 				terminationFutures.add(commonRpcService.stopService());
 			}
 
+			try {
+				JMXService.stopInstance();
+			} catch (Throwable t) {
+				exception = ExceptionUtils.firstOrSuppressed(t, exception);
+			}
+
 			if (exception != null) {
 				terminationFutures.add(FutureUtils.completedExceptionally(exception));
 			}
@@ -386,6 +399,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
 	@Override
 	public void onFatalError(Throwable exception) {
+		ClusterEntryPointExceptionUtils.tryEnrichClusterEntryPointError(exception);
 		LOG.error("Fatal error occurred in the cluster entrypoint.", exception);
 
 		System.exit(RUNTIME_FAILURE_RETURN_CODE);

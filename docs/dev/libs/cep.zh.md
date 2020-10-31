@@ -35,7 +35,7 @@ FlinkCEP是在Flink上层实现的复杂事件处理库。
 
 ## 开始
 
-如果你想现在开始尝试，[创建一个Flink程序]({{ site.baseurl }}/zh/dev/projectsetup/dependencies.html)，
+如果你想现在开始尝试，[创建一个Flink程序]({{ site.baseurl }}/zh/dev/project-configuration.html)，
 添加FlinkCEP的依赖到项目的`pom.xml`文件中。
 
 <div class="codetabs" markdown="1">
@@ -60,7 +60,7 @@ FlinkCEP是在Flink上层实现的复杂事件处理库。
 </div>
 </div>
 
-{% info 提示 %} FlinkCEP不是二进制发布包的一部分。在集群上执行如何链接它可以看[这里]({{site.baseurl}}/zh/dev/projectsetup/dependencies.html)。
+{% info 提示 %} FlinkCEP不是二进制发布包的一部分。在集群上执行如何链接它可以看[这里]({{site.baseurl}}/zh/dev/project-configuration.html)。
 
 现在可以开始使用Pattern API写你的第一个CEP程序了。
 
@@ -1648,7 +1648,6 @@ public interface TimeContext {
 <div data-lang="java" markdown="1">
 {% highlight java %}
 StreamExecutionEnvironment env = ...
-env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
 DataStream<Event> input = ...
 
@@ -1686,7 +1685,6 @@ DataStream<Alert> alerts = patternStream.select(new PatternSelectFunction<Event,
 <div data-lang="scala" markdown="1">
 {% highlight scala %}
 val env : StreamExecutionEnvironment = ...
-env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
 val input : DataStream[Event] = ...
 

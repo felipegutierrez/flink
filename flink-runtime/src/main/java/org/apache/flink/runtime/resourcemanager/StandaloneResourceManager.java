@@ -21,7 +21,6 @@ package org.apache.flink.runtime.resourcemanager;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.runtime.clusterframework.ApplicationStatus;
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
-import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.entrypoint.ClusterInformation;
 import org.apache.flink.runtime.heartbeat.HeartbeatServices;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
@@ -35,8 +34,7 @@ import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -52,7 +50,6 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 
 	public StandaloneResourceManager(
 			RpcService rpcService,
-			String resourceManagerEndpointId,
 			ResourceID resourceId,
 			HighAvailabilityServices highAvailabilityServices,
 			HeartbeatServices heartbeatServices,
@@ -63,10 +60,10 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 			FatalErrorHandler fatalErrorHandler,
 			ResourceManagerMetricGroup resourceManagerMetricGroup,
 			Time startupPeriodTime,
-			Time rpcTimeout) {
+			Time rpcTimeout,
+			Executor ioExecutor) {
 		super(
 			rpcService,
-			resourceManagerEndpointId,
 			resourceId,
 			highAvailabilityServices,
 			heartbeatServices,
@@ -76,7 +73,8 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 			clusterInformation,
 			fatalErrorHandler,
 			resourceManagerMetricGroup,
-			rpcTimeout);
+			rpcTimeout,
+			ioExecutor);
 		this.startupPeriodTime = Preconditions.checkNotNull(startupPeriodTime);
 	}
 
@@ -86,12 +84,17 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 	}
 
 	@Override
+	protected void terminate() {
+		// noop
+	}
+
+	@Override
 	protected void internalDeregisterApplication(ApplicationStatus finalStatus, @Nullable String diagnostics) {
 	}
 
 	@Override
-	public Collection<ResourceProfile> startNewWorker(ResourceProfile resourceProfile) {
-		return Collections.emptyList();
+	public boolean startNewWorker(WorkerResourceSpec workerResourceSpec) {
+		return false;
 	}
 
 	@Override
@@ -106,8 +109,7 @@ public class StandaloneResourceManager extends ResourceManager<ResourceID> {
 	}
 
 	@Override
-	protected void startServicesOnLeadership() {
-		super.startServicesOnLeadership();
+	protected void onLeadership() {
 		startStartupPeriod();
 	}
 

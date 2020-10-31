@@ -54,8 +54,9 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
 	/** Current checkpoint state size over all collected subtasks. */
 	private volatile long currentStateSize;
 
-	/** Current buffered bytes during alignment over all collected subtasks. */
-	private volatile long currentAlignmentBuffered;
+	private volatile long currentProcessedData;
+
+	private volatile long currentPersistedData;
 
 	/** Stats of the latest acknowledged subtask. */
 	private volatile SubtaskStateStats latestAcknowledgedSubtask;
@@ -98,8 +99,13 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
 	}
 
 	@Override
-	public long getAlignmentBuffered() {
-		return currentAlignmentBuffered;
+	public long getProcessedData() {
+		return currentProcessedData;
+	}
+
+	@Override
+	public long getPersistedData() {
+		return currentPersistedData;
 	}
 
 	@Override
@@ -127,11 +133,15 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
 
 			currentStateSize += subtask.getStateSize();
 
-			long alignmentBuffered = subtask.getAlignmentBuffered();
-			if (alignmentBuffered > 0) {
-				currentAlignmentBuffered += alignmentBuffered;
+			long processedData = subtask.getProcessedData();
+			if (processedData > 0) {
+				currentProcessedData += processedData;
 			}
 
+			long persistedData = subtask.getPersistedData();
+			if (persistedData > 0) {
+				currentPersistedData += persistedData;
+			}
 			return true;
 		} else {
 			return false;
@@ -153,9 +163,10 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
 			new HashMap<>(taskStats),
 			currentNumAcknowledgedSubtasks,
 			currentStateSize,
-			currentAlignmentBuffered,
+			currentProcessedData,
+			currentPersistedData,
 			latestAcknowledgedSubtask,
-				externalPointer);
+			externalPointer);
 
 		trackerCallback.reportCompletedCheckpoint(completed);
 
@@ -177,7 +188,8 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
 			new HashMap<>(taskStats),
 			currentNumAcknowledgedSubtasks,
 			currentStateSize,
-			currentAlignmentBuffered,
+			currentProcessedData,
+			currentPersistedData,
 			failureTimestamp,
 			latestAcknowledgedSubtask,
 			cause);

@@ -18,8 +18,10 @@
 
 package org.apache.flink.orc.vector;
 
+import org.apache.flink.orc.TimestampUtil;
 import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
@@ -27,14 +29,11 @@ import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DecimalColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
-import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
-import java.sql.Timestamp;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 import static org.apache.flink.table.runtime.functions.SqlDateTimeUtils.dateToInternal;
 
@@ -42,7 +41,7 @@ import static org.apache.flink.table.runtime.functions.SqlDateTimeUtils.dateToIn
  * This column vector is used to adapt hive's ColumnVector to Flink's ColumnVector.
  */
 public abstract class AbstractOrcColumnVector implements
-		org.apache.flink.table.dataformat.vector.ColumnVector {
+		org.apache.flink.table.data.vector.ColumnVector {
 
 	private ColumnVector vector;
 
@@ -55,18 +54,22 @@ public abstract class AbstractOrcColumnVector implements
 		return !vector.noNulls && vector.isNull[vector.isRepeating ? 0 : i];
 	}
 
-	public static org.apache.flink.table.dataformat.vector.ColumnVector createFlinkVector(
-			ColumnVector vector) {
+	public static org.apache.flink.table.data.vector.ColumnVector createFlinkVector(
+			ColumnVector vector, LogicalType logicalType) {
 		if (vector instanceof LongColumnVector) {
-			return new OrcLongColumnVector((LongColumnVector) vector);
+			if (logicalType.getTypeRoot() == LogicalTypeRoot.TIMESTAMP_WITHOUT_TIME_ZONE) {
+				return new OrcLegacyTimestampColumnVector((LongColumnVector) vector);
+			} else {
+				return new OrcLongColumnVector((LongColumnVector) vector);
+			}
 		} else if (vector instanceof DoubleColumnVector) {
 			return new OrcDoubleColumnVector((DoubleColumnVector) vector);
 		} else if (vector instanceof BytesColumnVector) {
 			return new OrcBytesColumnVector((BytesColumnVector) vector);
 		} else if (vector instanceof DecimalColumnVector) {
 			return new OrcDecimalColumnVector((DecimalColumnVector) vector);
-		} else if (vector instanceof TimestampColumnVector) {
-			return new OrcTimestampColumnVector((TimestampColumnVector) vector);
+		} else if (TimestampUtil.isHiveTimestampColumnVector(vector)) {
+			return new OrcTimestampColumnVector(vector);
 		} else {
 			throw new UnsupportedOperationException("Unsupport vector: " + vector.getClass().getName());
 		}
@@ -75,9 +78,9 @@ public abstract class AbstractOrcColumnVector implements
 	/**
 	 * Create flink vector by hive vector from constant.
 	 */
-	public static org.apache.flink.table.dataformat.vector.ColumnVector createFlinkVectorFromConstant(
+	public static org.apache.flink.table.data.vector.ColumnVector createFlinkVectorFromConstant(
 			LogicalType type, Object value, int batchSize) {
-		return createFlinkVector(createHiveVectorFromConstant(type, value, batchSize));
+		return createFlinkVector(createHiveVectorFromConstant(type, value, batchSize), type);
 	}
 
 	/**
@@ -112,7 +115,7 @@ public abstract class AbstractOrcColumnVector implements
 				}
 				return createLongVector(batchSize, dateToInternal((Date) value));
 			case TIMESTAMP_WITHOUT_TIME_ZONE:
-				return createTimestampVector(batchSize, value);
+				return TimestampUtil.createVectorFromConstant(batchSize, value);
 			default:
 				throw new UnsupportedOperationException("Unsupported type: " + type);
 		}
@@ -175,20 +178,5 @@ public abstract class AbstractOrcColumnVector implements
 			dcv.isNull[0] = false;
 		}
 		return dcv;
-	}
-
-	private static TimestampColumnVector createTimestampVector(int batchSize, Object value) {
-		TimestampColumnVector lcv = new TimestampColumnVector(batchSize);
-		if (value == null) {
-			lcv.noNulls = false;
-			lcv.isNull[0] = true;
-			lcv.isRepeating = true;
-		} else {
-			Timestamp timestamp = value instanceof LocalDateTime ?
-				Timestamp.valueOf((LocalDateTime) value) : (Timestamp) value;
-			lcv.fill(timestamp);
-			lcv.isNull[0] = false;
-		}
-		return lcv;
 	}
 }
