@@ -34,6 +34,7 @@ import org.apache.flink.api.common.functions.JoinFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.MapPartitionFunction;
 import org.apache.flink.api.common.functions.Partitioner;
+import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -2041,5 +2042,23 @@ public class TypeExtractor {
 			// class not present at all, so cannot be that type info
 			// ignore
 		}
+	}
+
+	/**
+	 * Combine and AdCom
+	 */
+	@PublicEvolving
+	public static <IN, OUT> TypeInformation<OUT> getPreAggregateReturnTypes(
+		PreAggregateFunction<?, ?, IN, OUT> preAggregateInterface, TypeInformation<IN> inType,
+		String functionName, boolean allowMissing) {
+		return getUnaryOperatorReturnType(
+			(Function) preAggregateInterface,
+			PreAggregateFunction.class,
+			2,
+			3,
+			new int[]{1, 0},
+			inType,
+			functionName,
+			allowMissing);
 	}
 }

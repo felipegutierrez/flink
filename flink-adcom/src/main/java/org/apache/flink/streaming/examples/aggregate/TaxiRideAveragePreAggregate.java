@@ -10,6 +10,8 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.tuple.Tuple5;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.examples.aggregate.util.*;
 import org.apache.flink.util.Collector;
@@ -77,7 +79,6 @@ public class TaxiRideAveragePreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		/*
 		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 
 		if (!enableCombiner) {
@@ -103,15 +104,15 @@ public class TaxiRideAveragePreAggregate {
 
 			// static and autonomous combiner
 			DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = null;
-			if (enableController == false && preAggregationWindowTimer > 0) {
-				// static combiner based on timeout
-				PreAggregateConcurrentFunction<Integer,
+			if (enableController == false && preAggregationWindowCount > 0) {
+				// static combiner based on number of records
+				PreAggregateFunction<Integer,
 					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
 					Tuple4<Integer, Double, Double, Double>,
-					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateConcurrentFunction();
+					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
 
 				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateFunction, preAggregationWindowTimer)
+					.combine(taxiRidePreAggregateFunction, preAggregationWindowCount)
 					.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 			} else {
 				PreAggregateFunction<Integer,
@@ -120,7 +121,7 @@ public class TaxiRideAveragePreAggregate {
 					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
 
 				preAggregatedStream = tuples
-					.combiner(taxiRidePreAggregateFunction, preAggregationWindowCount, enableController)
+					.adCombine(taxiRidePreAggregateFunction)
 					.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 			}
 
@@ -142,8 +143,6 @@ public class TaxiRideAveragePreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideAveragePreAggregate.class.getSimpleName());
-
-		 */
 	}
 
 	// *************************************************************************

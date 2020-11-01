@@ -29,6 +29,7 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.Partitioner;
+import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.RichFilterFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -57,6 +58,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
@@ -69,6 +71,7 @@ import org.apache.flink.streaming.api.operators.StreamFilter;
 import org.apache.flink.streaming.api.operators.StreamFlatMap;
 import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
+import org.apache.flink.streaming.api.operators.StreamPreAggregateOperator;
 import org.apache.flink.streaming.api.operators.StreamSink;
 import org.apache.flink.streaming.api.operators.collect.ClientAndIterator;
 import org.apache.flink.streaming.api.operators.collect.CollectResultIterator;
@@ -1394,4 +1397,35 @@ public class DataStream<T> {
 	public Transformation<T> getTransformation() {
 		return transformation;
 	}
+
+	/**
+	 * Combine and AdCom
+	 */
+	private <R> SingleOutputStreamOperator<R> combine(
+		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+		int preAggWindowCount, boolean enableController) {
+		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+			clean(preAggregateFunction),
+			getType(),
+			Utils.getCallLocationName(),
+			false);
+		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount);
+		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+
+		return doTransform("PreAggregate", outType,
+			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
+				keySelector, false)));
+	}
+
+	public <R> SingleOutputStreamOperator<R> combine(
+		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+		int preAggWindowCount) {
+		return combine(preAggregateFunction, preAggWindowCount, false);
+	}
+
+	public <R> SingleOutputStreamOperator<R> adCombine(
+		PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
+		return combine(preAggregateFunction, 1, true);
+	}
+
 }
