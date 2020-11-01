@@ -2,7 +2,6 @@ package org.apache.flink.streaming.examples.aggregate.util;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
-import org.apache.flink.streaming.examples.utils.DataRateListener;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

@@ -2,12 +2,10 @@ package org.apache.flink.streaming.examples.aggregate;
 
 //import io.airlift.tpch.LineItem;
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
 //import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
-import org.apache.flink.streaming.examples.utils.DataRateListener;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 

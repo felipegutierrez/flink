@@ -1,4 +1,4 @@
-package org.apache.flink.streaming.examples.utils;
+package org.apache.flink.streaming.examples.aggregate.util;
 
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;

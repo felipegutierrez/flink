@@ -1,4 +1,4 @@
-package org.apache.flink.streaming.examples.utils;
+package org.apache.flink.streaming.examples.aggregate.util;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
