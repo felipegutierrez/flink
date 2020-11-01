@@ -1414,7 +1414,7 @@ public class DataStream<T> {
 
 		return doTransform("PreAggregate", outType,
 			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
-				keySelector, false)));
+				keySelector, enableController)));
 	}
 
 	public <R> SingleOutputStreamOperator<R> combine(
