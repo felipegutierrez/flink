@@ -1,7 +1,8 @@
-package org.apache.flink.streaming.examples.aggregate.util;
+package org.apache.flink.streaming.examples.aggregate.udfs;
 
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.flink.streaming.examples.aggregate.WordCountPreAggregateData;
 
 import java.util.Arrays;
 import java.util.Calendar;

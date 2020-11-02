@@ -1,4 +1,4 @@
-package org.apache.flink.streaming.examples.aggregate.util;
+package org.apache.flink.streaming.examples.aggregate.udfs;
 
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 import org.fusesource.mqtt.client.*;

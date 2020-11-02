@@ -1,4 +1,4 @@
-package org.apache.flink.streaming.examples.aggregate.util;
+package org.apache.flink.streaming.examples.aggregate.udfs;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;

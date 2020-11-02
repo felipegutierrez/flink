@@ -34,7 +34,18 @@ public class DataRateListener extends Thread implements Serializable {
 		System.out.println(DataRateListener.class.getSimpleName() + " class to read data rate from file [" + DATA_RATE_FILE + "] in milliseconds.");
 		System.out.println("This listener reads every 60 seconds only the first line from the data rate file.");
 		System.out.println("Use the following command to change the millisecond data rate:");
-		System.out.println("echo \"10\" > /home/flink/tmp/datarate.txt");
+		System.out.println("echo '1000000000' > /tmp/datarate.txt    # 1    rec/sec");
+		System.out.println("echo '1000000' > /tmp/datarate.txt       # 1K   rec/sec");
+		System.out.println("echo '200000' > /tmp/datarate.txt        # 5K   rec/sec");
+		System.out.println("echo '100000' > /tmp/datarate.txt        # 10K  rec/sec");
+		System.out.println("echo '66666' > /tmp/datarate.txt         # 15K  rec/sec");
+		System.out.println("echo '50000' > /tmp/datarate.txt         # 20K  rec/sec");
+		System.out.println("echo '20000' > /tmp/datarate.txt         # 50K  rec/sec");
+		System.out.println("echo '10000' > /tmp/datarate.txt         # 100K rec/sec");
+		System.out.println("echo '5000' > /tmp/datarate.txt          # 200K rec/sec");
+		System.out.println("echo '2000' > /tmp/datarate.txt          # 500K rec/sec");
+		System.out.println("echo '1000' > /tmp/datarate.txt          # 1M   rec/sec");
+		System.out.println("echo '500' > /tmp/datarate.txt           # 2M   rec/sec");
 		System.out.println();
 	}
 

@@ -13,15 +13,42 @@ import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.util.*;
+import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
+import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
+import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
+import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
+import org.apache.flink.streaming.examples.aggregate.util.TaxiRideDistanceCalculator;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
 import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
+
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.COMBINER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.CONTROLLER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.DISABLE_OPERATOR_CHAINING;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_PRE_AGGREGATE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_REDUCER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PARALLELISM_GROUP_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW_TIMEOUT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_HOST;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_PORT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_SPLIT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
 
 public class TaxiRideAveragePreAggregate {
 	public static void main(String[] args) throws Exception {
@@ -33,7 +60,9 @@ public class TaxiRideAveragePreAggregate {
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
 		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
-		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
+		int parallelisGroup02 = params.getInt(
+			PARALLELISM_GROUP_02,
+			ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableCombiner = params.getBoolean(COMBINER, true);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
@@ -43,19 +72,33 @@ public class TaxiRideAveragePreAggregate {
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
 		System.out.println("data source                                             : " + input);
 		System.out.println("data sink                                               : " + output);
-		System.out.println("data sink host:port                                     : " + sinkHost + ":" + sinkPort);
-		System.out.println("data sink topic                                         : " + TOPIC_DATA_SINK);
-		System.out.println("Feedback loop Controller                                : " + enableController);
-		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
-		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
-		System.out.println("Enable combiner                                         : " + enableCombiner);
-		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
-		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
-		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
+		System.out.println(
+			"data sink host:port                                     : " + sinkHost + ":"
+				+ sinkPort);
+		System.out.println(
+			"data sink topic                                         : " + TOPIC_DATA_SINK);
+		System.out.println(
+			"Feedback loop Controller                                : " + enableController);
+		System.out.println(
+			"Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
+		System.out.println(
+			"Disable operator chaining                               : " + disableOperatorChaining);
+		System.out.println(
+			"Enable combiner                                         : " + enableCombiner);
+		System.out.println("pre-aggregate window [count]                            : "
+			+ preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : "
+			+ preAggregationWindowTimer);
+		System.out.println(
+			"Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
-		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
-		System.out.println(DataRateListener.class.getSimpleName() + " class to read data rate from file [" + DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
-		System.out.println("This listener reads every 60 seconds only the first line from the data rate file.");
+		System.out.println(
+			"mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
+		System.out.println(
+			DataRateListener.class.getSimpleName() + " class to read data rate from file ["
+				+ DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
+		System.out.println(
+			"This listener reads every 60 seconds only the first line from the data rate file.");
 		System.out.println("Use the following command to change the nanoseconds data rate:");
 		System.out.println("1000000 nanoseconds = 1 millisecond");
 		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
@@ -79,32 +122,78 @@ public class TaxiRideAveragePreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		DataStream<TaxiRide> rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<TaxiRide> rides = env
+			.addSource(new TaxiRideSource(input))
+			.name(OPERATOR_SOURCE)
+			.uid(OPERATOR_SOURCE)
+			.slotSharingGroup(slotGroup01);
 
 		if (!enableCombiner) {
-			DataStream<Tuple5<Integer, Double, Double, Double, Long>> tuples = rides.map(new TokenizerNoCombinerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+			DataStream<Tuple5<Integer, Double, Double, Double, Long>> tuples = rides
+				.map(new TokenizerNoCombinerMap())
+				.name(OPERATOR_TOKENIZER)
+				.uid(OPERATOR_TOKENIZER)
+				.slotSharingGroup(slotGroup01);
 
 			// no combiner
-			KeyedStream<Tuple5<Integer, Double, Double, Double, Long>, Integer> keyedStream = tuples.keyBy(new RandomDriverNoCombinerKeySelector());
+			KeyedStream<Tuple5<Integer, Double, Double, Double, Long>, Integer> keyedStream = tuples
+				.keyBy(new RandomDriverNoCombinerKeySelector());
 
 			DataStream<Tuple5<Integer, Double, Double, Double, Long>> averagePassengers = keyedStream
-				.reduce(new SumPassengersNoCombinerReducer()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+				.reduce(new SumPassengersNoCombinerReducer())
+				.name(OPERATOR_REDUCER)
+				.uid(OPERATOR_REDUCER)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02);
 
 			if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 				averagePassengers
-					.map(new FlatOutputAverageNoCombinerMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-					.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+					.map(new FlatOutputAverageNoCombinerMap())
+					.name(OPERATOR_FLAT_OUTPUT)
+					.uid(OPERATOR_FLAT_OUTPUT)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02)
+					.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort))
+					.name(OPERATOR_SINK)
+					.uid(OPERATOR_SINK)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02);
 			} else {
 				averagePassengers
-					.map(new FlatOutputAverageNoCombinerMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-					.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+					.map(new FlatOutputAverageNoCombinerMap())
+					.name(OPERATOR_FLAT_OUTPUT)
+					.uid(OPERATOR_FLAT_OUTPUT)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02)
+					.print()
+					.name(OPERATOR_SINK)
+					.uid(OPERATOR_SINK)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02);
 			}
 		} else {
-			DataStream<Tuple4<Integer, Double, Double, Double>> tuples = rides.map(new TokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+			DataStream<Tuple4<Integer, Double, Double, Double>> tuples = rides
+				.map(new TokenizerMap())
+				.name(OPERATOR_TOKENIZER)
+				.uid(OPERATOR_TOKENIZER)
+				.slotSharingGroup(slotGroup01);
 
 			// static and autonomous combiner
 			DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> preAggregatedStream = null;
-			if (enableController == false && preAggregationWindowCount > 0) {
+			if (enableController == false && preAggregationWindowTimer > 0) {
+				// static combiner based on timeout
+				PreAggregateFunction<Integer,
+					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
+					Tuple4<Integer, Double, Double, Double>,
+					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
+
+				preAggregatedStream = tuples
+					.combine(taxiRidePreAggregateFunction, preAggregationWindowTimer)
+					.disableChaining()
+					.name(OPERATOR_PRE_AGGREGATE)
+					.uid(OPERATOR_PRE_AGGREGATE)
+					.slotSharingGroup(slotGroup01);
+			} else if (enableController == false && preAggregationWindowCount > 0) {
 				// static combiner based on number of records
 				PreAggregateFunction<Integer,
 					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
@@ -113,31 +202,55 @@ public class TaxiRideAveragePreAggregate {
 
 				preAggregatedStream = tuples
 					.combine(taxiRidePreAggregateFunction, preAggregationWindowCount)
-					.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+					.disableChaining()
+					.name(OPERATOR_PRE_AGGREGATE)
+					.uid(OPERATOR_PRE_AGGREGATE)
+					.slotSharingGroup(slotGroup01);
 			} else {
-				PreAggregateFunction<Integer,
-					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
-					Tuple4<Integer, Double, Double, Double>,
-					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
-
-				preAggregatedStream = tuples
-					.adCombine(taxiRidePreAggregateFunction)
-					.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+//				PreAggregateFunction<Integer,
+//					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
+//					Tuple4<Integer, Double, Double, Double>,
+//					Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> taxiRidePreAggregateFunction = new TaxiRideSumPreAggregateFunction();
+//
+//				preAggregatedStream = tuples
+//					.adCombine(taxiRidePreAggregateFunction)
+//					.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 			}
 
-			KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream.keyBy(new RandomDriverCombinerKeySelector());
+			KeyedStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, Integer> keyedByRandomDriver = preAggregatedStream
+				.keyBy(new RandomDriverCombinerKeySelector());
 
-			DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> averagePassengers = keyedByRandomDriver.reduce(new AveragePassengersReducer())
-				.name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+			DataStream<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> averagePassengers = keyedByRandomDriver
+				.reduce(new AveragePassengersReducer())
+				.name(OPERATOR_REDUCER)
+				.uid(OPERATOR_REDUCER)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02);
 
 			if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 				averagePassengers
-					.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-					.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+					.map(new FlatOutputMap())
+					.name(OPERATOR_FLAT_OUTPUT)
+					.uid(OPERATOR_FLAT_OUTPUT)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02)
+					.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort))
+					.name(OPERATOR_SINK)
+					.uid(OPERATOR_SINK)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02);
 			} else {
 				averagePassengers
-					.map(new FlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-					.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+					.map(new FlatOutputMap())
+					.name(OPERATOR_FLAT_OUTPUT)
+					.uid(OPERATOR_FLAT_OUTPUT)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02)
+					.print()
+					.name(OPERATOR_SINK)
+					.uid(OPERATOR_SINK)
+					.slotSharingGroup(slotGroup02)
+					.setParallelism(parallelisGroup02);
 			}
 		}
 
@@ -164,7 +277,12 @@ public class TaxiRideAveragePreAggregate {
 			int low = 0;
 			int high = 10;
 			Integer randomKey = random.nextInt(high - low) + low;
-			Double distance = TaxiRideDistanceCalculator.distance(ride.startLat, ride.startLon, ride.endLat, ride.endLon, "K");
+			Double distance = TaxiRideDistanceCalculator.distance(
+				ride.startLat,
+				ride.startLon,
+				ride.endLat,
+				ride.endLon,
+				"K");
 
 			// elapsed time taxi ride
 //			long elapsedTimeMilliSec = ride.endTime.getMillis() - ride.startTime.getMillis();
@@ -191,7 +309,12 @@ public class TaxiRideAveragePreAggregate {
 			int low = 0;
 			int high = 10;
 			Integer randomKey = random.nextInt(high - low) + low;
-			Double distance = TaxiRideDistanceCalculator.distance(ride.startLat, ride.startLon, ride.endLat, ride.endLon, "K");
+			Double distance = TaxiRideDistanceCalculator.distance(
+				ride.startLat,
+				ride.startLon,
+				ride.endLat,
+				ride.endLon,
+				"K");
 
 			// elapsed time taxi ride
 			// long elapsedTimeMilliSec = ride.endTime.getMillis() - ride.startTime.getMillis();
@@ -216,30 +339,41 @@ public class TaxiRideAveragePreAggregate {
 		Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> {
 
 		@Override
-		public Tuple2<Integer, Tuple4<Double, Double, Double, Long>> addInput(@Nullable Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value, Tuple4<Integer, Double, Double, Double> input) throws Exception {
+		public Tuple2<Integer, Tuple4<Double, Double, Double, Long>> addInput(
+			@Nullable Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value,
+			Tuple4<Integer, Double, Double, Double> input) throws Exception {
 			Integer randomKey = input.f0;
 			if (value == null) {
 				Double passengers = input.f1;
 				Double distances = input.f2;
 				Double elapsedTimeMinutes = input.f3;
-				return Tuple2.of(randomKey, Tuple4.of(passengers, distances, elapsedTimeMinutes, 1L));
+				return Tuple2.of(
+					randomKey,
+					Tuple4.of(passengers, distances, elapsedTimeMinutes, 1L));
 			} else {
 				Double passengers = input.f1 + value.f1.f0;
 				Double distances = input.f2 + value.f1.f1;
 				Double elapsedTimeMinutes = input.f3 + value.f1.f2;
 				Long count = value.f1.f3 + 1;
-				return Tuple2.of(randomKey, Tuple4.of(passengers, distances, elapsedTimeMinutes, count));
+				return Tuple2.of(
+					randomKey,
+					Tuple4.of(passengers, distances, elapsedTimeMinutes, count));
 			}
 		}
 
 		@Override
-		public void collect(Map<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> buffer, Collector<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> out) throws Exception {
-			for (Map.Entry<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> entry : buffer.entrySet()) {
+		public void collect(
+			Map<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> buffer,
+			Collector<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> out) throws Exception {
+			for (Map.Entry<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> entry : buffer
+				.entrySet()) {
 				Double passengers = entry.getValue().f1.f0;
 				Double distances = entry.getValue().f1.f1;
 				Double elapsedTimeMinutes = entry.getValue().f1.f2;
 				Long driverIdCount = entry.getValue().f1.f3;
-				out.collect(Tuple2.of(entry.getKey(), Tuple4.of(passengers, distances, elapsedTimeMinutes, driverIdCount)));
+				out.collect(Tuple2.of(
+					entry.getKey(),
+					Tuple4.of(passengers, distances, elapsedTimeMinutes, driverIdCount)));
 			}
 		}
 	}
@@ -251,30 +385,41 @@ public class TaxiRideAveragePreAggregate {
 		Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> {
 
 		@Override
-		public Tuple2<Integer, Tuple4<Double, Double, Double, Long>> addInput(@Nullable Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value, Tuple4<Integer, Double, Double, Double> input) throws Exception {
+		public Tuple2<Integer, Tuple4<Double, Double, Double, Long>> addInput(
+			@Nullable Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value,
+			Tuple4<Integer, Double, Double, Double> input) throws Exception {
 			Integer randomKey = input.f0;
 			if (value == null) {
 				Double passengers = input.f1;
 				Double distances = input.f2;
 				Double elapsedTimeMinutes = input.f3;
-				return Tuple2.of(randomKey, Tuple4.of(passengers, distances, elapsedTimeMinutes, 1L));
+				return Tuple2.of(
+					randomKey,
+					Tuple4.of(passengers, distances, elapsedTimeMinutes, 1L));
 			} else {
 				Double passengers = input.f1 + value.f1.f0;
 				Double distances = input.f2 + value.f1.f1;
 				Double elapsedTimeMinutes = input.f3 + value.f1.f2;
 				Long count = value.f1.f3 + 1;
-				return Tuple2.of(randomKey, Tuple4.of(passengers, distances, elapsedTimeMinutes, count));
+				return Tuple2.of(
+					randomKey,
+					Tuple4.of(passengers, distances, elapsedTimeMinutes, count));
 			}
 		}
 
 		@Override
-		public void collect(ConcurrentMap<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> buffer, Collector<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> out) throws Exception {
-			for (Map.Entry<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> entry : buffer.entrySet()) {
+		public void collect(
+			ConcurrentMap<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> buffer,
+			Collector<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> out) throws Exception {
+			for (Map.Entry<Integer, Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> entry : buffer
+				.entrySet()) {
 				Double passengers = entry.getValue().f1.f0;
 				Double distances = entry.getValue().f1.f1;
 				Double elapsedTimeMinutes = entry.getValue().f1.f2;
 				Long driverIdCount = entry.getValue().f1.f3;
-				out.collect(Tuple2.of(entry.getKey(), Tuple4.of(passengers, distances, elapsedTimeMinutes, driverIdCount)));
+				out.collect(Tuple2.of(
+					entry.getKey(),
+					Tuple4.of(passengers, distances, elapsedTimeMinutes, driverIdCount)));
 			}
 		}
 	}
@@ -296,8 +441,9 @@ public class TaxiRideAveragePreAggregate {
 
 	private static class AveragePassengersReducer implements ReduceFunction<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>> {
 		@Override
-		public Tuple2<Integer, Tuple4<Double, Double, Double, Long>> reduce(Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value1,
-																			Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value2) throws Exception {
+		public Tuple2<Integer, Tuple4<Double, Double, Double, Long>> reduce(
+			Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value1,
+			Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value2) throws Exception {
 			Integer randomKey = value1.f0;
 			Long driverIdCount = value1.f1.f3 + value2.f1.f3;
 
@@ -311,8 +457,9 @@ public class TaxiRideAveragePreAggregate {
 
 	private static class SumPassengersNoCombinerReducer implements ReduceFunction<Tuple5<Integer, Double, Double, Double, Long>> {
 		@Override
-		public Tuple5<Integer, Double, Double, Double, Long> reduce(Tuple5<Integer, Double, Double, Double, Long> value1,
-																	Tuple5<Integer, Double, Double, Double, Long> value2) throws Exception {
+		public Tuple5<Integer, Double, Double, Double, Long> reduce(
+			Tuple5<Integer, Double, Double, Double, Long> value1,
+			Tuple5<Integer, Double, Double, Double, Long> value2) throws Exception {
 			Integer randomKey = value1.f0;
 			Long driverIdCount = value1.f4 + value2.f4;
 			Double passengers = (value1.f1 + value2.f1);
@@ -325,7 +472,8 @@ public class TaxiRideAveragePreAggregate {
 	private static class FlatOutputMap implements MapFunction<Tuple2<Integer, Tuple4<Double, Double, Double, Long>>, String> {
 		@Override
 		public String map(Tuple2<Integer, Tuple4<Double, Double, Double, Long>> value) {
-			return "Average values: passengers[" + value.f1.f0 + "] distance(Km)[" + value.f1.f1 + "] minutes[" + value.f1.f2 + "]";
+			return "Average values: passengers[" + value.f1.f0 + "] distance(Km)[" + value.f1.f1
+				+ "] minutes[" + value.f1.f2 + "]";
 		}
 	}
 
@@ -336,7 +484,8 @@ public class TaxiRideAveragePreAggregate {
 			Double passengersAvg = value.f1 / taxiRideSum;
 			Double distanceAvg = value.f2 / taxiRideSum;
 			Double tripTimeAvg = value.f3 / taxiRideSum;
-			return "Average values: passengers[" + passengersAvg + "] distance(Km)[" + distanceAvg + "] minutes[" + tripTimeAvg + "]";
+			return "Average values: passengers[" + passengersAvg + "] distance(Km)[" + distanceAvg
+				+ "] minutes[" + tripTimeAvg + "]";
 		}
 	}
 }

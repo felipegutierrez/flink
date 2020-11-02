@@ -58,20 +58,19 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.aggregation.PreAggregateTriggerFunction;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SocketClientSink;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
+import org.apache.flink.streaming.api.operators.PreAggregateProcTimeStreamOperator;
 import org.apache.flink.streaming.api.operators.ProcessOperator;
 import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamFilter;
 import org.apache.flink.streaming.api.operators.StreamFlatMap;
 import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
-import org.apache.flink.streaming.api.operators.StreamPreAggregateOperator;
 import org.apache.flink.streaming.api.operators.StreamSink;
 import org.apache.flink.streaming.api.operators.collect.ClientAndIterator;
 import org.apache.flink.streaming.api.operators.collect.CollectResultIterator;
@@ -1401,31 +1400,52 @@ public class DataStream<T> {
 	/**
 	 * Combine and AdCom
 	 */
-	private <R> SingleOutputStreamOperator<R> combine(
-		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-		int preAggWindowCount, boolean enableController) {
+	public <R> SingleOutputStreamOperator<R> combine(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+													 long intervalMs) {
+		// get the output type for the pre-aggregation function
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
 			getType(),
 			Utils.getCallLocationName(),
-			false);
-		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount);
+			true);
+		// get the key for the stream of records
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
-		return doTransform("PreAggregate", outType,
-			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
-				keySelector, enableController)));
+		// create the stream pre-aggregate operator
+		PreAggregateProcTimeStreamOperator operator = new PreAggregateProcTimeStreamOperator(preAggregateFunction, keySelector, intervalMs);
+
+		// create the factory operator for the stream pre-aggregate operator
+		SimpleOperatorFactory operatorFactory = SimpleOperatorFactory.of(operator);
+
+		// call transform method to create the new operator and chain it with any DataStream
+		return doTransform("PreAggregate", outType, operatorFactory);
 	}
 
-	public <R> SingleOutputStreamOperator<R> combine(
-		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-		int preAggWindowCount) {
-		return combine(preAggregateFunction, preAggWindowCount, false);
-	}
-
-	public <R> SingleOutputStreamOperator<R> adCombine(
-		PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
-		return combine(preAggregateFunction, 1, true);
-	}
+//	private <R> SingleOutputStreamOperator<R> combine(
+//		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+//		int preAggWindowCount, boolean enableController) {
+//		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
+//			clean(preAggregateFunction),
+//			getType(),
+//			Utils.getCallLocationName(),
+//			false);
+//		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount);
+//		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
+//
+//		return doTransform("PreAggregate", outType,
+//			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
+//				keySelector, enableController)));
+//	}
+//
+//	public <R> SingleOutputStreamOperator<R> combine(
+//		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+//		int preAggWindowCount) {
+//		return combine(preAggregateFunction, preAggWindowCount, false);
+//	}
+//
+//	public <R> SingleOutputStreamOperator<R> adCombine(
+//		PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
+//		return combine(preAggregateFunction, 1, true);
+//	}
 
 }

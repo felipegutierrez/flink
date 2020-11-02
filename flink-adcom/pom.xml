@@ -43,6 +43,15 @@
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-shaded-jackson</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>joda-time</groupId>
+			<artifactId>joda-time</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.airlift.tpch</groupId>
+			<artifactId>tpch</artifactId>
+			<version>0.10</version>
+		</dependency>
 		<!-- Add a logging Framework, to make the examples produce -->
 		<!--             logs when executing in the IDE            -->
 		<dependency>
@@ -118,7 +127,8 @@
 				<groupId>org.scalastyle</groupId>
 				<artifactId>scalastyle-maven-plugin</artifactId>
 				<configuration>
-					<configLocation>${project.basedir}/../../tools/maven/scalastyle-config.xml</configLocation>
+					<configLocation>${project.basedir}/../../tools/maven/scalastyle-config.xml
+					</configLocation>
 				</configuration>
 			</plugin>
 			<!-- Scala Compiler -->
@@ -182,6 +192,55 @@
 							<sources>
 								<source>src/test/scala</source>
 							</sources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- self-contained jars for each example -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>2.4</version><!--$NO-MVN-MAN-VER$-->
+				<executions>
+					<!-- Default Execution -->
+					<execution>
+						<id>default</id>
+						<phase>package</phase>
+						<goals>
+							<goal>test-jar</goal>
+						</goals>
+					</execution>
+					<!-- TaxiRideCountPreAggregate -->
+					<execution>
+						<id>TaxiRideCountPreAggregate</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>TaxiRideCountPreAggregate</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>
+										org.apache.flink.streaming.examples.aggregate.TaxiRideCountPreAggregate
+									</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSource$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateListener.class</include>
+							</includes>
 						</configuration>
 					</execution>
 				</executions>

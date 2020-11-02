@@ -2052,7 +2052,7 @@ public class TypeExtractor {
 		PreAggregateFunction<?, ?, IN, OUT> preAggregateInterface, TypeInformation<IN> inType,
 		String functionName, boolean allowMissing) {
 		return getUnaryOperatorReturnType(
-			(Function) preAggregateInterface,
+			preAggregateInterface,
 			PreAggregateFunction.class,
 			2,
 			3,

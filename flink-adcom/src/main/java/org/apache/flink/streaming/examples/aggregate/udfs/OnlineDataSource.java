@@ -1,8 +1,9 @@
-package org.apache.flink.streaming.examples.aggregate.util;
+package org.apache.flink.streaming.examples.aggregate.udfs;
 
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.distribution.ZipfDistribution;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.flink.streaming.examples.aggregate.util.UrlSource;
 
 import java.io.BufferedReader;
 import java.io.IOException;

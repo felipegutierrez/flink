@@ -1,9 +1,11 @@
-package org.apache.flink.streaming.examples.aggregate.util;
+package org.apache.flink.streaming.examples.aggregate.udfs;
 
-//import io.airlift.tpch.LineItem;
+import io.airlift.tpch.LineItem;
+
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -14,8 +16,7 @@ import java.util.List;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TPCH_DATA_LINE_ITEM;
 
-// public class LineItemSource extends RichSourceFunction<LineItem> {
-public class LineItemSource extends RichSourceFunction<String> {
+public class LineItemSource extends RichSourceFunction<LineItem> {
 
 	public static final transient DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
 	private static final long serialVersionUID = 1L;
@@ -47,8 +48,7 @@ public class LineItemSource extends RichSourceFunction<String> {
 	}
 
 	@Override
-	// public void run(SourceContext<LineItem> sourceContext) {
-	public void run(SourceContext<String> sourceContext) {
+	public void run(SourceContext<LineItem> sourceContext) {
 		try {
 			long count = 0;
 			while (running) {
@@ -68,11 +68,12 @@ public class LineItemSource extends RichSourceFunction<String> {
 		}
 	}
 
-	// private void generateLineItem(SourceContext<LineItem> sourceContext) {
-	private void generateLineItem(SourceContext<String> sourceContext) {
+	private void generateLineItem(SourceContext<LineItem> sourceContext) {
 		try {
 			InputStream stream = new FileInputStream(dataFilePath);
-			BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+			BufferedReader reader = new BufferedReader(new InputStreamReader(
+				stream,
+				StandardCharsets.UTF_8));
 
 			long rowNumber = 0;
 			long startTime = System.nanoTime();
@@ -102,14 +103,12 @@ public class LineItemSource extends RichSourceFunction<String> {
 		}
 	}
 
-	// private LineItem getLineItem(String line, long rowNumber) {
-	private String getLineItem(String line, long rowNumber) {
+	private LineItem getLineItem(String line, long rowNumber) {
 		String[] tokens = line.split("\\|");
 		if (tokens.length != 16) {
 			throw new RuntimeException("Invalid record: " + line);
 		}
-		// LineItem lineItem;
-		String lineItem;
+		LineItem lineItem;
 		try {
 			long orderKey = Long.parseLong(tokens[0]);
 			long partKey = Long.parseLong(tokens[1]);
@@ -128,11 +127,22 @@ public class LineItemSource extends RichSourceFunction<String> {
 			String shipMode = tokens[14];
 			String comment = tokens[15];
 
-//			lineItem = new LineItem(rowNumber, orderKey, partKey, supplierKey, lineNumber, quantity, extendedPrice,
-//				discount, tax, returnFlag, status, shipDate, commitDate, receiptDate, shipInstructions, shipMode,
-//				comment);
-			lineItem = new String(rowNumber + orderKey + partKey + supplierKey + lineNumber + quantity + extendedPrice +
-				discount + tax + returnFlag + status + shipDate + commitDate + receiptDate + shipInstructions + shipMode +
+			lineItem = new LineItem(rowNumber,
+				orderKey,
+				partKey,
+				supplierKey,
+				lineNumber,
+				quantity,
+				extendedPrice,
+				discount,
+				tax,
+				returnFlag,
+				status,
+				shipDate,
+				commitDate,
+				receiptDate,
+				shipInstructions,
+				shipMode,
 				comment);
 		} catch (NumberFormatException nfe) {
 			throw new RuntimeException("Invalid record: " + line, nfe);
@@ -142,62 +152,62 @@ public class LineItemSource extends RichSourceFunction<String> {
 		return lineItem;
 	}
 
-//	public List<LineItem> getLineItems() {
-//		List<LineItem> lineItemsList = new ArrayList<LineItem>();
-//		String line = null;
-//		try {
-//			InputStream s = new FileInputStream(TPCH_DATA_LINE_ITEM);
-//			BufferedReader r = new BufferedReader(new InputStreamReader(s, StandardCharsets.UTF_8));
-//			long rowNumber = 0;
-//			line = r.readLine();
-//			while (line != null) {
-//				rowNumber++;
-//				lineItemsList.add(getLineItem(line, rowNumber));
-//				line = r.readLine();
-//			}
-//			r.close();
-//			r = null;
-//			s.close();
-//			s = null;
-//		} catch (NumberFormatException nfe) {
-//			throw new RuntimeException("Invalid record: " + line, nfe);
-//		} catch (Exception e) {
-//			throw new RuntimeException("Invalid record: " + line, e);
-//		}
-//		return lineItemsList;
-//	}
+	public List<LineItem> getLineItems() {
+		List<LineItem> lineItemsList = new ArrayList<LineItem>();
+		String line = null;
+		try {
+			InputStream s = new FileInputStream(TPCH_DATA_LINE_ITEM);
+			BufferedReader r = new BufferedReader(new InputStreamReader(s, StandardCharsets.UTF_8));
+			long rowNumber = 0;
+			line = r.readLine();
+			while (line != null) {
+				rowNumber++;
+				lineItemsList.add(getLineItem(line, rowNumber));
+				line = r.readLine();
+			}
+			r.close();
+			r = null;
+			s.close();
+			s = null;
+		} catch (NumberFormatException nfe) {
+			throw new RuntimeException("Invalid record: " + line, nfe);
+		} catch (Exception e) {
+			throw new RuntimeException("Invalid record: " + line, e);
+		}
+		return lineItemsList;
+	}
 
-//	public List<Tuple2<Long, Double>> getLineItemsRevenueByOrderKey() {
-//		String line = null;
-//		List<Tuple2<Long, Double>> lineItemsList = new ArrayList<Tuple2<Long, Double>>();
-//		try {
-//			InputStream s = new FileInputStream(TPCH_DATA_LINE_ITEM);
-//			BufferedReader r = new BufferedReader(new InputStreamReader(s, StandardCharsets.UTF_8));
-//			long rowNumber = 0;
-//			line = r.readLine();
-//			while (line != null) {
-//				rowNumber++;
-//				LineItem lineItem = getLineItem(line, rowNumber);
-//
-//				// LineItem: compute revenue and project out return flag
-//				// revenue per item = l_extendedprice * (1 - l_discount)
-//				Double revenue = lineItem.getExtendedPrice() * (1 - lineItem.getDiscount());
-//				Long orderKey = lineItem.getOrderKey();
-//				lineItemsList.add(Tuple2.of(orderKey, revenue));
-//
-//				line = r.readLine();
-//			}
-//			r.close();
-//			r = null;
-//			s.close();
-//			s = null;
-//		} catch (NumberFormatException nfe) {
-//			throw new RuntimeException("Invalid record: " + line, nfe);
-//		} catch (Exception e) {
-//			throw new RuntimeException("Invalid record: " + line, e);
-//		}
-//		return lineItemsList;
-//	}
+	public List<Tuple2<Long, Double>> getLineItemsRevenueByOrderKey() {
+		String line = null;
+		List<Tuple2<Long, Double>> lineItemsList = new ArrayList<Tuple2<Long, Double>>();
+		try {
+			InputStream s = new FileInputStream(TPCH_DATA_LINE_ITEM);
+			BufferedReader r = new BufferedReader(new InputStreamReader(s, StandardCharsets.UTF_8));
+			long rowNumber = 0;
+			line = r.readLine();
+			while (line != null) {
+				rowNumber++;
+				LineItem lineItem = getLineItem(line, rowNumber);
+
+				// LineItem: compute revenue and project out return flag
+				// revenue per item = l_extendedprice * (1 - l_discount)
+				Double revenue = lineItem.getExtendedPrice() * (1 - lineItem.getDiscount());
+				Long orderKey = lineItem.getOrderKey();
+				lineItemsList.add(Tuple2.of(orderKey, revenue));
+
+				line = r.readLine();
+			}
+			r.close();
+			r = null;
+			s.close();
+			s = null;
+		} catch (NumberFormatException nfe) {
+			throw new RuntimeException("Invalid record: " + line, nfe);
+		} catch (Exception e) {
+			throw new RuntimeException("Invalid record: " + line, e);
+		}
+		return lineItemsList;
+	}
 
 	@Override
 	public void cancel() {

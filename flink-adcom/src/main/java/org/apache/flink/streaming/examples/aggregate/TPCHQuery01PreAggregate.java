@@ -1,6 +1,5 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-//import io.airlift.tpch.LineItem;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
@@ -10,16 +9,43 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple11;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-//import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
-import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
+import org.apache.flink.streaming.examples.aggregate.udfs.LineItemSource;
+import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
 import org.apache.flink.util.Collector;
 
+import io.airlift.tpch.LineItem;
+
 import javax.annotation.Nullable;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.COMBINER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.CONTROLLER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.DISABLE_OPERATOR_CHAINING;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.MAX_COUNT_SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_REDUCER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PARALLELISM_GROUP_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW_TIMEOUT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_HOST;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_PORT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_TEXT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_SPLIT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TPCH_DATA_LINE_ITEM;
 
 /**
  * 1 Q1 - Pricing Summary Report Query
@@ -56,6 +82,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
  */
 public class TPCHQuery01PreAggregate {
 	public static void main(String[] args) throws Exception {
+		// @formatter:off
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get(SOURCE, TPCH_DATA_LINE_ITEM);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
@@ -86,17 +113,7 @@ public class TPCHQuery01PreAggregate {
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Changing pre-aggregation frequency before shuffling:");
 		System.out.println("mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
-		System.out.println(DataRateListener.class.getSimpleName() + " class to read data rate from file [" + DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
-		System.out.println("This listener reads every 60 seconds only the first line from the data rate file.");
-		System.out.println("Use the following command to change the nanoseconds data rate:");
-		System.out.println("1000000 nanoseconds = 1 millisecond and 1000000000 nanoseconds = 1000 milliseconds = 1 second");
-		System.out.println("500 nanoseconds   = 2M rec/sec");
-		System.out.println("1000 nanoseconds  = 1M rec/sec");
-		System.out.println("2000 nanoseconds  = 500K rec/sec");
-		System.out.println("5000 nanoseconds  = 200K rec/sec");
-		System.out.println("10000 nanoseconds = 100K rec/sec");
-		System.out.println("20000 nanoseconds = 50K rec/sec");
-		System.out.println("echo \"1000\" > " + DataRateListener.DATA_RATE_FILE);
+		// @formatter:on
 
 		// set up streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -116,11 +133,17 @@ public class TPCHQuery01PreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		/*
-		DataStream<LineItem> lineItems = env.addSource(new LineItemSource(maxCount)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<LineItem> lineItems = env
+			.addSource(new LineItemSource(maxCount))
+			.name(OPERATOR_SOURCE)
+			.uid(OPERATOR_SOURCE)
+			.slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemsMap = lineItems
-			.map(new LineItemToTuple11Map()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+			.map(new LineItemToTuple11Map())
+			.name(OPERATOR_TOKENIZER)
+			.uid(OPERATOR_TOKENIZER)
+			.slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemsCombined = null;
 		if (!enableCombiner) {
@@ -128,42 +151,56 @@ public class TPCHQuery01PreAggregate {
 			lineItemsCombined = lineItemsMap;
 		} else if (enableController == false && preAggregationWindowTimer > 0) {
 			// static combiner based on timeout
-			PreAggregateConcurrentFunction<String,
-				Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
-				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
-				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemPreAggUDF = new LineItemSumPreAggConcurrent();
-			lineItemsCombined = lineItemsMap
-				.combiner(lineItemPreAggUDF, preAggregationWindowTimer).disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+//			PreAggregateConcurrentFunction<String,
+//				Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
+//				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
+//				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemPreAggUDF = new LineItemSumPreAggConcurrent();
+//			lineItemsCombined = lineItemsMap
+//				.combine(lineItemPreAggUDF, preAggregationWindowTimer).disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		} else {
-			PreAggregateFunction<String,
-				Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
-				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
-				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemPreAggUDF = new LineItemSumPreAgg();
-			lineItemsCombined = lineItemsMap
-				.combiner(lineItemPreAggUDF, preAggregationWindowCount, enableController).disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+//			PreAggregateFunction<String,
+//				Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
+//				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>,
+//				Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> lineItemPreAggUDF = new LineItemSumPreAgg();
+//			lineItemsCombined = lineItemsMap
+//				.combine(lineItemPreAggUDF, preAggregationWindowCount, enableController).disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		}
 
 		DataStream<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> sumAndAvgLineItems = lineItemsCombined
 			.keyBy(new LineItemFlagAndStatusKeySelector())
-			.reduce(new SumAndAvgLineItemReducer()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+			.reduce(new SumAndAvgLineItemReducer())
+			.name(OPERATOR_REDUCER)
+			.uid(OPERATOR_REDUCER)
+			.slotSharingGroup(slotGroup02)
+			.setParallelism(parallelisGroup02);
 
 		DataStream<String> result = sumAndAvgLineItems
-			.map(new Tuple11ToLineItemResult()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+			.map(new Tuple11ToLineItemResult())
+			.name(OPERATOR_FLAT_OUTPUT)
+			.uid(OPERATOR_FLAT_OUTPUT)
+			.slotSharingGroup(slotGroup02)
+			.setParallelism(parallelisGroup02);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			result
-				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort)).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+				.addSink(new MqttDataSink(TOPIC_DATA_SINK, sinkHost, sinkPort))
+				.name(OPERATOR_SINK)
+				.uid(OPERATOR_SINK)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
 			result
-				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+				.print()
+				.name(OPERATOR_SINK)
+				.uid(OPERATOR_SINK)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02);
 		} else {
 			System.out.println("discarding output");
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TPCHQuery01PreAggregate.class.getSimpleName());
-
-		 */
 	}
 
 	// *************************************************************************
@@ -185,28 +222,30 @@ public class TPCHQuery01PreAggregate {
 	 *        count(*) as count_order // long
 	 * </pre>
 	 */
-//	private static class LineItemToTuple11Map implements MapFunction<LineItem,
-//		Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> {
-//		private static final long serialVersionUID = 1L;
-//
-//		@Override
-//		public Tuple2<String,
-//			Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> map(LineItem lineItem) throws Exception {
-//
-//			String key = lineItem.getReturnFlag() + "|" + lineItem.getStatus();
-//			return Tuple2.of(key, Tuple11.of(
-//				lineItem.getReturnFlag(), lineItem.getStatus(),
-//				lineItem.getQuantity(),
-//				lineItem.getExtendedPrice(),
-//				lineItem.getDiscount(),
-//				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()),
-//				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()) * (1 + lineItem.getTax()),
-//				lineItem.getQuantity(),
-//				lineItem.getExtendedPrice(),
-//				lineItem.getDiscount(),
-//				1L));
-//		}
-//	}
+	private static class LineItemToTuple11Map implements MapFunction<LineItem,
+		Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> {
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public Tuple2<String,
+			Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> map(
+			LineItem lineItem) throws Exception {
+
+			String key = lineItem.getReturnFlag() + "|" + lineItem.getStatus();
+			return Tuple2.of(key, Tuple11.of(
+				lineItem.getReturnFlag(), lineItem.getStatus(),
+				lineItem.getQuantity(),
+				lineItem.getExtendedPrice(),
+				lineItem.getDiscount(),
+				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()),
+				lineItem.getExtendedPrice() * (1 - lineItem.getDiscount()) * (1
+					+ lineItem.getTax()),
+				lineItem.getQuantity(),
+				lineItem.getExtendedPrice(),
+				lineItem.getDiscount(),
+				1L));
+		}
+	}
 
 	private static class LineItemSumPreAgg extends PreAggregateFunction<String,
 		Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>,
@@ -233,14 +272,27 @@ public class TPCHQuery01PreAggregate {
 				Double avgDisc = 0.0;
 				Long count = input.f1.f10 + value.f10;
 
-				return Tuple11.of(flag, status, sumQty, sumBasePrice, sumDisc, sumDiscPrice, sumCharge, avgQty, avgBasePrice, avgDisc, count);
+				return Tuple11.of(
+					flag,
+					status,
+					sumQty,
+					sumBasePrice,
+					sumDisc,
+					sumDiscPrice,
+					sumCharge,
+					avgQty,
+					avgBasePrice,
+					avgDisc,
+					count);
 			}
 		}
 
 		@Override
-		public void collect(Map<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> buffer,
-							Collector<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> out) throws Exception {
-			for (Map.Entry<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> entry : buffer.entrySet()) {
+		public void collect(
+			Map<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> buffer,
+			Collector<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> out) throws Exception {
+			for (Map.Entry<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> entry : buffer
+				.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -271,14 +323,27 @@ public class TPCHQuery01PreAggregate {
 				Double avgDisc = 0.0;
 				Long count = input.f1.f10 + value.f10;
 
-				return Tuple11.of(flag, status, sumQty, sumBasePrice, sumDisc, sumDiscPrice, sumCharge, avgQty, avgBasePrice, avgDisc, count);
+				return Tuple11.of(
+					flag,
+					status,
+					sumQty,
+					sumBasePrice,
+					sumDisc,
+					sumDiscPrice,
+					sumCharge,
+					avgQty,
+					avgBasePrice,
+					avgDisc,
+					count);
 			}
 		}
 
 		@Override
-		public void collect(ConcurrentMap<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> buffer,
-							Collector<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> out) throws Exception {
-			for (Map.Entry<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> entry : buffer.entrySet()) {
+		public void collect(
+			ConcurrentMap<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> buffer,
+			Collector<Tuple2<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>>> out) throws Exception {
+			for (Map.Entry<String, Tuple11<String, String, Long, Double, Double, Double, Double, Long, Double, Double, Long>> entry : buffer
+				.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -312,7 +377,8 @@ public class TPCHQuery01PreAggregate {
 			Double avgBasePrice = sumBasePrice / count;
 			Double avgDisc = sumDisc / count;
 
-			return Tuple2.of(key,
+			return Tuple2.of(
+				key,
 				Tuple11.of(value1.f1.f0, value1.f1.f1,
 					sumQty,
 					sumBasePrice,

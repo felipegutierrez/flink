@@ -1,8 +1,8 @@
 package org.apache.flink.streaming.examples.aggregate.util;
 
-//import org.joda.time.DateTime;
-//import org.joda.time.format.DateTimeFormat;
-//import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.Serializable;
 import java.util.Locale;
@@ -16,26 +16,34 @@ import java.util.Locale;
  */
 public class TaxiFare implements Serializable {
 
-//	private static final transient DateTimeFormatter timeFormatter =
-//		DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.US).withZoneUTC();
+	private static final transient DateTimeFormatter timeFormatter =
+		DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.US).withZoneUTC();
 	public long rideId;
 	public long taxiId;
 	public long driverId;
-//	public DateTime startTime;
+	public DateTime startTime;
 	public String paymentType;
 	public float tip;
 	public float tolls;
 	public float totalFare;
-	public TaxiFare() {
-//		this.startTime = new DateTime();
-	}
-//	public TaxiFare(long rideId, long taxiId, long driverId, DateTime startTime, String paymentType, float tip, float tolls, float totalFare) {
-	public TaxiFare(long rideId, long taxiId, long driverId, String paymentType, float tip, float tolls, float totalFare) {
 
+	public TaxiFare() {
+		this.startTime = new DateTime();
+	}
+
+	public TaxiFare(
+		long rideId,
+		long taxiId,
+		long driverId,
+		DateTime startTime,
+		String paymentType,
+		float tip,
+		float tolls,
+		float totalFare) {
 		this.rideId = rideId;
 		this.taxiId = taxiId;
 		this.driverId = driverId;
-//		this.startTime = startTime;
+		this.startTime = startTime;
 		this.paymentType = paymentType;
 		this.tip = tip;
 		this.tolls = tolls;
@@ -55,7 +63,7 @@ public class TaxiFare implements Serializable {
 			ride.rideId = Long.parseLong(tokens[0]);
 			ride.taxiId = Long.parseLong(tokens[1]);
 			ride.driverId = Long.parseLong(tokens[2]);
-//			ride.startTime = DateTime.parse(tokens[3], timeFormatter);
+			ride.startTime = DateTime.parse(tokens[3], timeFormatter);
 			ride.paymentType = tokens[4];
 			ride.tip = tokens[5].length() > 0 ? Float.parseFloat(tokens[5]) : 0.0f;
 			ride.tolls = tokens[6].length() > 0 ? Float.parseFloat(tokens[6]) : 0.0f;
@@ -73,7 +81,7 @@ public class TaxiFare implements Serializable {
 		sb.append(rideId).append(",");
 		sb.append(taxiId).append(",");
 		sb.append(driverId).append(",");
-//		sb.append(startTime.toString(timeFormatter)).append(",");
+		sb.append(startTime.toString(timeFormatter)).append(",");
 		sb.append(paymentType).append(",");
 		sb.append(tip).append(",");
 		sb.append(tolls).append(",");
@@ -94,7 +102,6 @@ public class TaxiFare implements Serializable {
 	}
 
 	public long getEventTime() {
-//		return startTime.getMillis();
-		return 1L;
+		return startTime.getMillis();
 	}
 }

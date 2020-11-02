@@ -4,16 +4,17 @@ import org.apache.flink.annotation.Public;
 import org.apache.flink.util.Collector;
 
 import javax.annotation.Nullable;
+
 import java.util.Map;
 
 /**
  * @param <K> The key to pre-aggregate elements.
  * @param <V> The value to pre-aggregate elements.
- * @param <T> Type of the input elements.
- * @param <O> Type of the output elements.
+ * @param <IN> Type of the input elements.
+ * @param <OUT> Type of the output elements.
  */
 @Public
-public abstract class PreAggregateFunction<K, V, T, O> implements Function {
+public abstract class PreAggregateFunction<K, V, IN, OUT> implements Function {
 	private static final long serialVersionUID = 1L;
 
 	/**
@@ -21,13 +22,17 @@ public abstract class PreAggregateFunction<K, V, T, O> implements Function {
 	 *
 	 * @param value the existing bundle value, maybe null
 	 * @param input the given input, not null
+	 *
 	 * @throws Exception
 	 */
-	public abstract V addInput(@Nullable V value, T input) throws Exception;
+	public abstract V addInput(@Nullable V value, IN input) throws Exception;
 
 	/**
 	 * Called when a merge is finished. Transform a bundle to zero, one, or more
 	 * output elements.
 	 */
-	public abstract void collect(Map<K, V> buffer, Collector<O> out) throws Exception;
+	public abstract void collect(Map<K, V> buffer, Collector<OUT> out) throws Exception;
+
+	public void close() throws Exception {
+	}
 }

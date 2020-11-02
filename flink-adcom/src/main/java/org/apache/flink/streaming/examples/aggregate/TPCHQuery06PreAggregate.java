@@ -1,13 +1,43 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-//import io.airlift.tpch.LineItem;
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.PreAggregateFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
-//import org.apache.flink.streaming.examples.aggregate.util.LineItemSource;
+import org.apache.flink.streaming.examples.aggregate.udfs.LineItemSource;
+import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
+import org.apache.flink.util.Collector;
 
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
+import io.airlift.tpch.LineItem;
+
+import javax.annotation.Nullable;
+
+import java.util.Map;
+
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.CONTROLLER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.DISABLE_OPERATOR_CHAINING;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PARALLELISM_GROUP_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_HOST;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_PORT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_TEXT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_SPLIT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TPCH_DATA_LINE_ITEM;
 
 /**
  * 6 Q6 - Forecasting Revenue Change Query
@@ -15,6 +45,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
  */
 public class TPCHQuery06PreAggregate {
 	public static void main(String[] args) throws Exception {
+		// @formatter:off
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get(SOURCE, TPCH_DATA_LINE_ITEM);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
@@ -50,6 +81,7 @@ public class TPCHQuery06PreAggregate {
 		System.out.println("10000 nanoseconds = 100K rec/sec");
 		System.out.println("20000 nanoseconds = 50K rec/sec");
 		System.out.println("echo \"1000\" > " + DataRateListener.DATA_RATE_FILE);
+		// @formatter:on
 
 		// set up streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -69,17 +101,36 @@ public class TPCHQuery06PreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
-		/*
-		DataStream<LineItem> lineItems = env.addSource(new LineItemSource()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+		DataStream<LineItem> lineItems = env
+			.addSource(new LineItemSource())
+			.name(OPERATOR_SOURCE)
+			.uid(OPERATOR_SOURCE)
+			.slotSharingGroup(slotGroup01);
 
 		if (output.equalsIgnoreCase(SINK_DATA_MQTT)) {
 			lineItems
-				.map(new LineItemsOutMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+				.map(new LineItemsOutMap())
+				.name(OPERATOR_FLAT_OUTPUT)
+				.uid(OPERATOR_FLAT_OUTPUT)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02)
+				.print()
+				.name(OPERATOR_SINK)
+				.uid(OPERATOR_SINK)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02);
 		} else if (output.equalsIgnoreCase(SINK_TEXT)) {
 			lineItems
-				.map(new LineItemsOutMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02)
-				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(parallelisGroup02);
+				.map(new LineItemsOutMap())
+				.name(OPERATOR_FLAT_OUTPUT)
+				.uid(OPERATOR_FLAT_OUTPUT)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02)
+				.print()
+				.name(OPERATOR_SINK)
+				.uid(OPERATOR_SINK)
+				.slotSharingGroup(slotGroup02)
+				.setParallelism(parallelisGroup02);
 		} else {
 			System.out.println("discarding output");
 		}
@@ -87,13 +138,11 @@ public class TPCHQuery06PreAggregate {
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TPCHQuery06PreAggregate.class.getSimpleName());
 
-		 */
 	}
 
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
-	/*
 	private static class TokenizerMap implements MapFunction<TaxiRide, Tuple2<Long, Long>> {
 		@Override
 		public Tuple2<Long, Long> map(TaxiRide ride) {
@@ -113,7 +162,9 @@ public class TPCHQuery06PreAggregate {
 		}
 
 		@Override
-		public void collect(Map<Long, Long> buffer, Collector<Tuple2<Long, Long>> out) throws Exception {
+		public void collect(
+			Map<Long, Long> buffer,
+			Collector<Tuple2<Long, Long>> out) throws Exception {
 			for (Map.Entry<Long, Long> entry : buffer.entrySet()) {
 				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
 			}
@@ -131,12 +182,17 @@ public class TPCHQuery06PreAggregate {
 		@Override
 		public String map(LineItem lineItem) {
 			return lineItem.getOrderKey() + "|" +
-				lineItem.getPartKey() + "|" + lineItem.getSupplierKey() + "|" + lineItem.getLineNumber() + "|" +
-				lineItem.getQuantity() + "|" + lineItem.getExtendedPrice() + "|" + lineItem.getDiscount() + "|" +
-				lineItem.getTax() + "|" + lineItem.getReturnFlag() + "|" + lineItem.getStatus() + "|" +
-				lineItem.getShipDate() + "|" + lineItem.getCommitDate() + "|" + lineItem.getReceiptDate() + "|" +
-				lineItem.getShipInstructions() + "|" + lineItem.getShipMode() + "|" + lineItem.getComment();
+				lineItem.getPartKey() + "|" + lineItem.getSupplierKey() + "|"
+				+ lineItem.getLineNumber() + "|" +
+				lineItem.getQuantity() + "|" + lineItem.getExtendedPrice() + "|"
+				+ lineItem.getDiscount() + "|" +
+				lineItem.getTax() + "|" + lineItem.getReturnFlag() + "|" + lineItem.getStatus()
+				+ "|" +
+				lineItem.getShipDate() + "|" + lineItem.getCommitDate() + "|"
+				+ lineItem.getReceiptDate() + "|" +
+				lineItem.getShipInstructions() + "|" + lineItem.getShipMode() + "|"
+				+ lineItem.getComment();
 		}
 	}
-	 */
+
 }

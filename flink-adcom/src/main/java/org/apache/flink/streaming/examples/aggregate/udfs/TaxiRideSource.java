@@ -1,7 +1,9 @@
-package org.apache.flink.streaming.examples.aggregate.util;
+package org.apache.flink.streaming.examples.aggregate.udfs;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
+import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

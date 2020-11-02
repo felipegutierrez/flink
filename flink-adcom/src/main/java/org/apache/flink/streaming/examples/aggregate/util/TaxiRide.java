@@ -1,8 +1,8 @@
 package org.apache.flink.streaming.examples.aggregate.util;
 
-//import org.joda.time.DateTime;
-//import org.joda.time.format.DateTimeFormat;
-//import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.Serializable;
 import java.util.Locale;
@@ -25,12 +25,12 @@ import java.util.Locale;
  */
 public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 
-//	private static final transient DateTimeFormatter timeFormatter =
-//		DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.US).withZoneUTC();
+	private static final transient DateTimeFormatter timeFormatter =
+		DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.US).withZoneUTC();
 	public long rideId;
 	public boolean isStart;
-//	public DateTime startTime;
-//	public DateTime endTime;
+	public DateTime startTime;
+	public DateTime endTime;
 	public float startLon;
 	public float startLat;
 	public float endLon;
@@ -40,21 +40,18 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 	public long driverId;
 
 	public TaxiRide() {
-//		this.startTime = new DateTime();
-//		this.endTime = new DateTime();
+		this.startTime = new DateTime();
+		this.endTime = new DateTime();
 	}
 
-//	public TaxiRide(long rideId, boolean isStart, DateTime startTime, DateTime endTime,
-//					float startLon, float startLat, float endLon, float endLat,
-//					short passengerCnt, long taxiId, long driverId) {
-	public TaxiRide(long rideId, boolean isStart,
-					float startLon, float startLat, float endLon, float endLat,
-					short passengerCnt, long taxiId, long driverId) {
-
+	public TaxiRide(
+		long rideId, boolean isStart, DateTime startTime, DateTime endTime,
+		float startLon, float startLat, float endLon, float endLat,
+		short passengerCnt, long taxiId, long driverId) {
 		this.rideId = rideId;
 		this.isStart = isStart;
-//		this.startTime = startTime;
-//		this.endTime = endTime;
+		this.startTime = startTime;
+		this.endTime = endTime;
 		this.startLon = startLon;
 		this.startLat = startLat;
 		this.endLon = endLon;
@@ -79,13 +76,13 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 			switch (tokens[1]) {
 				case "START":
 					ride.isStart = true;
-//					ride.startTime = DateTime.parse(tokens[2], timeFormatter);
-//					ride.endTime = DateTime.parse(tokens[3], timeFormatter);
+					ride.startTime = DateTime.parse(tokens[2], timeFormatter);
+					ride.endTime = DateTime.parse(tokens[3], timeFormatter);
 					break;
 				case "END":
 					ride.isStart = false;
-//					ride.endTime = DateTime.parse(tokens[2], timeFormatter);
-//					ride.startTime = DateTime.parse(tokens[3], timeFormatter);
+					ride.endTime = DateTime.parse(tokens[2], timeFormatter);
+					ride.startTime = DateTime.parse(tokens[3], timeFormatter);
 					break;
 				default:
 					throw new RuntimeException("Invalid record: " + line);
@@ -110,8 +107,8 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 		StringBuilder sb = new StringBuilder();
 		sb.append(rideId).append(",");
 		sb.append(isStart ? "START" : "END").append(",");
-//		sb.append(startTime.toString(timeFormatter)).append(",");
-//		sb.append(endTime.toString(timeFormatter)).append(",");
+		sb.append(startTime.toString(timeFormatter)).append(",");
+		sb.append(endTime.toString(timeFormatter)).append(",");
 		sb.append(startLon).append(",");
 		sb.append(startLat).append(",");
 		sb.append(endLon).append(",");
@@ -157,19 +154,26 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 	}
 
 	public long getEventTime() {
-//		if (isStart) {
-//			return startTime.getMillis();
-//		} else {
-//			return endTime.getMillis();
-//		}
-		return 1L;
+		if (isStart) {
+			return startTime.getMillis();
+		} else {
+			return endTime.getMillis();
+		}
 	}
 
 	public double getEuclideanDistance(double longitude, double latitude) {
 		if (this.isStart) {
-			return GeoUtils.getEuclideanDistance((float) longitude, (float) latitude, this.startLon, this.startLat);
+			return GeoUtils.getEuclideanDistance(
+				(float) longitude,
+				(float) latitude,
+				this.startLon,
+				this.startLat);
 		} else {
-			return GeoUtils.getEuclideanDistance((float) longitude, (float) latitude, this.endLon, this.endLat);
+			return GeoUtils.getEuclideanDistance(
+				(float) longitude,
+				(float) latitude,
+				this.endLon,
+				this.endLat);
 		}
 	}
 }

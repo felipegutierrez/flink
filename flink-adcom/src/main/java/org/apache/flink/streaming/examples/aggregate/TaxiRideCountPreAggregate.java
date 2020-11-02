@@ -13,6 +13,8 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
 import org.apache.flink.streaming.examples.aggregate.util.*;
 import org.apache.flink.util.Collector;
 
@@ -32,6 +34,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
  */
 public class TaxiRideCountPreAggregate {
 	public static void main(String[] args) throws Exception {
+		// @formatter:off
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
@@ -41,9 +44,7 @@ public class TaxiRideCountPreAggregate {
 		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 0);
 		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
 		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
-		int parallelisGroup02 = params.getInt(
-			PARALLELISM_GROUP_02,
-			ExecutionConfig.PARALLELISM_DEFAULT);
+		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 
@@ -52,43 +53,16 @@ public class TaxiRideCountPreAggregate {
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
 		System.out.println("data source                                             : " + input);
 		System.out.println("data sink                                               : " + output);
-		System.out.println(
-			"data sink host:port                                     : " + sinkHost + ":"
-				+ sinkPort);
-		System.out.println(
-			"data sink topic                                         : " + TOPIC_DATA_SINK);
-		System.out.println(
-			"Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
-		System.out.println(
-			"Disable operator chaining                               : " + disableOperatorChaining);
-		System.out.println(
-			"Feedback loop Controller                                : " + enableController);
-		System.out.println(
-			"time characteristic 1-Processing 2-Event 3-Ingestion    : " + timeCharacteristic);
-		System.out.println("pre-aggregate window [count]                            : "
-			+ preAggregationWindowCount);
-		System.out.println("pre-aggregate window [seconds]                          : "
-			+ preAggregationWindowTimer);
-		System.out.println(
-			"Parallelism group 02                                    : " + parallelisGroup02);
-		System.out.println("Changing pre-aggregation frequency before shuffling:");
-		System.out.println(
-			"mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
-		System.out.println(
-			DataRateListener.class.getSimpleName() + " class to read data rate from file ["
-				+ DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
-		System.out.println(
-			"This listener reads every 60 seconds only the first line from the data rate file.");
-		System.out.println("Use the following command to change the nanoseconds data rate:");
-		System.out.println(
-			"1000000 nanoseconds = 1 millisecond and 1000000000 nanoseconds = 1000 milliseconds = 1 second");
-		System.out.println("500 nanoseconds   = 2M rec/sec");
-		System.out.println("1000 nanoseconds  = 1M rec/sec");
-		System.out.println("2000 nanoseconds  = 500K rec/sec");
-		System.out.println("5000 nanoseconds  = 200K rec/sec");
-		System.out.println("10000 nanoseconds = 100K rec/sec");
-		System.out.println("20000 nanoseconds = 50K rec/sec");
-		System.out.println("echo \"1000\" > " + DataRateListener.DATA_RATE_FILE);
+		System.out.println("data sink host:port                                     : " + sinkHost + ":" + sinkPort);
+		System.out.println("data sink topic                                         : " + TOPIC_DATA_SINK);
+		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
+		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
+		System.out.println("Feedback loop Controller                                : " + enableController);
+		System.out.println("time characteristic 1-Processing 2-Event 3-Ingestion    : " + timeCharacteristic);
+		System.out.println("pre-aggregate window [count]                            : " + preAggregationWindowCount);
+		System.out.println("pre-aggregate window [seconds]                          : " + preAggregationWindowTimer);
+		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
+		// @formatter:on
 
 		// set up streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -134,24 +108,33 @@ public class TaxiRideCountPreAggregate {
 		if (preAggregationWindowCount == 0 && preAggregationWindowTimer == -1) {
 			// no combiner
 			preAggregatedStream = tuples;
+		} else if (enableController == false && preAggregationWindowTimer > 0) {
+			// static combiner based on timeout
+			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
+			preAggregatedStream = tuples
+				.combine(taxiRidePreAggregateFunction, preAggregationWindowTimer)
+				.name(OPERATOR_PRE_AGGREGATE)
+				.uid(OPERATOR_PRE_AGGREGATE)
+				.disableChaining()
+				.slotSharingGroup(slotGroup01);
 		} else if (enableController == false && preAggregationWindowCount > 0) {
 			// static combiner based on number of tuples
-			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
-			preAggregatedStream = tuples
-				.combine(taxiRidePreAggregateFunction, preAggregationWindowCount)
-				.name(OPERATOR_PRE_AGGREGATE)
-				.uid(OPERATOR_PRE_AGGREGATE)
-				.disableChaining()
-				.slotSharingGroup(slotGroup01);
+//			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
+//			preAggregatedStream = tuples
+//				.combine(taxiRidePreAggregateFunction, preAggregationWindowCount)
+//				.name(OPERATOR_PRE_AGGREGATE)
+//				.uid(OPERATOR_PRE_AGGREGATE)
+//				.disableChaining()
+//				.slotSharingGroup(slotGroup01);
 		} else {
 			// dynamic combiner with PI controller
-			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
-			preAggregatedStream = tuples
-				.adCombine(taxiRidePreAggregateFunction)
-				.name(OPERATOR_PRE_AGGREGATE)
-				.uid(OPERATOR_PRE_AGGREGATE)
-				.disableChaining()
-				.slotSharingGroup(slotGroup01);
+//			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
+//			preAggregatedStream = tuples
+//				.adCombine(taxiRidePreAggregateFunction)
+//				.name(OPERATOR_PRE_AGGREGATE)
+//				.uid(OPERATOR_PRE_AGGREGATE)
+//				.disableChaining()
+//				.slotSharingGroup(slotGroup01);
 		}
 
 		KeyedStream<Tuple2<Long, Long>, Tuple> keyedByDriverId = preAggregatedStream.keyBy(0);

@@ -12,6 +12,11 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.examples.aggregate.udfs.DataRateSource;
+import org.apache.flink.streaming.examples.aggregate.udfs.DataRateVariationSource;
+import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
+import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSource;
+import org.apache.flink.streaming.examples.aggregate.udfs.OnlineDataSource;
 import org.apache.flink.streaming.examples.aggregate.util.*;
 import org.apache.flink.util.Collector;
 
@@ -172,18 +177,22 @@ public class WordCountPreAggregate {
 			preAggregatedStream = skewed;
 		} else if (enableController == false && preAggregationWindowTimer > 0) {
 			// static combiner based on timeout
+			PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
+			preAggregatedStream = skewed
+				.combine(wordCountPreAggregateFunction, preAggregationWindowTimer)
+				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		} else if (enableController == false && preAggregationWindowCount > 0) {
 			// static combiner based on number of records
-			PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
-			preAggregatedStream = skewed
-				.combine(wordCountPreAggregateFunction, preAggregationWindowCount)
-				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+//			PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
+//			preAggregatedStream = skewed
+//				.combine(wordCountPreAggregateFunction, preAggregationWindowCount)
+//				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		} else {
 			// dynamic combiner with PI controller
-			PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
-			preAggregatedStream = skewed
-				.adCombine(wordCountPreAggregateFunction)
-				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+//			PreAggregateFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> wordCountPreAggregateFunction = new WordCountPreAggregateFunction(delay);
+//			preAggregatedStream = skewed
+//				.adCombine(wordCountPreAggregateFunction)
+//				.disableChaining().name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		}
 
 		// group by the tuple field "0" and sum up tuple field "1"
