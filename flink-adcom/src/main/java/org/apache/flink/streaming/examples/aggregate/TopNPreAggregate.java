@@ -263,6 +263,7 @@ public class TopNPreAggregate {
 		}
 	}
 
+	/*
 	private static class TopNPreAggregateConcurrentFunction
 		extends PreAggregateConcurrentFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> {
 		private final Double MIN_VALUE = -999999.9;
@@ -374,4 +375,5 @@ public class TopNPreAggregate {
 			return value.f0 + " [" + result + "]";
 		}
 	}
+	 */
 }

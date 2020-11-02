@@ -284,32 +284,6 @@ public class WordCountPreAggregate {
 		}
 	}
 
-	private static class WordCountPreAggregateConcurrentFunction
-		extends PreAggregateConcurrentFunction<String, Integer, Tuple2<String, Integer>, Tuple2<String, Integer>> {
-		private long milliseconds = 0;
-
-		public WordCountPreAggregateConcurrentFunction(long milliseconds) {
-			this.milliseconds = milliseconds;
-		}
-
-		@Override
-		public Integer addInput(@Nullable Integer value, Tuple2<String, Integer> input) throws InterruptedException {
-			Thread.sleep(milliseconds);
-			if (value == null) {
-				return input.f1;
-			} else {
-				return value + input.f1;
-			}
-		}
-
-		@Override
-		public void collect(ConcurrentMap<String, Integer> buffer, Collector<Tuple2<String, Integer>> out) {
-			for (Map.Entry<String, Integer> entry : buffer.entrySet()) {
-				out.collect(Tuple2.of(entry.getKey(), entry.getValue()));
-			}
-		}
-	}
-
 	private static class SumReduceFunction implements ReduceFunction<Tuple2<String, Integer>> {
 		private long milliseconds = 0;
 

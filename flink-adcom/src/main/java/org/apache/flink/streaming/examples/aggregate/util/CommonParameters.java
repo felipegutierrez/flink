@@ -15,6 +15,7 @@ public class CommonParameters {
 	public static final String TPCH_DATA_COSTUMER = "/home/flink/tpch-dbgen/data/customer.tbl";
 	public static final String TPCH_DATA_NATION = "/home/flink/tpch-dbgen/data/nation.tbl";
 	public static final String SOURCE = "input";
+	public static final String SOURCE_PARALLEL = "input-par";
 	public static final String TOPIC_DATA_SOURCE = "topic-data-source";
 	public static final String SOURCE_DATA_MQTT = "mqtt";
 	public static final String SOURCE_HOST = "sourceHost";

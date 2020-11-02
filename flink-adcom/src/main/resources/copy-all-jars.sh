@@ -16,11 +16,13 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # ./bin/flink run ../flink-app/flink-examples-streaming_2.12-1.12-SNAPSHOT-WordCount.jar --input /home/felipe/Temp/1524-0-4.txt
 
 # TaxiRide pre-aggregation
-# ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller false -pre-aggregate-window-timeout 2000 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -output mqtt -sinkHost 127.0.0.1
+# ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller false -pre-aggregate-window-timeout 2000 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par false -output mqtt -sinkHost 127.0.0.1
+# ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller false -pre-aggregate-window-timeout 2000 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
 
 
 # Changing the data rate
 # echo '1000000000' > /tmp/datarate.txt    # 1    rec/sec
+# echo '2000000' > /tmp/datarate.txt       # 500  rec/sec
 # echo '1000000' > /tmp/datarate.txt       # 1K   rec/sec
 # echo '200000' > /tmp/datarate.txt        # 5K   rec/sec
 # echo '100000' > /tmp/datarate.txt        # 10K  rec/sec

@@ -131,6 +131,7 @@ public class AveragePreAggregate {
 			slotGroup02 = SLOT_GROUP_01_02;
 		}
 
+		/*
 		// get input data
 		DataStream<String> rawSensorValues;
 		if (Strings.isNullOrEmpty(input)) {
@@ -142,7 +143,6 @@ public class AveragePreAggregate {
 			rawSensorValues = env.readTextFile(params.get("input")).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
-		/*
 		// split up the lines in pairs (2-tuples) containing: (word,1)
 		DataStream<Tuple2<Integer, Double>> sensorValues = rawSensorValues.flatMap(new SensorTokenizer()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
@@ -202,6 +202,7 @@ public class AveragePreAggregate {
 	// *************************************************************************
 	// USER FUNCTIONS
 	// *************************************************************************
+	/*
 	public static final class SensorTokenizer implements FlatMapFunction<String, Tuple2<Integer, Double>> {
 
 		@Override
@@ -228,6 +229,7 @@ public class AveragePreAggregate {
 			return Tuple2.of(value.f0, Tuple2.of(value.f1, 1));
 		}
 	}
+	 */
 
 	// *************************************************************************
 	// GENERIC merge function
@@ -240,6 +242,7 @@ public class AveragePreAggregate {
 	 * Input (Integer, Double): sensorID, sensorValue
 	 * Output (Integer, <Double, Integer>): sensorID, <sensorValue.sum, sensor.count>
 	 */
+	/*
 	private static class SensorValuesSumPreAggregateFunction
 		extends PreAggregateFunction<Integer,
 		Tuple2<Integer, Tuple2<Double, Integer>>,
@@ -303,4 +306,5 @@ public class AveragePreAggregate {
 			return "SensorID[" + value.f0 + "] qtd[" + value.f1.f1 + "] average[" + value.f1.f0 + "]";
 		}
 	}
+	 */
 }

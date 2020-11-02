@@ -2,7 +2,6 @@ package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -175,6 +174,7 @@ public class TaxiRidePassengerAveragePreAggregate {
 		}
 	}
 
+	/*
 	private static class TaxiRidePassengerSumPreAggregateConcurrentFunction
 		extends PreAggregateConcurrentFunction<Integer,
 		Tuple2<Integer, Tuple2<Double, Long>>,
@@ -229,4 +229,5 @@ public class TaxiRidePassengerAveragePreAggregate {
 			return "Average passengers[" + value.f1.f0 + "]";
 		}
 	}
+	 */
 }

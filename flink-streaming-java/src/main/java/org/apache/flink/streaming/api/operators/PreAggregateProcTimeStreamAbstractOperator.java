@@ -3,43 +3,39 @@ package org.apache.flink.streaming.api.operators;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.util.FunctionUtils;
 import org.apache.flink.metrics.Gauge;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
 import org.apache.flink.util.Collector;
 
-import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public abstract class PreAggregateAbstractProcTimeStreamOperator<K, V, IN, OUT>
+public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 	extends AbstractStreamOperator<OUT>
 	implements OneInputStreamOperator<IN, OUT>, ProcessingTimeCallback {
 
 	private static final long serialVersionUID = 1L;
-	private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss");
+	// private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss");
 
 	private final long intervalMs;
-
-	private transient long currentWatermark;
-
-	/** The map in heap to store elements. */
-	private transient Map<K, V> bundle;
-
 	/** The function used to process when receiving element. */
 	private final PreAggregateFunction<K, V, IN, OUT> function;
-
+	/** controller properties */
+	private final boolean enableController;
+	private transient long currentWatermark;
+	/** The map in heap to store elements. */
+	private transient Map<K, V> bundle;
 	/** Output for stream records. */
 	private transient Collector<OUT> collector;
 
-	public PreAggregateAbstractProcTimeStreamOperator(
+	public PreAggregateProcTimeStreamAbstractOperator(
 		PreAggregateFunction<K, V, IN, OUT> function,
-		long intervalMs) {
+		long intervalMs, boolean enableController) {
 		this.function = checkNotNull(function, "function is null");
 		this.intervalMs = intervalMs;
+		this.enableController = enableController;
 	}
 
 	@Override
@@ -72,17 +68,6 @@ public abstract class PreAggregateAbstractProcTimeStreamOperator<K, V, IN, OUT>
 
 		// update to map bundle
 		this.bundle.put(bundleKey, newBundleValue);
-
-		// this.numOfElements++;
-		// this.preAggregateTriggerFunction.onElement(input);
-		long now = getProcessingTimeService().getCurrentProcessingTime();
-		long currentBatch = now - now % intervalMs;
-		if (currentBatch > currentWatermark) {
-			currentWatermark = currentBatch;
-			// emit
-			output.emitWatermark(new Watermark(currentBatch));
-			// output.collect(element);
-		}
 	}
 
 	/**
@@ -95,13 +80,7 @@ public abstract class PreAggregateAbstractProcTimeStreamOperator<K, V, IN, OUT>
 		long currentProcessingTime = getProcessingTimeService().getCurrentProcessingTime();
 		this.collect();
 		getProcessingTimeService().registerTimer(currentProcessingTime + intervalMs, this);
-//		long currentBatch = now - now % intervalMs;
-//		if (currentBatch > currentWatermark) {
-//			currentWatermark = currentBatch;
-//			// emit
-//			output.emitWatermark(new Watermark(currentBatch));
-//		}
-		System.out.println(PreAggregateAbstractProcTimeStreamOperator.class.getSimpleName() + ".onProcessingTime: " + sdf.format(new Timestamp(System.currentTimeMillis())));
+		// System.out.println(PreAggregateProcTimeStreamAbstractOperator.class.getSimpleName() + ".onProcessingTime: " + sdf.format(new Timestamp(System.currentTimeMillis())));
 	}
 
 	private void collect() throws Exception {
@@ -110,17 +89,6 @@ public abstract class PreAggregateAbstractProcTimeStreamOperator<K, V, IN, OUT>
 			this.bundle.clear();
 		}
 	}
-
-//	@Override
-//	public void processWatermark(Watermark mark) throws Exception {
-//		this.collect();
-//		super.processWatermark(mark);
-//	}
-//
-//	@Override
-//	public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-//		this.collect();
-//	}
 
 	@Override
 	public void close() throws Exception {

@@ -1400,8 +1400,8 @@ public class DataStream<T> {
 	/**
 	 * Combine and AdCom
 	 */
-	public <R> SingleOutputStreamOperator<R> combine(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-													 long intervalMs) {
+	private <R> SingleOutputStreamOperator<R> combine(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+													 long intervalMs, boolean enableController) {
 		// get the output type for the pre-aggregation function
 		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
 			clean(preAggregateFunction),
@@ -1412,7 +1412,7 @@ public class DataStream<T> {
 		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
 
 		// create the stream pre-aggregate operator
-		PreAggregateProcTimeStreamOperator operator = new PreAggregateProcTimeStreamOperator(preAggregateFunction, keySelector, intervalMs);
+		PreAggregateProcTimeStreamOperator operator = new PreAggregateProcTimeStreamOperator(preAggregateFunction, keySelector, intervalMs, enableController);
 
 		// create the factory operator for the stream pre-aggregate operator
 		SimpleOperatorFactory operatorFactory = SimpleOperatorFactory.of(operator);
@@ -1421,31 +1421,13 @@ public class DataStream<T> {
 		return doTransform("PreAggregate", outType, operatorFactory);
 	}
 
-//	private <R> SingleOutputStreamOperator<R> combine(
-//		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-//		int preAggWindowCount, boolean enableController) {
-//		TypeInformation<R> outType = TypeExtractor.getPreAggregateReturnTypes(
-//			clean(preAggregateFunction),
-//			getType(),
-//			Utils.getCallLocationName(),
-//			false);
-//		PreAggregateTriggerFunction<R> preAggregateTriggerFunction = new PreAggregateTriggerFunction<R>(preAggWindowCount);
-//		KeySelector<R, T> keySelector = KeySelectorUtil.getSelectorForFirstKey(outType, getExecutionConfig());
-//
-//		return doTransform("PreAggregate", outType,
-//			SimpleOperatorFactory.of(new StreamPreAggregateOperator(preAggregateFunction, preAggregateTriggerFunction,
-//				keySelector, enableController)));
-//	}
-//
-//	public <R> SingleOutputStreamOperator<R> combine(
-//		PreAggregateFunction<?, ?, T, R> preAggregateFunction,
-//		int preAggWindowCount) {
-//		return combine(preAggregateFunction, preAggWindowCount, false);
-//	}
-//
-//	public <R> SingleOutputStreamOperator<R> adCombine(
-//		PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
-//		return combine(preAggregateFunction, 1, true);
-//	}
+	public <R> SingleOutputStreamOperator<R> combine(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+													  long intervalMs) {
+		return combine(preAggregateFunction, intervalMs, false);
+	}
+
+	public <R> SingleOutputStreamOperator<R> adCombine(PreAggregateFunction<?, ?, T, R> preAggregateFunction) {
+		return combine(preAggregateFunction, 500, true);
+	}
 
 }

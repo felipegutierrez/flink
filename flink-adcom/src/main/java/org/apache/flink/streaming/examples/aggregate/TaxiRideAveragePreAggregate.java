@@ -2,7 +2,6 @@ package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -67,6 +66,7 @@ public class TaxiRideAveragePreAggregate {
 		boolean enableController = params.getBoolean(CONTROLLER, true);
 		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 
+		/*
 		System.out.println("Download data from:");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
 		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
@@ -256,11 +256,14 @@ public class TaxiRideAveragePreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideAveragePreAggregate.class.getSimpleName());
+
+		 */
 	}
 
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
+	/*
 	private static class TokenizerMap implements MapFunction<TaxiRide, Tuple4<Integer, Double, Double, Double>> {
 		private final Random random;
 
@@ -325,6 +328,8 @@ public class TaxiRideAveragePreAggregate {
 		}
 	}
 
+	 */
+
 	/**
 	 * Count the number of values and sum them.
 	 * Key (Integer): random-key
@@ -332,6 +337,7 @@ public class TaxiRideAveragePreAggregate {
 	 * Input (Integer, Double): random-key, passengerCnt
 	 * Output (Integer, Double, Long): random-key, passengerCnt.sum, random-key.count
 	 */
+	/*
 	private static class TaxiRideSumPreAggregateFunction
 		extends PreAggregateFunction<Integer,
 		Tuple2<Integer, Tuple4<Double, Double, Double, Long>>,
@@ -488,4 +494,5 @@ public class TaxiRideAveragePreAggregate {
 				+ "] minutes[" + tripTimeAvg + "]";
 		}
 	}
+	 */
 }

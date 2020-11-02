@@ -2,7 +2,6 @@ package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateConcurrentFunction;
 import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -146,6 +145,7 @@ public class TaxiRideDistanceAveragePreAggregate {
 	 * Input (Integer, Double): random-key, passengerCnt
 	 * Output (Integer, Double, Long): random-key, passengerCnt.sum, random-key.count
 	 */
+	/*
 	private static class TaxiRidePassengerSumPreAggregateFunction
 		extends PreAggregateFunction<Integer,
 		Tuple2<Integer, Tuple2<Double, Long>>,
@@ -229,4 +229,5 @@ public class TaxiRideDistanceAveragePreAggregate {
 			return "Average distance[" + value.f1.f0 + "] Kilometers";
 		}
 	}
+	 */
 }
