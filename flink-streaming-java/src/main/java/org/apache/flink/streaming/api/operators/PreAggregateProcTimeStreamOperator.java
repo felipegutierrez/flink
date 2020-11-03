@@ -15,7 +15,8 @@ public class PreAggregateProcTimeStreamOperator<K, V, IN, OUT> extends PreAggreg
 	public PreAggregateProcTimeStreamOperator(
 		PreAggregateFunction<K, V, IN, OUT> function,
 		KeySelector<IN, K> keySelector,
-		long intervalMs, boolean enableController) {
+		long intervalMs,
+		boolean enableController) {
 		super(function, intervalMs, enableController);
 		this.keySelector = keySelector;
 	}

@@ -1,7 +1,12 @@
-package org.apache.flink.streaming.api.functions.aggregation;
+package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
-import org.fusesource.mqtt.client.*;
+
+import org.fusesource.mqtt.client.BlockingConnection;
+import org.fusesource.mqtt.client.MQTT;
+import org.fusesource.mqtt.client.Message;
+import org.fusesource.mqtt.client.QoS;
+import org.fusesource.mqtt.client.Topic;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
@@ -9,50 +14,46 @@ import java.util.concurrent.TimeUnit;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
+ * This tread is created by each pre-agg operator to receive new parameters of processing timeout.
+ * It receives parameter from the controller in the JobManager.
  * <pre>
  *      Changes the frequency that the pre-aggregate emits batches of data:
  * mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-frequency-pre-aggregate -m "1000"
  * </pre>
  */
-public class PreAggregateParameterListener extends Thread implements Serializable {
+public class PreAggregateProcTimeListener extends Thread implements Serializable {
 
 	public static final String TOPIC_PRE_AGGREGATE_PARAMETER = "topic-pre-aggregate-parameter";
 	private final String topic;
 	private final String host;
 	private final int port;
-	// private final PreAggregateTriggerFunction preAggregateTriggerFunction;
-	private final int subtaskIndex;
+	private final int subtaskId;
 	private BlockingConnection subscriber;
 	private MQTT mqtt;
 	private boolean running = false;
 
-	public PreAggregateParameterListener(
-		// PreAggregateTriggerFunction preAggregateTriggerFunction,
-		int subtaskIndex) {
+	private long intervalMs;
+
+	public PreAggregateProcTimeListener(long intervalMs, int subtaskId) {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
-		this(
-			// preAggregateTriggerFunction,
-			"127.0.0.1", subtaskIndex);
+		this("127.0.0.1", intervalMs, subtaskId);
 	}
 
-
-	public PreAggregateParameterListener(
-		// PreAggregateTriggerFunction preAggregateTriggerFunction,
-		String host, int subtaskIndex) {
-		// this.preAggregateTriggerFunction = preAggregateTriggerFunction;
+	public PreAggregateProcTimeListener(String host, long intervalMs, int subtaskId) {
 		if (Strings.isNullOrEmpty(host) || host.equalsIgnoreCase("localhost")) {
 			this.host = "127.0.0.1";
 		} else {
 			this.host = host;
 		}
 		this.port = 1883;
-		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER;
+		this.intervalMs = intervalMs;
+		this.subtaskId = subtaskId;
+		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER + "-" + this.subtaskId;
 		this.running = true;
-		this.subtaskIndex = subtaskIndex;
 		this.disclaimer();
 	}
 
-	public void connect() throws Exception {
+	private void connect() throws Exception {
 		this.mqtt = new MQTT();
 		this.mqtt.setHost(host, port);
 		this.subscriber = mqtt.blockingConnection();
@@ -63,14 +64,17 @@ public class PreAggregateParameterListener extends Thread implements Serializabl
 
 	public void run() {
 		try {
+			if (subscriber == null) {
+				connect();
+			}
 			while (running) {
-				// System.out.println("waiting for messages...");
 				Message msg = subscriber.receive(10, TimeUnit.SECONDS);
 				if (msg != null) {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
+					System.out.println("pre-agg[" + subtaskId + "] received msg: " + message);
 					if (isInteger(message)) {
-						// this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue(), this.subtaskIndex);
+						this.intervalMs = Long.valueOf(message).longValue();
 					} else {
 						System.out.println("The parameter sent is not an integer: " + message);
 					}
@@ -106,11 +110,23 @@ public class PreAggregateParameterListener extends Thread implements Serializabl
 		return true;
 	}
 
+	public long getIntervalMs() {
+		return intervalMs;
+	}
+
+	public void setIntervalMs(long intervalMs) {
+		this.intervalMs = intervalMs;
+	}
+
 	private void disclaimer() {
-		System.out.println("This is the application [" + PreAggregateParameterListener.class.getSimpleName() + "].");
+		System.out.println(
+			"This is the application [" + PreAggregateProcTimeListener.class.getSimpleName()
+				+ "].");
 		System.out.println("It listens new frequency parameters from an MQTT broker.");
-		System.out.println("To publish in this broker use:");
-		System.out.println("mosquitto_pub -h " + this.host + " -p " + this.port + " -t " + this.topic + " -m \"MaxCount\"");
+		System.out.println("To publish on this broker use:");
+		System.out.println(
+			"mosquitto_pub -h " + this.host + " -p " + this.port + " -t " + this.topic
+				+ " -m \"intervalMs\"");
 		System.out.println();
 	}
 }

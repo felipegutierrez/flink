@@ -28,7 +28,8 @@ public class PreAggregateProcTimeStreamOperatorTest {
 
 		KeySelector<Tuple2<String, Integer>, String> keySelector = (KeySelector<Tuple2<String, Integer>, String>) value -> value.f0;
 
-		PreAggregateProcTimeStreamOperator operator = new PreAggregateProcTimeStreamOperator(preAggFunction,
+		PreAggregateProcTimeStreamOperator operator = new PreAggregateProcTimeStreamOperator(
+			preAggFunction,
 			keySelector,
 			intervalMs,
 			false);

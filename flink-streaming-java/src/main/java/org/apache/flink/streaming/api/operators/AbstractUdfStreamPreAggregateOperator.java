@@ -5,15 +5,9 @@ import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
-import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
-import org.apache.flink.metrics.MeterView;
-import org.apache.flink.metrics.MetricGroup;
-import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
-import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
 import org.apache.flink.streaming.api.functions.aggregation.*;
-import org.apache.flink.streaming.util.functions.PreAggLatencyMeanGauge;
-import org.apache.flink.streaming.util.functions.PreAggParamGauge;
+import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -51,7 +45,7 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 	/**
 	 * A Mqtt topic to change the parameter K of pre-aggregating items
 	 */
-	private PreAggregateParameterListener preAggregateMqttListener;
+	private PreAggregateProcTimeListener preAggregateMqttListener;
 	/**
 	 * A Feedback loop Controller to find the optimal parameter K of pre-aggregating items
 	 */
@@ -97,8 +91,8 @@ public abstract class AbstractUdfStreamPreAggregateOperator<K, V, IN, OUT>
 		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(new SlidingTimeWindowArrayReservoir(reservoirWindow, TimeUnit.SECONDS));
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(
 			PRE_AGGREGATE_OUT_POOL_USAGE_HISTOGRAM, new DropwizardHistogramWrapper(dropwizardOutPoolBufferHistogram));
-		PreAggParamGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggParamGauge());
-		PreAggLatencyMeanGauge preAgglatencyMeanGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_LATENCY_MEAN, new PreAggLatencyMeanGauge());
+		PreAggIntervalMsGauge preAggParamGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_PARAMETER, new PreAggIntervalMsGauge());
+//		PreAggLatencyMeanGauge preAgglatencyMeanGauge = getRuntimeContext().getMetricGroup().gauge(PRE_AGGREGATE_LATENCY_MEAN, new PreAggLatencyMeanGauge());
 
 		ConfigOption<String> restAddressOption = ConfigOptions
 			.key("rest.address")

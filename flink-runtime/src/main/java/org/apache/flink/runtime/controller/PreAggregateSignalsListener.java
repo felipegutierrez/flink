@@ -1,6 +1,10 @@
 package org.apache.flink.runtime.controller;
 
-import org.fusesource.mqtt.client.*;
+import org.fusesource.mqtt.client.BlockingConnection;
+import org.fusesource.mqtt.client.MQTT;
+import org.fusesource.mqtt.client.Message;
+import org.fusesource.mqtt.client.QoS;
+import org.fusesource.mqtt.client.Topic;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -8,12 +12,12 @@ import java.util.concurrent.TimeUnit;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class PreAggregateStateListener extends Thread {
+public class PreAggregateSignalsListener extends Thread {
 
 	// This is a Map to store state of each pre-agg physical operator using the subtaskIndex as the key
-	public final Map<Integer, PreAggregateState> preAggregateState;
+	public final Map<Integer, PreAggregateSignalsState> preAggregateState;
 
-	// Atributes for the MQTT listen channel
+	// Properties for the MQTT listen channel
 	private final String topic;
 	private final String host;
 	private final int port;
@@ -21,15 +25,15 @@ public class PreAggregateStateListener extends Thread {
 	private MQTT mqtt;
 	private boolean running = false;
 
-	public PreAggregateStateListener(String host, int port, String topic) {
+	public PreAggregateSignalsListener(String host, int port, String topic) {
 		this.host = host;
 		this.port = port;
 		this.topic = topic;
 		this.running = true;
-		this.preAggregateState = new HashMap<Integer, PreAggregateState>();
+		this.preAggregateState = new HashMap<Integer, PreAggregateSignalsState>();
 	}
 
-	public void connect() throws Exception {
+	private void connect() throws Exception {
 		this.mqtt = new MQTT();
 		this.mqtt.setHost(host, port);
 		this.subscriber = mqtt.blockingConnection();
@@ -44,6 +48,7 @@ public class PreAggregateStateListener extends Thread {
 
 	public void run() {
 		try {
+			if (this.mqtt == null) this.connect();
 			while (running) {
 				// System.out.println("waiting for messages...");
 				Message msg = subscriber.receive(10, TimeUnit.SECONDS);
@@ -51,7 +56,7 @@ public class PreAggregateStateListener extends Thread {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
 					if (message != null) {
-						// System.out.println("PreAggregateListener message: " + message);
+						System.out.println("PreAggregateListener message: " + message);
 						this.addState(message);
 					} else {
 						System.out.println("The parameter sent is null.");
@@ -65,7 +70,7 @@ public class PreAggregateStateListener extends Thread {
 
 	private void addState(String msg) {
 		String[] states = msg.split("\\|");
-		if (states != null && states.length == 18) {
+		if (states != null && states.length == 12) {
 			String subtaskIndex = states[0];
 			String outPoolUsageMin = states[1];
 			String outPoolUsageMax = states[2];
@@ -75,27 +80,40 @@ public class PreAggregateStateListener extends Thread {
 			String outPoolUsage095 = states[6];
 			String outPoolUsage099 = states[7];
 			String outPoolUsageStdDev = states[8];
-			String latencyMin = states[9];
-			String latencyMax = states[10];
-			String latencyMean = states[11];
-			String latencyQuantile05 = states[12];
-			String latencyQuantile099 = states[13];
-			String latencyStdDev = states[14];
-			String numRecordsInPerSecond = states[15];
-			String numRecordsOutPerSecond = states[16];
-			String minCountCurrent = states[17];
+			String numRecordsInPerSecond = states[9];
+			String numRecordsOutPerSecond = states[10];
+			String intervalMs = states[11];
 
-			PreAggregateState state = this.preAggregateState.get(Integer.parseInt(subtaskIndex));
+			PreAggregateSignalsState state = this.preAggregateState.get(Integer.parseInt(
+				subtaskIndex));
 			if (state == null) {
-				state = new PreAggregateState(subtaskIndex, outPoolUsageMin, outPoolUsageMax, outPoolUsageMean,
-					outPoolUsage05, outPoolUsage075, outPoolUsage095, outPoolUsage099, outPoolUsageStdDev,
-					latencyMin, latencyMax, latencyMean, latencyQuantile05, latencyQuantile099, latencyStdDev,
-					numRecordsInPerSecond, numRecordsOutPerSecond, minCountCurrent);
+				state = new PreAggregateSignalsState(
+					subtaskIndex,
+					outPoolUsageMin,
+					outPoolUsageMax,
+					outPoolUsageMean,
+					outPoolUsage05,
+					outPoolUsage075,
+					outPoolUsage095,
+					outPoolUsage099,
+					outPoolUsageStdDev,
+					numRecordsInPerSecond,
+					numRecordsOutPerSecond,
+					intervalMs);
 			} else {
-				state.update(subtaskIndex, outPoolUsageMin, outPoolUsageMax, outPoolUsageMean,
-					outPoolUsage05, outPoolUsage075, outPoolUsage095, outPoolUsage099, outPoolUsageStdDev,
-					latencyMin, latencyMax, latencyMean, latencyQuantile05, latencyQuantile099, latencyStdDev,
-					numRecordsInPerSecond, numRecordsOutPerSecond, minCountCurrent);
+				state.update(
+					subtaskIndex,
+					outPoolUsageMin,
+					outPoolUsageMax,
+					outPoolUsageMean,
+					outPoolUsage05,
+					outPoolUsage075,
+					outPoolUsage095,
+					outPoolUsage099,
+					outPoolUsageStdDev,
+					numRecordsInPerSecond,
+					numRecordsOutPerSecond,
+					intervalMs);
 			}
 			this.preAggregateState.put(Integer.parseInt(subtaskIndex), state);
 		} else {

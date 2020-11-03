@@ -1,6 +1,6 @@
 package org.apache.flink.runtime.controller;
 
-public class PreAggregateState {
+public class PreAggregateSignalsState {
 
 	private final int subtaskIndex;
 	// Network buffer usage
@@ -13,25 +13,26 @@ public class PreAggregateState {
 	private final double[] outPoolUsage099;
 	private final double[] outPoolUsageStdDev;
 
-	// Latency
-	private final long[] latencyMin;
-	private final long[] latencyMax;
-	private final double[] latencyMean;
-	private final double[] latencyQuantile05;
-	private final double[] latencyQuantile099;
-	private final double[] latencyStdDev;
+	// interval in milliseconds
+	private final long[] intervalMs;
 
 	// Throughput
 	private final double[] numRecordsInPerSecond;
 	private final double[] numRecordsOutPerSecond;
 
-	// Pre-agg parameter K
-	private final int[] minCount;
-
-	public PreAggregateState(String subtaskIndex, String outPoolUsageMin, String outPoolUsageMax, String outPoolUsageMean,
-							 String outPoolUsage05, String outPoolUsage075, String outPoolUsage095, String outPoolUsage099, String outPoolUsageStdDev,
-							 String latencyMin, String latencyMax, String latencyMean, String latencyQuantile05, String latencyQuantile099, String latencyStdDev,
-							 String numRecordsInPerSecond, String numRecordsOutPerSecond, String minCountCurrent) {
+	public PreAggregateSignalsState(
+		String subtaskIndex,
+		String outPoolUsageMin,
+		String outPoolUsageMax,
+		String outPoolUsageMean,
+		String outPoolUsage05,
+		String outPoolUsage075,
+		String outPoolUsage095,
+		String outPoolUsage099,
+		String outPoolUsageStdDev,
+		String numRecordsInPerSecond,
+		String numRecordsOutPerSecond,
+		String intervalMs) {
 
 		this.subtaskIndex = Integer.parseInt(subtaskIndex);
 
@@ -45,52 +46,52 @@ public class PreAggregateState {
 		this.outPoolUsage099 = new double[]{Double.parseDouble(outPoolUsage099), -1.0, -1.0};
 		this.outPoolUsageStdDev = new double[]{Double.parseDouble(outPoolUsageStdDev), -1.0, -1.0};
 
-		// Latency
-		this.latencyMin = new long[]{Long.parseLong(latencyMin), -1, -1};
-		this.latencyMax = new long[]{Long.parseLong(latencyMax), -1, -1};
-		this.latencyMean = new double[]{Double.parseDouble(latencyMean), -1.0, -1.0};
-		this.latencyQuantile05 = new double[]{Double.parseDouble(latencyQuantile05), -1.0, -1.0};
-		this.latencyQuantile099 = new double[]{Double.parseDouble(latencyQuantile099), -1.0, -1.0};
-		this.latencyStdDev = new double[]{Double.parseDouble(latencyStdDev), -1.0, -1.0};
-
 		// Throughput
 		this.numRecordsInPerSecond = new double[]{Double.parseDouble(numRecordsInPerSecond), -1.0, -1.0};
 		this.numRecordsOutPerSecond = new double[]{Double.parseDouble(numRecordsOutPerSecond), -1.0, -1.0};
 
-		// Pre-agg parameter K
-		this.minCount = new int[]{Integer.parseInt(minCountCurrent), -1, -1};
+		// Pre-agg intervalMs
+		this.intervalMs = new long[]{Long.parseLong(intervalMs), -1, -1};
 	}
 
 	public static void main(String[] args) {
-		PreAggregateState p = new PreAggregateState("0", "1", "1", "1",
+		PreAggregateSignalsState p = new PreAggregateSignalsState("0", "1", "1", "1",
 			"1", "1", "1", "1", "1",
-			"1", "1", "1", "1", "1", "1",
 			"1", "1", "1");
 		p.update("0", "1", "1", "1",
 			"1", "1", "1", "1", "1",
-			"1", "1", "1", "1", "1", "1",
 			"1", "1", "1");
-		System.out.println("subtask[" + p.getSubtaskIndex() + "] OutPoolUsageMin[" + p.getOutPoolUsageMin() +
-			"] OutPoolUsageMean[" + p.getOutPoolUsageMean() + "]");
+		System.out.println(
+			"subtask[" + p.getSubtaskIndex() + "] OutPoolUsageMin[" + p.getOutPoolUsageMin() +
+				"] OutPoolUsageMean[" + p.getOutPoolUsageMean() + "]");
 
 		p.update("0", "1", "1", "1",
 			"1", "1", "1", "1", "1",
-			"1", "1", "1", "1", "1", "1",
 			"1", "1", "1");
 		p.update("0", "1", "1", "1",
 			"1", "1", "1", "1", "1",
-			"1", "1", "1", "1", "1", "1",
 			"1", "1", "1");
-		System.out.println("subtask[" + p.getSubtaskIndex() + "] OutPoolUsageMin[" + p.getOutPoolUsageMin() +
-			"] OutPoolUsageMean[" + p.getOutPoolUsageMean() + "]");
+		System.out.println(
+			"subtask[" + p.getSubtaskIndex() + "] OutPoolUsageMin[" + p.getOutPoolUsageMin() +
+				"] OutPoolUsageMean[" + p.getOutPoolUsageMean() + "]");
 	}
 
-	public void update(String subtaskIndex, String outPoolUsageMin, String outPoolUsageMax, String outPoolUsageMean,
-					   String outPoolUsage05, String outPoolUsage075, String outPoolUsage095, String outPoolUsage099, String outPoolUsageStdDev,
-					   String latencyMin, String latencyMax, String latencyMean, String latencyQuantile05, String latencyQuantile099, String latencyStdDev,
-					   String numRecordsInPerSecond, String numRecordsOutPerSecond, String minCountCurrent) {
+	public void update(
+		String subtaskIndex,
+		String outPoolUsageMin,
+		String outPoolUsageMax,
+		String outPoolUsageMean,
+		String outPoolUsage05,
+		String outPoolUsage075,
+		String outPoolUsage095,
+		String outPoolUsage099,
+		String outPoolUsageStdDev,
+		String numRecordsInPerSecond,
+		String numRecordsOutPerSecond,
+		String intervalMs) {
 		if (this.subtaskIndex != Integer.parseInt(subtaskIndex)) {
-			System.out.println("ERROR: current subtaskIndex[" + subtaskIndex + "] is not equal to the state subtaskIndex[" + this.subtaskIndex + "]");
+			System.out.println("ERROR: current subtaskIndex[" + subtaskIndex
+				+ "] is not equal to the state subtaskIndex[" + this.subtaskIndex + "]");
 			return;
 		}
 		// Network buffer usage
@@ -142,43 +143,6 @@ public class PreAggregateState {
 		this.outPoolUsageStdDev[1] = outPoolUsageStdDev01;
 		this.outPoolUsageStdDev[2] = outPoolUsageStdDev02;
 
-		// Latency
-		long latencyMin01 = this.latencyMin[0];
-		long latencyMin02 = this.latencyMin[1];
-		this.latencyMin[0] = Long.parseLong(latencyMin);
-		this.latencyMin[1] = latencyMin01;
-		this.latencyMin[2] = latencyMin02;
-
-		long latencyMax01 = this.latencyMax[0];
-		long latencyMax02 = this.latencyMax[1];
-		this.latencyMax[0] = Long.parseLong(latencyMax);
-		this.latencyMax[1] = latencyMax01;
-		this.latencyMax[2] = latencyMax02;
-
-		double latencyMean01 = this.latencyMean[0];
-		double latencyMean02 = this.latencyMean[1];
-		this.latencyMean[0] = Double.parseDouble(latencyMean);
-		this.latencyMean[1] = latencyMean01;
-		this.latencyMean[2] = latencyMean02;
-
-		double latencyQuantile0501 = this.latencyQuantile05[0];
-		double latencyQuantile0502 = this.latencyQuantile05[1];
-		this.latencyQuantile05[0] = Double.parseDouble(latencyQuantile05);
-		this.latencyQuantile05[1] = latencyQuantile0501;
-		this.latencyQuantile05[2] = latencyQuantile0502;
-
-		double latencyQuantile09901 = this.latencyQuantile099[0];
-		double latencyQuantile09902 = this.latencyQuantile099[1];
-		this.latencyQuantile099[0] = Double.parseDouble(latencyQuantile099);
-		this.latencyQuantile099[1] = latencyQuantile09901;
-		this.latencyQuantile099[2] = latencyQuantile09902;
-
-		double latencyStdDev01 = this.latencyStdDev[0];
-		double latencyStdDev02 = this.latencyStdDev[1];
-		this.latencyStdDev[0] = Double.parseDouble(latencyStdDev);
-		this.latencyStdDev[1] = latencyStdDev01;
-		this.latencyStdDev[2] = latencyStdDev02;
-
 		// Throughput
 		double numRecordsInPerSecond01 = this.numRecordsInPerSecond[0];
 		double numRecordsInPerSecond02 = this.numRecordsInPerSecond[1];
@@ -192,20 +156,20 @@ public class PreAggregateState {
 		this.numRecordsOutPerSecond[1] = numRecordsOutPerSecond01;
 		this.numRecordsOutPerSecond[2] = numRecordsOutPerSecond02;
 
-		// Pre-agg parameter K
-		int minCount01 = this.minCount[0];
-		int minCount02 = this.minCount[1];
-		this.minCount[0] = Integer.parseInt(minCountCurrent);
-		this.minCount[1] = minCount01;
-		this.minCount[2] = minCount02;
+		// Pre-agg interval milliseconds
+		long intervalMs01 = this.intervalMs[0];
+		long intervalMs02 = this.intervalMs[1];
+		this.intervalMs[0] = Long.parseLong(intervalMs);
+		this.intervalMs[1] = intervalMs01;
+		this.intervalMs[2] = intervalMs02;
 	}
 
 	public int getSubtaskIndex() {
 		return subtaskIndex;
 	}
 
-	public int getMinCount() {
-		return minCount[0];
+	public long getIntervalMs() {
+		return intervalMs[0];
 	}
 
 	public long getOutPoolUsageMin() {
@@ -238,30 +202,6 @@ public class PreAggregateState {
 
 	public double getOutPoolUsageStdDev() {
 		return average(outPoolUsageStdDev);
-	}
-
-	public long getLatencyMin() {
-		return average(latencyMin);
-	}
-
-	public long getLatencyMax() {
-		return average(latencyMax);
-	}
-
-	public double getLatencyMean() {
-		return average(latencyMean);
-	}
-
-	public double getLatencyQuantile05() {
-		return average(latencyQuantile05);
-	}
-
-	public double getLatencyQuantile099() {
-		return average(latencyQuantile099);
-	}
-
-	public double getLatencyStdDev() {
-		return average(latencyStdDev);
 	}
 
 	public double getNumRecordsInPerSecond() {

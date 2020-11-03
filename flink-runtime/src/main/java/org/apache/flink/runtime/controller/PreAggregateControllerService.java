@@ -1,6 +1,7 @@
 package org.apache.flink.runtime.controller;
 
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
+
 import org.fusesource.hawtbuf.AsciiBuffer;
 import org.fusesource.hawtbuf.Buffer;
 import org.fusesource.hawtbuf.UTF8Buffer;
@@ -13,6 +14,8 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The PreAggregate controller listens to all preAggregation operators metrics and publish a global pre-aggregate parameter
@@ -26,15 +29,14 @@ public class PreAggregateControllerService extends Thread {
 	private final String TOPIC_PRE_AGG_STATE = "topic-pre-aggregate-state";
 	private final int controllerFrequencySec;
 	private final boolean running;
-	private final PreAggregateStateListener preAggregateListener;
+	private final PreAggregateSignalsListener preAggregateListener;
+	private final String host;
+	private final int port;
 	/**
 	 * MQTT broker is used to set the parameter K to all PreAgg operators
 	 */
 	private MQTT mqtt;
 	private FutureConnection connection;
-	private String host;
-	private int port;
-
 	// global states
 	private double numRecordsInPerSecondMax;
 	private double numRecordsOutPerSecondMax;
@@ -52,27 +54,37 @@ public class PreAggregateControllerService extends Thread {
 		this.numRecordsOutPerSecondMax = 0.0;
 		this.controllerFrequencySec = 120;
 		this.running = true;
-		try {
-			if (Strings.isNullOrEmpty(brokerServerHost)) {
-				this.host = "127.0.0.1";
-			} else {
-				this.host = brokerServerHost;
-			}
-			this.port = 1883;
-		} catch (Exception e) {
-			e.printStackTrace();
+
+		if (Strings.isNullOrEmpty(brokerServerHost)
+			|| brokerServerHost.equalsIgnoreCase("localhost")) {
+			this.host = "127.0.0.1";
+		} else if (brokerServerHost.contains("akka.tcp")) {
+			this.host = extractIP(brokerServerHost);
+		} else {
+			this.host = brokerServerHost;
 		}
-		this.preAggregateListener = new PreAggregateStateListener(this.host, this.port, TOPIC_PRE_AGG_STATE);
-		this.preAggregateListener.connect();
+		this.port = 1883;
+
+		this.preAggregateListener = new PreAggregateSignalsListener(
+			this.host,
+			this.port,
+			TOPIC_PRE_AGG_STATE);
 		this.preAggregateListener.start();
 		this.disclaimer();
 	}
 
-	private void disclaimer() {
-		System.out.println("Initialized pre-aggregate Controller service scheduled to every " + this.controllerFrequencySec + " seconds.");
+	public static void main(String[] args) throws Exception {
+		PreAggregateControllerService preAggregateControllerService = new PreAggregateControllerService(
+			"akka.tcp://flink@127.0.0.1:6123/user/rpc/jobmanager_2");
+		preAggregateControllerService.start();
 	}
 
-	public void connect() throws Exception {
+	private void disclaimer() {
+		System.out.println("Initialized pre-aggregate Controller service scheduled to every "
+			+ this.controllerFrequencySec + " seconds.");
+	}
+
+	private void connect() throws Exception {
 		mqtt = new MQTT();
 		mqtt.setHost(host, port);
 
@@ -85,15 +97,16 @@ public class PreAggregateControllerService extends Thread {
 	}
 
 	public void run() {
-		while (running) {
-			try {
+		try {
+			if (mqtt == null) this.connect();
+			while (running) {
 				Thread.sleep(this.controllerFrequencySec * 1000);
 				publish(computePreAggregateParameter());
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			} catch (Exception e) {
-				e.printStackTrace();
 			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -109,39 +122,42 @@ public class PreAggregateControllerService extends Thread {
 		int preAggCount = 0;
 		this.inputRecPerSecFlag = false;
 
-		for (Map.Entry<Integer, PreAggregateState> entry : this.preAggregateListener.preAggregateState.entrySet()) {
+		for (Map.Entry<Integer, PreAggregateSignalsState> entry : this.preAggregateListener.preAggregateState
+			.entrySet()) {
 			preAggCount++;
 			String label = "";
 			Integer subtaskIndex = entry.getKey();
-			PreAggregateState preAggregateState = entry.getValue();
+			PreAggregateSignalsState preAggregateState = entry.getValue();
 
-			int minCountPercent05 = (int) Math.ceil(preAggregateState.getMinCount() * 0.05);
-			int minCountPercent20 = (int) Math.ceil(preAggregateState.getMinCount() * 0.2);
-			int minCountPercent50 = (int) Math.ceil(preAggregateState.getMinCount() * 0.5);
+//			int minCountPercent05 = (int) Math.ceil(preAggregateState.getMinCount() * 0.05);
+//			int minCountPercent20 = (int) Math.ceil(preAggregateState.getMinCount() * 0.2);
+//			int minCountPercent50 = (int) Math.ceil(preAggregateState.getMinCount() * 0.5);
 
-			if (preAggregateState.getOutPoolUsageMin() > 50.0 && preAggregateState.getOutPoolUsageMean() >= 60.0) {
+			if (preAggregateState.getOutPoolUsageMin() > 50.0
+				&& preAggregateState.getOutPoolUsageMean() >= 60.0) {
 				// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
-				if (preAggregateState.getOutPoolUsage05() == 100 && preAggregateState.getOutPoolUsageMax() == 100) {
-					if (preAggregateState.getMinCount() <= 20) {
-						minCount.update(preAggregateState.getMinCount() * 2);
-						label = "+++";
-					} else {
-						// minCount.update(preAggregateState.getMinCount() + minCountPercent20);
-						// If it is the second time that we see a physical operator overloaded we increase the latency by 50%
-						if (!minCount.isOverloaded()) {
-							minCount.update(preAggregateState.getMinCount() + minCountPercent20);
-						} else {
-							minCount.update(preAggregateState.getMinCount() + minCountPercent50);
-						}
-						label = "++";
-					}
+				if (preAggregateState.getOutPoolUsage05() == 100
+					&& preAggregateState.getOutPoolUsageMax() == 100) {
+//					if (preAggregateState.getMinCount() <= 20) {
+//						minCount.update(preAggregateState.getMinCount() * 2);
+//						label = "+++";
+//					} else {
+//						// minCount.update(preAggregateState.getMinCount() + minCountPercent20);
+//						// If it is the second time that we see a physical operator overloaded we increase the latency by 50%
+//						if (!minCount.isOverloaded()) {
+//							minCount.update(preAggregateState.getMinCount() + minCountPercent20);
+//						} else {
+//							minCount.update(preAggregateState.getMinCount() + minCountPercent50);
+//						}
+//						label = "++";
+//					}
 					minCount.setOverloaded(true);
 					// If half of the physical operator are overloaded (100%) we consider to increase latency anyway
 					//if (preAggCount > (preAggQtd / 2)) {
 					//	minCount.setOverloaded(true);
 					//}
 				} else {
-					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
+//					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
 					label = "+";
 					//if (this.numRecordsInPerSecondMax != 0 && preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.975)) {
 					// If the input throughput is close to the max input throughput in 97,5% invalidate the increase latency action
@@ -149,50 +165,65 @@ public class PreAggregateControllerService extends Thread {
 					//	minCount.setValidate(false);
 					//}
 				}
-				if (this.numRecordsOutPerSecondMax != 0 && preAggregateState.getNumRecordsOutPerSecond() <= (this.numRecordsOutPerSecondMax * 0.90)) {
+				if (this.numRecordsOutPerSecondMax != 0
+					&& preAggregateState.getNumRecordsOutPerSecond() <= (
+					this.numRecordsOutPerSecondMax * 0.90)) {
 					// && (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.975))
 					// If the output throughput is lower than the 85% of the max input throughput invalidate the increase latency action
 					System.out.println("Controller: invalidating increasing latency (output)");
 					minCount.setValidate(false);
 				}
-				this.updateGlobalCapacity(preAggregateState.getNumRecordsInPerSecond(), preAggregateState.getNumRecordsOutPerSecond());
-			} else if (preAggregateState.getOutPoolUsageMin() <= 50.0 && preAggregateState.getOutPoolUsageMean() < 60.0) {
+				this.updateGlobalCapacity(
+					preAggregateState.getNumRecordsInPerSecond(),
+					preAggregateState.getNumRecordsOutPerSecond());
+			} else if (preAggregateState.getOutPoolUsageMin() <= 50.0
+				&& preAggregateState.getOutPoolUsageMean() < 60.0) {
 				// AVAILABLE RESOURCE -> minimize latency -> decrease the pre-aggregation parameter
-				if (preAggregateState.getOutPoolUsageMin() == 25 && preAggregateState.getOutPoolUsageMax() == 25) {
-					minCount.update(preAggregateState.getMinCount() - minCountPercent20);
+				if (preAggregateState.getOutPoolUsageMin() == 25
+					&& preAggregateState.getOutPoolUsageMax() == 25) {
+//					minCount.update(preAggregateState.getMinCount() - minCountPercent20);
 					label = "--";
 				} else {
 					// if the output throughput is greater than the capacity we don't decrease the parameter K
-					if (this.numRecordsOutPerSecondMax == 0 || preAggregateState.getNumRecordsOutPerSecond() < this.numRecordsOutPerSecondMax) {
-						minCount.update(preAggregateState.getMinCount() - minCountPercent05);
+					if (this.numRecordsOutPerSecondMax == 0
+						|| preAggregateState.getNumRecordsOutPerSecond()
+						< this.numRecordsOutPerSecondMax) {
+//						minCount.update(preAggregateState.getMinCount() - minCountPercent05);
 						label = "-";
-						if (preAggregateState.getNumRecordsOutPerSecond() >= (this.numRecordsOutPerSecondMax * 0.85)) {
+						if (preAggregateState.getNumRecordsOutPerSecond() >= (
+							this.numRecordsOutPerSecondMax * 0.85)) {
 							// If the output throughput is greater than the max output throughput in 85% invalidate the decrease latency action
 							minCount.setValidate(false);
 						}
-						if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
+						if (preAggregateState.getNumRecordsInPerSecond() >= (
+							this.numRecordsInPerSecondMax * 0.95)) {
 							// If the input throughput is close to the max input throughput in 95% invalidate the decrease latency action
 							minCount.setValidate(false);
 						}
 					}
 				}
 			} else {
-				if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.95)) {
+				if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax
+					* 0.95)) {
 					// this is the same lock of increasing and decreasing latency
 					minCount.setValidate(false);
 				}
 			}
 			String msg = "Controller-" + subtaskIndex +
-				" outPool-min[" + preAggregateState.getOutPoolUsageMin() + "]max[" + preAggregateState.getOutPoolUsageMax() +
-				"]mean[" + preAggregateState.getOutPoolUsageMean() + "]50[" + preAggregateState.getOutPoolUsage05() +
-				"]75[" + preAggregateState.getOutPoolUsage075() + "]95[" + preAggregateState.getOutPoolUsage095() +
-				"]99[" + preAggregateState.getOutPoolUsage099() + "]StdDev[" + df.format(preAggregateState.getOutPoolUsageStdDev()) + "]" +
-				// " Latency-min[" + preAggregateState.getLatencyMin() + "]max[" + preAggregateState.getLatencyMax() +
-				// "]mean[" + preAggregateState.getLatencyMean() + "]50[" + preAggregateState.getLatencyQuantile05() +
-				// "]99[" + preAggregateState.getLatencyQuantile099() + "]StdDev[" + df.format(preAggregateState.getLatencyStdDev()) + "]" +
-				" IN[" + df.format(preAggregateState.getNumRecordsInPerSecond()) + "]max[" + df.format(this.numRecordsInPerSecondMax) + "]" +
-				" OUT[" + df.format(preAggregateState.getNumRecordsOutPerSecond()) + "]max[" + df.format(this.numRecordsOutPerSecondMax) + "]" +
-				" K" + label + ": " + preAggregateState.getMinCount() + "-[" + minCount.isValidate() + "]";
+				" outPool-min[" + preAggregateState.getOutPoolUsageMin() + "]max["
+				+ preAggregateState.getOutPoolUsageMax() +
+				"]mean[" + preAggregateState.getOutPoolUsageMean() + "]50["
+				+ preAggregateState.getOutPoolUsage05() +
+				"]75[" + preAggregateState.getOutPoolUsage075() + "]95["
+				+ preAggregateState.getOutPoolUsage095() +
+				"]99[" + preAggregateState.getOutPoolUsage099() + "]StdDev[" + df.format(
+				preAggregateState.getOutPoolUsageStdDev()) + "]" +
+				" IN[" + df.format(preAggregateState.getNumRecordsInPerSecond()) + "]max["
+				+ df.format(this.numRecordsInPerSecondMax) + "]" +
+				" OUT[" + df.format(preAggregateState.getNumRecordsOutPerSecond()) + "]max["
+				+ df.format(this.numRecordsOutPerSecondMax) + "]" +
+				" K" + label + ": " + preAggregateState.getIntervalMs() + "-["
+				+ minCount.isValidate() + "]";
 			// " t:" + sdf.format(new Date(System.currentTimeMillis()));
 			System.out.println(msg);
 		}
@@ -214,7 +245,8 @@ public class PreAggregateControllerService extends Thread {
 			}
 			// update Output throughput. Only update output if the input was not updated because it could be a spike or
 			// a high data rate fluctuation on the channel
-			if (!this.inputRecPerSecFlag && numRecordsOutPerSecond > this.numRecordsOutPerSecondMax) {
+			if (!this.inputRecPerSecFlag
+				&& numRecordsOutPerSecond > this.numRecordsOutPerSecondMax) {
 				this.numRecordsOutPerSecondMax = numRecordsOutPerSecond;
 			}
 		}
@@ -224,6 +256,7 @@ public class PreAggregateControllerService extends Thread {
 	 * This method is used to publish the new global pre-aggregation parameter K
 	 *
 	 * @param newMaxCountPreAggregate
+	 *
 	 * @throws Exception
 	 */
 	private void publish(int newMaxCountPreAggregate) throws Exception {
@@ -236,6 +269,17 @@ public class PreAggregateControllerService extends Thread {
 
 		while (!queue.isEmpty()) {
 			queue.removeFirst().await();
+		}
+	}
+
+	private String extractIP(String ipString) {
+		String IPADDRESS_PATTERN = "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
+		Pattern pattern = Pattern.compile(IPADDRESS_PATTERN);
+		Matcher matcher = pattern.matcher(ipString);
+		if (matcher.find()) {
+			return matcher.group();
+		} else {
+			return "127.0.0.1";
 		}
 	}
 

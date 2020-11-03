@@ -21,6 +21,7 @@ package org.apache.flink.runtime.jobmaster;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.concurrent.FutureUtils;
+import org.apache.flink.runtime.controller.PreAggregateControllerService;
 import org.apache.flink.runtime.execution.librarycache.LibraryCacheManager;
 import org.apache.flink.runtime.executiongraph.ArchivedExecutionGraph;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
@@ -92,6 +93,9 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 
 	private volatile CompletableFuture<JobMasterGateway> leaderGatewayFuture;
 
+	/** Controller of the pre-aggregate adaptive operator */
+	private final PreAggregateControllerService preAggregateControllerService;
+
 	// ------------------------------------------------------------------------
 
 	/**
@@ -139,6 +143,10 @@ public class JobManagerRunnerImpl implements LeaderContender, OnCompletionAction
 
 		// now start the JobManager
 		this.jobMasterService = jobMasterFactory.createJobMasterService(jobGraph, this, userCodeLoader, initializationTimestamp);
+
+		// start the pre-agg controller
+		this.preAggregateControllerService = new PreAggregateControllerService(this.jobMasterService.getAddress());
+		this.preAggregateControllerService.start();
 	}
 
 	//----------------------------------------------------------------------------------------------

@@ -3,8 +3,7 @@ package org.apache.flink.streaming.api.functions.aggregation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
-import org.apache.flink.streaming.util.functions.PreAggLatencyMeanGauge;
-import org.apache.flink.streaming.util.functions.PreAggParamGauge;
+import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 import org.fusesource.hawtbuf.AsciiBuffer;
 import org.fusesource.hawtbuf.Buffer;
 import org.fusesource.hawtbuf.UTF8Buffer;
@@ -53,7 +52,8 @@ public class PreAggregateMonitorBkp extends Thread implements Serializable {
 
 	public PreAggregateMonitorBkp(// PreAggregateTriggerFunction preAggregateTriggerFunction,
 								  Histogram latencyHistogram, Histogram outPoolUsageHistogram,
-								  PreAggParamGauge preAggParamGauge, PreAggLatencyMeanGauge preAggLatencyMeanGauge,
+								  PreAggIntervalMsGauge preAggParamGauge,
+								  // PreAggLatencyMeanGauge preAggLatencyMeanGauge,
 								  int subtaskIndex, boolean enableController) {
 		// this(preAggregateTriggerFunction, latencyHistogram, outPoolUsageHistogram, preAggParamGauge, preAggLatencyMeanGauge, "127.0.0.1", subtaskIndex, enableController);
 		// }
@@ -146,25 +146,25 @@ public class PreAggregateMonitorBkp extends Thread implements Serializable {
 	 * @return
 	 */
 	private Tuple2<Integer, String> computePreAggregateParameter(int minCountCurrent) {
-		/*
-		long latencyMin = this.latencyHistogram.getStatistics().getMin();
-		long latencyMax = this.latencyHistogram.getStatistics().getMax();
-		double latencyMean = this.latencyHistogram.getStatistics().getMean();
-		double latencyQuantile05 = this.latencyHistogram.getStatistics().getQuantile(0.5);
-		double latencyQuantile099 = this.latencyHistogram.getStatistics().getQuantile(0.99);
-		double latencyStdDev = this.latencyHistogram.getStatistics().getStdDev();
-		long outPoolUsageMin = this.outPoolUsageHistogram.getStatistics().getMin();
-		long outPoolUsageMax = this.outPoolUsageHistogram.getStatistics().getMax();
-		double outPoolUsageMean = this.outPoolUsageHistogram.getStatistics().getMean();
-		double outPoolUsage05 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.5);
-		double outPoolUsage075 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.75);
-		double outPoolUsage095 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.95);
-		double outPoolUsage099 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.99);
-		double outPoolUsageStdDev = this.outPoolUsageHistogram.getStatistics().getStdDev();
+
+//		long latencyMin = this.latencyHistogram.getStatistics().getMin();
+//		long latencyMax = this.latencyHistogram.getStatistics().getMax();
+//		double latencyMean = this.latencyHistogram.getStatistics().getMean();
+//		double latencyQuantile05 = this.latencyHistogram.getStatistics().getQuantile(0.5);
+//		double latencyQuantile099 = this.latencyHistogram.getStatistics().getQuantile(0.99);
+//		double latencyStdDev = this.latencyHistogram.getStatistics().getStdDev();
+//		long outPoolUsageMin = this.outPoolUsageHistogram.getStatistics().getMin();
+//		long outPoolUsageMax = this.outPoolUsageHistogram.getStatistics().getMax();
+//		double outPoolUsageMean = this.outPoolUsageHistogram.getStatistics().getMean();
+//		double outPoolUsage05 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.5);
+//		double outPoolUsage075 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.75);
+//		double outPoolUsage095 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.95);
+//		double outPoolUsage099 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.99);
+//		double outPoolUsageStdDev = this.outPoolUsageHistogram.getStatistics().getStdDev();
 		int minCountNew = minCountCurrent;
 		String label = "=";
 		String msg = "";
-
+		/*
 		if (this.enableController && this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.LOCAL)) {
 			int percent05 = (int) Math.ceil(minCountCurrent * 0.05);
 			int percent30 = (int) Math.ceil(minCountCurrent * 0.3);
@@ -202,39 +202,38 @@ public class PreAggregateMonitorBkp extends Thread implements Serializable {
 				}
 			}
 		}
+		*/
 
-		if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.GLOBAL)) {
-			msg = this.subtaskIndex + "|" +
-				outPoolUsageMin + "|" + outPoolUsageMax + "|" + outPoolUsageMean + "|" + outPoolUsage05 + "|" +
-				outPoolUsage075 + "|" + outPoolUsage095 + "|" + outPoolUsage099 + "|" + outPoolUsageStdDev + "|" +
-				latencyMin + "|" + latencyMax + "|" + latencyMean + "|" + latencyQuantile05 + "|" + latencyQuantile099 + "|" +
-				latencyStdDev + "|" + this.numRecordsInPerSecond + "|" + this.numRecordsOutPerSecond + "|" + minCountCurrent;
-			// Update parameters to Prometheus+Grafana
-			this.preAggParamGauge.updateValue(minCountCurrent);
-		} else if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.LOCAL)) {
-			msg = "Controller[" + this.subtaskIndex + "]" +
-				" OutPoolUsg min[" + outPoolUsageMin + "]max[" + outPoolUsageMax + "]mean[" + outPoolUsageMean +
-				"]0.5[" + outPoolUsage05 + "]0.75[" + outPoolUsage075 + "]0.95[" + outPoolUsage095 + "]0.99[" + outPoolUsage099 + "]StdDev[" + df.format(outPoolUsageStdDev) + "]" +
-				" Latency min[" + latencyMin + "]max[" + latencyMax + "]mean[" + latencyMean +
-				"]0.5[" + latencyQuantile05 + "]0.99[" + latencyQuantile099 + "]StdDev[" + df.format(latencyStdDev) + "]" +
-				" IN_prev[" + df.format(this.numRecordsInPerSecondPrev) + "]IN[" + df.format(this.numRecordsInPerSecond) +
-				"] OUT[" + df.format(this.numRecordsOutPerSecond) + "]threshold[" + df.format(this.currentCapacity) + "]" +
-				" K" + label + ": " + minCountCurrent + "->" + minCountNew;
-			System.out.println(msg);
-			// Update parameters to Prometheus+Grafana
-			this.preAggParamGauge.updateValue(minCountNew);
-		}
+//		if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.GLOBAL)) {
+//			msg = this.subtaskIndex + "|" +
+//				outPoolUsageMin + "|" + outPoolUsageMax + "|" + outPoolUsageMean + "|" + outPoolUsage05 + "|" +
+//				outPoolUsage075 + "|" + outPoolUsage095 + "|" + outPoolUsage099 + "|" + outPoolUsageStdDev + "|" +
+//				latencyMin + "|" + latencyMax + "|" + latencyMean + "|" + latencyQuantile05 + "|" + latencyQuantile099 + "|" +
+//				latencyStdDev + "|" + this.numRecordsInPerSecond + "|" + this.numRecordsOutPerSecond + "|" + minCountCurrent;
+//			// Update parameters to Prometheus+Grafana
+//			this.preAggParamGauge.updateValue(minCountCurrent);
+//		} else if (this.preAggregateTriggerFunction.getPreAggregateStrategy().equals(PreAggregateStrategy.LOCAL)) {
+//			msg = "Controller[" + this.subtaskIndex + "]" +
+//				" OutPoolUsg min[" + outPoolUsageMin + "]max[" + outPoolUsageMax + "]mean[" + outPoolUsageMean +
+//				"]0.5[" + outPoolUsage05 + "]0.75[" + outPoolUsage075 + "]0.95[" + outPoolUsage095 + "]0.99[" + outPoolUsage099 + "]StdDev[" + df.format(outPoolUsageStdDev) + "]" +
+//				" Latency min[" + latencyMin + "]max[" + latencyMax + "]mean[" + latencyMean +
+//				"]0.5[" + latencyQuantile05 + "]0.99[" + latencyQuantile099 + "]StdDev[" + df.format(latencyStdDev) + "]" +
+//				" IN_prev[" + df.format(this.numRecordsInPerSecondPrev) + "]IN[" + df.format(this.numRecordsInPerSecond) +
+//				"] OUT[" + df.format(this.numRecordsOutPerSecond) + "]threshold[" + df.format(this.currentCapacity) + "]" +
+//				" K" + label + ": " + minCountCurrent + "->" + minCountNew;
+//			System.out.println(msg);
+//			// Update parameters to Prometheus+Grafana
+//			this.preAggParamGauge.updateValue(minCountNew);
+//		}
 
 		// Update the previous input throughput of the operator
 		this.numRecordsInPerSecondPrev = this.numRecordsInPerSecond;
 
 		// Update parameters to Prometheus+Grafana
-		this.preAggLatencyMeanGauge.updateValue(latencyMean);
+		// this.preAggLatencyMeanGauge.updateValue(latencyMean);
 		this.minCountPrev = minCountNew;
 
 		return Tuple2.of(minCountNew, msg);
-		 */
-		return null;
 	}
 
 	public void cancel() {
