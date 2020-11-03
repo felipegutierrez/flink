@@ -1,6 +1,6 @@
 # Apache Flink
 
-This is an [Apache Flink](https://github.com/apache/flink) branch forked from the original repository of Apache Flink version 1.10.1.
+This is an [Apache Flink](https://github.com/apache/flink) branch forked from the original repository of Apache Flink version 1.11.2.
 
 ## Compiling
 

@@ -7,14 +7,8 @@ public interface PreAggregateTrigger<T> extends Serializable {
 	/**
 	 * Register a callback which will be called once this trigger decides to finish this bundle.
 	 */
-	void registerCallback(PreAggregateTriggerCallback callback);
+	// void registerCallback(PreAggregateTriggerCallback callback);
 
-	/**
-	 * Called for every element that gets added to the merge. If the trigger decides to start
-	 * evaluate the input, {@link PreAggregateTriggerCallback#collect()} should be invoked.
-	 *
-	 * @param element The element that arrived.
-	 */
 	void onElement(final T element) throws Exception;
 
 	/**
@@ -32,5 +26,5 @@ public interface PreAggregateTrigger<T> extends Serializable {
 
 	void setMaxCount(int minCount, int subtaskIndex);
 
-	PreAggregateStrategy getPreAggregateStrategy();
+	// PreAggregateStrategy getPreAggregateStrategy();
 }

@@ -20,20 +20,26 @@ public class PreAggregateParameterListener extends Thread implements Serializabl
 	private final String topic;
 	private final String host;
 	private final int port;
-	private final PreAggregateTriggerFunction preAggregateTriggerFunction;
+	// private final PreAggregateTriggerFunction preAggregateTriggerFunction;
 	private final int subtaskIndex;
 	private BlockingConnection subscriber;
 	private MQTT mqtt;
 	private boolean running = false;
 
-	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, int subtaskIndex) {
+	public PreAggregateParameterListener(
+		// PreAggregateTriggerFunction preAggregateTriggerFunction,
+		int subtaskIndex) {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
-		this(preAggregateTriggerFunction, "127.0.0.1", subtaskIndex);
+		this(
+			// preAggregateTriggerFunction,
+			"127.0.0.1", subtaskIndex);
 	}
 
 
-	public PreAggregateParameterListener(PreAggregateTriggerFunction preAggregateTriggerFunction, String host, int subtaskIndex) {
-		this.preAggregateTriggerFunction = preAggregateTriggerFunction;
+	public PreAggregateParameterListener(
+		// PreAggregateTriggerFunction preAggregateTriggerFunction,
+		String host, int subtaskIndex) {
+		// this.preAggregateTriggerFunction = preAggregateTriggerFunction;
 		if (Strings.isNullOrEmpty(host) || host.equalsIgnoreCase("localhost")) {
 			this.host = "127.0.0.1";
 		} else {
@@ -64,7 +70,7 @@ public class PreAggregateParameterListener extends Thread implements Serializabl
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
 					if (isInteger(message)) {
-						this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue(), this.subtaskIndex);
+						// this.preAggregateTriggerFunction.setMaxCount(Integer.valueOf(message).intValue(), this.subtaskIndex);
 					} else {
 						System.out.println("The parameter sent is not an integer: " + message);
 					}
