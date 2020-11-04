@@ -56,10 +56,12 @@ public class PreAggregateSignalsListener extends Thread {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
 					if (message != null) {
-						System.out.println("PreAggregateListener message: " + message);
+						System.out.println(
+							"[PreAggregateSignalsListener.controller] received msg: " + message);
 						this.addState(message);
 					} else {
-						System.out.println("The parameter sent is null.");
+						System.out.println(
+							"[PreAggregateSignalsListener.controller] The parameter sent is null.");
 					}
 				}
 			}
@@ -117,7 +119,8 @@ public class PreAggregateSignalsListener extends Thread {
 			}
 			this.preAggregateState.put(Integer.parseInt(subtaskIndex), state);
 		} else {
-			System.out.println("ERROR: wrong number of parameter to update pre-aggregate state.");
+			System.out.println(
+				"[PreAggregateSignalsListener.controller] ERROR: wrong number of parameter to update pre-aggregate state.");
 		}
 	}
 }

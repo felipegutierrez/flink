@@ -12,13 +12,11 @@ public class PreAggregateSignalsState {
 	private final double[] outPoolUsage095;
 	private final double[] outPoolUsage099;
 	private final double[] outPoolUsageStdDev;
-
-	// interval in milliseconds
-	private final long[] intervalMs;
-
 	// Throughput
 	private final double[] numRecordsInPerSecond;
 	private final double[] numRecordsOutPerSecond;
+	// interval in milliseconds
+	private final long[] intervalMs;
 
 	public PreAggregateSignalsState(
 		String subtaskIndex,
@@ -35,7 +33,6 @@ public class PreAggregateSignalsState {
 		String intervalMs) {
 
 		this.subtaskIndex = Integer.parseInt(subtaskIndex);
-
 		// Network buffer usage
 		this.outPoolUsageMin = new long[]{Long.parseLong(outPoolUsageMin), -1, -1};
 		this.outPoolUsageMax = new long[]{Long.parseLong(outPoolUsageMax), -1, -1};
@@ -45,11 +42,9 @@ public class PreAggregateSignalsState {
 		this.outPoolUsage095 = new double[]{Double.parseDouble(outPoolUsage095), -1.0, -1.0};
 		this.outPoolUsage099 = new double[]{Double.parseDouble(outPoolUsage099), -1.0, -1.0};
 		this.outPoolUsageStdDev = new double[]{Double.parseDouble(outPoolUsageStdDev), -1.0, -1.0};
-
 		// Throughput
 		this.numRecordsInPerSecond = new double[]{Double.parseDouble(numRecordsInPerSecond), -1.0, -1.0};
 		this.numRecordsOutPerSecond = new double[]{Double.parseDouble(numRecordsOutPerSecond), -1.0, -1.0};
-
 		// Pre-agg intervalMs
 		this.intervalMs = new long[]{Long.parseLong(intervalMs), -1, -1};
 	}
@@ -90,8 +85,9 @@ public class PreAggregateSignalsState {
 		String numRecordsOutPerSecond,
 		String intervalMs) {
 		if (this.subtaskIndex != Integer.parseInt(subtaskIndex)) {
-			System.out.println("ERROR: current subtaskIndex[" + subtaskIndex
-				+ "] is not equal to the state subtaskIndex[" + this.subtaskIndex + "]");
+			System.out.println(
+				"[PreAggregateSignalsState] ERROR: current subtaskIndex[" + subtaskIndex
+					+ "] is not equal to the state subtaskIndex[" + this.subtaskIndex + "]");
 			return;
 		}
 		// Network buffer usage

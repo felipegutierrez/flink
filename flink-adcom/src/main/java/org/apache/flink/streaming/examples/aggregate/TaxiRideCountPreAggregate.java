@@ -109,14 +109,14 @@ public class TaxiRideCountPreAggregate {
 		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-		if (preAggregationProcessingTimer == -1) {
+		if (!enableController && preAggregationProcessingTimer == -1) {
 			// no combiner
 			preAggregatedStream = tuples;
-		} else if (enableController == false && preAggregationProcessingTimer > 0) {
+		} else if (!enableController && preAggregationProcessingTimer > 0) {
 			// static combiner based on timeout
 			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
 			preAggregatedStream = tuples.combine(taxiRidePreAggregateFunction, preAggregationProcessingTimer).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
-		} else if (enableController == true) {
+		} else if (enableController) {
 			// dynamic combiner with PI controller
 			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
 			preAggregatedStream = tuples.adCombine(taxiRidePreAggregateFunction).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);

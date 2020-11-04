@@ -17,10 +17,10 @@ import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
 import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 import org.apache.flink.util.Collector;
 
-import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -38,7 +38,7 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 	/** The function used to process when receiving element. */
 	private final PreAggregateFunction<K, V, IN, OUT> function;
 	/** controller properties, processing time to trigger the preAggregate function*/
-	private final long intervalMs;
+	private final long initialIntervalMs;
 	private final boolean enableController;
 	private PreAggregateProcTimeListener preAggregateProcTimeListener;
 	private transient long currentWatermark;
@@ -46,7 +46,7 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 	private transient Map<K, V> bundle;
 	/** Output for stream records. */
 	private transient Collector<OUT> collector;
-	/** The PreAggregate PI controller */
+	/** The PreAggregate monitor to send signals to the PI controller on the JobManager */
 	private PreAggregateProcTimeSignalsMonitor preAggregateMonitor;
 	// @formatter:on
 
@@ -55,7 +55,7 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 		long intervalMs,
 		boolean enableController) {
 		this.function = checkNotNull(function, "function is null");
-		this.intervalMs = intervalMs;
+		this.initialIntervalMs = intervalMs;
 		this.enableController = enableController;
 	}
 
@@ -76,19 +76,19 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 
 		this.preAggregateProcTimeListener = new PreAggregateProcTimeListener(
 			jobManagerAddress,
-			intervalMs,
-			getRuntimeContext().getIndexOfThisSubtask());
+			initialIntervalMs,
+			getRuntimeContext().getIndexOfThisSubtask(),
+			this.enableController);
 
 		long now = getProcessingTimeService().getCurrentProcessingTime();
-		// getProcessingTimeService().registerTimer(now + intervalMs, this);
 		getProcessingTimeService().registerTimer(
 			now + preAggregateProcTimeListener.getIntervalMs(), this);
 
-		// report marker metric
-		// getRuntimeContext().getMetricGroup().gauge("currentBatch", (Gauge<Long>) () -> currentWatermark);
-
 		// Metrics to send to the controller
-		int reservoirWindow = 30;
+		// DANGER: the reservoirWindow time (seconds) has to be at least 2 times greater than
+		// the PreAggregateProcTimeSignalsMonitor frequency to read signals,
+		// otherwise the histogram gets empty.
+		int reservoirWindow = 130;
 		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(
 			new SlidingTimeWindowArrayReservoir(reservoirWindow, TimeUnit.SECONDS));
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(
@@ -100,14 +100,16 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 
 		// initiate the Controller-monitor with the histogram metrics for each pre-aggregate operator instance
 		this.preAggregateMonitor = new PreAggregateProcTimeSignalsMonitor(
+			initialIntervalMs,
 			outPoolUsageHistogram,
 			preAggIntervalMsGauge,
 			jobManagerAddress,
 			getRuntimeContext().getIndexOfThisSubtask(),
 			this.enableController);
-		this.preAggregateMonitor.start();
 
-		// allow the preAgg listener receive parameters over MQTT protocol
+		// start the monitor of pre-agg signals
+		this.preAggregateMonitor.start();
+		// start the preAgg listener to receive new time processing parameter to the pre-agg
 		this.preAggregateProcTimeListener.start();
 	}
 
@@ -138,32 +140,41 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 		// System.out.println(PreAggregateProcTimeStreamAbstractOperator.class.getSimpleName() + ".onProcessingTime: " + sdf.format(new Timestamp(System.currentTimeMillis())));
 		getProcessingTimeService().registerTimer(
 			currentProcessingTime + preAggregateProcTimeListener.getIntervalMs(), this);
-		System.out.println("intervalMs: " + preAggregateProcTimeListener.getIntervalMs() + " - " +
-			PreAggregateProcTimeStreamAbstractOperator.class.getSimpleName() + ".onProcessingTime: "
-			+ sdf.format(new Timestamp(System.currentTimeMillis())));
+//		System.out.println("[PreAggregateProcTimeStreamAbstractOperator] intervalMs: " + preAggregateProcTimeListener.getIntervalMs() + " - " +
+//			PreAggregateProcTimeStreamAbstractOperator.class.getSimpleName() + ".onProcessingTime: "
+//			+ sdf.format(new Timestamp(System.currentTimeMillis())));
 
-		// TODO: this has to be called asynchronously in another thread to reduce footprint
-		// update outPoolUsage metrics to Prometheus+Grafana
-		float outPoolUsage = 0.0f;
-		OperatorMetricGroup operatorMetricGroup = (OperatorMetricGroup) this.getMetricGroup();
-		TaskMetricGroup taskMetricGroup = operatorMetricGroup.parent();
-		MetricGroup metricGroup = taskMetricGroup.getGroup("buffers");
-		Gauge<Float> gaugeOutPoolUsage = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
-		if (gaugeOutPoolUsage != null && gaugeOutPoolUsage.getValue() != null) {
-			outPoolUsage = gaugeOutPoolUsage.getValue().floatValue();
-			this.preAggregateMonitor.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
-		}
-		// update records_per_second metrics to Prometheus+Grafana
-		MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric(
-			"numRecordsOutPerSecond");
-		MeterView meterNumRecordsInPerSecond = (MeterView) taskMetricGroup.getMetric(
-			"numRecordsInPerSecond");
-		if (meterNumRecordsOutPerSecond != null) {
-			this.preAggregateMonitor.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
-		}
-		if (meterNumRecordsInPerSecond != null) {
-			this.preAggregateMonitor.setNumRecordsInPerSecond(meterNumRecordsInPerSecond.getRate());
-		}
+		CompletableFuture.runAsync(() -> {
+			// method call or code to be Async.
+			if (this.preAggregateMonitor.collectNextSignals()) {
+				// update IntervalMs to Prometheus+Grafana
+				this.preAggregateMonitor.setIntervalMs(preAggregateProcTimeListener.getIntervalMs());
+				// update outPoolUsage metrics to Prometheus+Grafana
+				float outPoolUsage = 0.0f;
+				OperatorMetricGroup operatorMetricGroup = (OperatorMetricGroup) this.getMetricGroup();
+				TaskMetricGroup taskMetricGroup = operatorMetricGroup.parent();
+				MetricGroup metricGroup = taskMetricGroup.getGroup("buffers");
+				Gauge<Float> gaugeOutPoolUsage = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
+				if (gaugeOutPoolUsage != null && gaugeOutPoolUsage.getValue() != null) {
+					outPoolUsage = gaugeOutPoolUsage.getValue().floatValue();
+					this.preAggregateMonitor
+						.getOutPoolUsageHistogram()
+						.update((long) (outPoolUsage * 100));
+				}
+				// update records_per_second metrics to Prometheus+Grafana
+				MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric(
+					"numRecordsOutPerSecond");
+				MeterView meterNumRecordsInPerSecond = (MeterView) taskMetricGroup.getMetric(
+					"numRecordsInPerSecond");
+				if (meterNumRecordsOutPerSecond != null) {
+					this.preAggregateMonitor.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
+				}
+				if (meterNumRecordsInPerSecond != null) {
+					this.preAggregateMonitor.setNumRecordsInPerSecond(meterNumRecordsInPerSecond.getRate());
+				}
+			}
+		});
+
 	}
 
 	private void collect() throws Exception {

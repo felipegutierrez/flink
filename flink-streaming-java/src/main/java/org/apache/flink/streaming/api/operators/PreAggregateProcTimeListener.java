@@ -28,18 +28,22 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 	private final String host;
 	private final int port;
 	private final int subtaskId;
+	private final boolean enableController;
 	private BlockingConnection subscriber;
 	private MQTT mqtt;
 	private boolean running = false;
-
 	private long intervalMs;
 
 	public PreAggregateProcTimeListener(long intervalMs, int subtaskId) {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
-		this("127.0.0.1", intervalMs, subtaskId);
+		this("127.0.0.1", intervalMs, subtaskId, false);
 	}
 
-	public PreAggregateProcTimeListener(String host, long intervalMs, int subtaskId) {
+	public PreAggregateProcTimeListener(
+		String host,
+		long intervalMs,
+		int subtaskId,
+		boolean enableController) {
 		if (Strings.isNullOrEmpty(host) || host.equalsIgnoreCase("localhost")) {
 			this.host = "127.0.0.1";
 		} else {
@@ -49,6 +53,7 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 		this.intervalMs = intervalMs;
 		this.subtaskId = subtaskId;
 		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER + "-" + this.subtaskId;
+		this.enableController = enableController;
 		this.running = true;
 		this.disclaimer();
 	}
@@ -63,6 +68,11 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 	}
 
 	public void run() {
+		if (!this.enableController) {
+			System.out.println(
+				"[PreAggregateProcTimeListener] controller is not enabled then the listener doesn't have to start.");
+			return;
+		}
 		try {
 			if (subscriber == null) {
 				connect();
@@ -72,11 +82,15 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 				if (msg != null) {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
-					System.out.println("pre-agg[" + subtaskId + "] received msg: " + message);
+					System.out.println(
+						"[PreAggregateProcTimeListener] pre-agg[" + subtaskId + "] received msg: "
+							+ message);
 					if (isInteger(message)) {
 						this.intervalMs = Long.valueOf(message).longValue();
 					} else {
-						System.out.println("The parameter sent is not an integer: " + message);
+						System.out.println(
+							"[PreAggregateProcTimeListener] The parameter sent is not an integer: "
+								+ message);
 					}
 				}
 			}
@@ -111,7 +125,7 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 	}
 
 	public long getIntervalMs() {
-		return intervalMs;
+		return this.intervalMs;
 	}
 
 	public void setIntervalMs(long intervalMs) {
@@ -119,14 +133,12 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 	}
 
 	private void disclaimer() {
-		System.out.println(
-			"This is the application [" + PreAggregateProcTimeListener.class.getSimpleName()
-				+ "].");
-		System.out.println("It listens new frequency parameters from an MQTT broker.");
-		System.out.println("To publish on this broker use:");
-		System.out.println(
-			"mosquitto_pub -h " + this.host + " -p " + this.port + " -t " + this.topic
-				+ " -m \"intervalMs\"");
+		// @formatter:off
+		System.out.println("[PreAggregateProcTimeListener] This is the application [" + PreAggregateProcTimeListener.class.getSimpleName() + "].");
+		System.out.println("[PreAggregateProcTimeListener] It listens new frequency parameters from an MQTT broker.");
+		System.out.println("[PreAggregateProcTimeListener] To publish on this broker use:");
+		System.out.println("[PreAggregateProcTimeListener] mosquitto_pub -h " + this.host + " -p " + this.port + " -t " + this.topic + " -m \"intervalMs\"");
 		System.out.println();
+		// @formatter:on
 	}
 }

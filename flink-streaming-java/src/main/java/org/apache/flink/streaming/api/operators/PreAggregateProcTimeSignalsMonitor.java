@@ -1,9 +1,10 @@
 package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.metrics.Histogram;
-import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
+
+import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 
 import org.fusesource.hawtbuf.AsciiBuffer;
 import org.fusesource.hawtbuf.Buffer;
@@ -30,11 +31,16 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 	private final int controllerFrequencySec;
 	private final int subtaskId;
 	private final boolean enableController;
+	private final String topic;
 	private final String host;
 	private final int port;
+	private final long TIMEOUT_TO_COLLECT_SIGNALS = 30000;
+	/** time elapse to the next monitoring collect of signals */
+	private long timeStart;
 	private long intervalMs;
 	/** throughput of the operator */
 	private double numRecordsOutPerSecond;
+	// TODO: use Akka RPC instead of MQTT
 	private double numRecordsInPerSecond;
 	/** MQTT broker is used to send signals of each pre-agg operator to the JobManager controller */
 	private MQTT mqtt;
@@ -42,12 +48,14 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 	private boolean running = false;
 
 	public PreAggregateProcTimeSignalsMonitor(
+		long intervalMs,
 		Histogram outPoolUsageHistogram,
 		PreAggIntervalMsGauge preAggIntervalMsGauge,
 		String jobManagerAddress,
 		int subtaskId,
 		boolean enableController) {
 
+		this.intervalMs = intervalMs;
 		this.outPoolUsageHistogram = outPoolUsageHistogram;
 		this.preAggIntervalMsGauge = preAggIntervalMsGauge;
 		this.running = true;
@@ -55,9 +63,24 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 		this.subtaskId = subtaskId;
 		this.enableController = enableController;
 
+		this.topic = TOPIC_PRE_AGG_STATE;
 		this.host = (Strings.isNullOrEmpty(jobManagerAddress) || jobManagerAddress.equalsIgnoreCase(
 			"localhost")) ? "127.0.0.1" : jobManagerAddress;
 		this.port = 1883;
+
+		this.timeStart = System.currentTimeMillis();
+
+		this.disclaimer();
+	}
+
+	private void disclaimer() {
+		// @formatter:off
+		System.out.println("[PreAggregateProcTimeSignalsMonitor] It collects and publishes signals to the pre-agg controller using an MQTT broker.");
+		if (!this.enableController) {
+			System.out.println("[PreAggregateProcTimeSignalsMonitor] Controller is not enable then the monitor doesn't have to send signals.");
+		}
+		System.out.println();
+		// @formatter:on
 	}
 
 	private void connect() throws Exception {
@@ -78,7 +101,8 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 			if (mqtt == null) this.connect();
 			while (running) {
 				Thread.sleep(controllerFrequencySec * 1000);
-				String preAggSignals = this.collectSignals();
+				String preAggSignals = this.updateSignals();
+				// if (this.enableController) {
 				this.publish(preAggSignals);
 			}
 		} catch (Exception e) {
@@ -88,18 +112,18 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 
 	private void publish(String message) throws Exception {
 		final LinkedList<Future<Void>> queue = new LinkedList<Future<Void>>();
-		UTF8Buffer topic = new UTF8Buffer(TOPIC_PRE_AGG_STATE);
+		UTF8Buffer topicUTF8 = new UTF8Buffer(topic);
 		Buffer msg = new AsciiBuffer(message);
 
 		// Send the publish without waiting for it to complete. This allows us to send multiple message without blocking.
-		queue.add(connection.publish(topic, msg, QoS.AT_LEAST_ONCE, false));
+		queue.add(connection.publish(topicUTF8, msg, QoS.AT_LEAST_ONCE, false));
 
 		while (!queue.isEmpty()) {
 			queue.removeFirst().await();
 		}
 	}
 
-	private String collectSignals() {
+	private String updateSignals() {
 		long outPoolUsageMin = this.outPoolUsageHistogram.getStatistics().getMin();
 		long outPoolUsageMax = this.outPoolUsageHistogram.getStatistics().getMax();
 		double outPoolUsageMean = this.outPoolUsageHistogram.getStatistics().getMean();
@@ -139,5 +163,13 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 
 	public void setNumRecordsInPerSecond(double numRecordsInPerSecond) {
 		this.numRecordsInPerSecond = numRecordsInPerSecond;
+	}
+
+	public boolean collectNextSignals() {
+		if (System.currentTimeMillis() >= this.timeStart + this.TIMEOUT_TO_COLLECT_SIGNALS) {
+			this.timeStart = System.currentTimeMillis();
+			return true;
+		}
+		return false;
 	}
 }

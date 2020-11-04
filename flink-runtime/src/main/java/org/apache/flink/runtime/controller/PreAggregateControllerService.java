@@ -32,9 +32,8 @@ public class PreAggregateControllerService extends Thread {
 	private final PreAggregateSignalsListener preAggregateListener;
 	private final String host;
 	private final int port;
-	/**
-	 * MQTT broker is used to set the parameter K to all PreAgg operators
-	 */
+	// TODO: use Akka RPC instead of MQTT protocol
+	/** MQTT broker is used to set the parameter K to all PreAgg operators */
 	private MQTT mqtt;
 	private FutureConnection connection;
 	// global states
@@ -80,8 +79,9 @@ public class PreAggregateControllerService extends Thread {
 	}
 
 	private void disclaimer() {
-		System.out.println("Initialized pre-aggregate Controller service scheduled to every "
-			+ this.controllerFrequencySec + " seconds.");
+		// @formatter:off
+		System.out.println("[PreAggregateControllerService.controller] initialized and scheduled to every " + this.controllerFrequencySec + " seconds.");
+		// @formatter:on
 	}
 
 	private void connect() throws Exception {
@@ -115,49 +115,61 @@ public class PreAggregateControllerService extends Thread {
 	 *
 	 * @return
 	 */
-	private int computePreAggregateParameter() {
-		Integer preAggregateParameter = 0;
-		MinCount minCount = new MinCount();
-		int preAggQtd = this.preAggregateListener.preAggregateState.size();
-		int preAggCount = 0;
+	private long computePreAggregateParameter() {
+//		Integer preAggregateParameter = 0;
+		Long preAggregateIntervalMsNew = 0L;
+//		MinCount minCount = new MinCount();
+		PreAggregateGlobalState preAggregateGlobalState = new PreAggregateGlobalState();
+//		int preAggQtd = this.preAggregateListener.preAggregateState.size();
+//		int preAggCount = 0;
 		this.inputRecPerSecFlag = false;
 
 		for (Map.Entry<Integer, PreAggregateSignalsState> entry : this.preAggregateListener.preAggregateState
 			.entrySet()) {
-			preAggCount++;
+//			preAggCount++;
 			String label = "";
 			Integer subtaskIndex = entry.getKey();
 			PreAggregateSignalsState preAggregateState = entry.getValue();
+
+			// get the current intervalMs and set on the global state
+			preAggregateGlobalState.setIntervalMsCurrent(preAggregateState.getIntervalMs());
 
 //			int minCountPercent05 = (int) Math.ceil(preAggregateState.getMinCount() * 0.05);
 //			int minCountPercent20 = (int) Math.ceil(preAggregateState.getMinCount() * 0.2);
 //			int minCountPercent50 = (int) Math.ceil(preAggregateState.getMinCount() * 0.5);
 
+			// find the new global state to pre-aggregate
 			if (preAggregateState.getOutPoolUsageMin() > 50.0
 				&& preAggregateState.getOutPoolUsageMean() >= 60.0) {
 				// BACKPRESSURE -> increase latency -> increase the pre-aggregation parameter
 				if (preAggregateState.getOutPoolUsage05() == 100
 					&& preAggregateState.getOutPoolUsageMax() == 100) {
-//					if (preAggregateState.getMinCount() <= 20) {
+					if (preAggregateState.getIntervalMs() <= 200) {
 //						minCount.update(preAggregateState.getMinCount() * 2);
-//						label = "+++";
-//					} else {
-//						// minCount.update(preAggregateState.getMinCount() + minCountPercent20);
-//						// If it is the second time that we see a physical operator overloaded we increase the latency by 50%
+						preAggregateGlobalState.incrementIntervalMsNew(100);
+						label = "+++";
+					} else {
+						// minCount.update(preAggregateState.getMinCount() + minCountPercent20);
+						// If it is the second time that we see a physical operator overloaded we increase the latency by 50%
 //						if (!minCount.isOverloaded()) {
+						if (!preAggregateGlobalState.isOverloaded()) {
 //							minCount.update(preAggregateState.getMinCount() + minCountPercent20);
-//						} else {
+							preAggregateGlobalState.incrementIntervalMsNew(100);
+						} else {
 //							minCount.update(preAggregateState.getMinCount() + minCountPercent50);
-//						}
-//						label = "++";
-//					}
-					minCount.setOverloaded(true);
+							preAggregateGlobalState.incrementIntervalMsNew(100);
+						}
+						label = "++";
+					}
+//					minCount.setOverloaded(true);
+					preAggregateGlobalState.setOverloaded(true);
 					// If half of the physical operator are overloaded (100%) we consider to increase latency anyway
 					//if (preAggCount > (preAggQtd / 2)) {
 					//	minCount.setOverloaded(true);
 					//}
 				} else {
 //					minCount.update(preAggregateState.getMinCount() + minCountPercent05);
+					preAggregateGlobalState.incrementIntervalMsNew(100);
 					label = "+";
 					//if (this.numRecordsInPerSecondMax != 0 && preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.975)) {
 					// If the input throughput is close to the max input throughput in 97,5% invalidate the increase latency action
@@ -170,8 +182,10 @@ public class PreAggregateControllerService extends Thread {
 					this.numRecordsOutPerSecondMax * 0.90)) {
 					// && (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax * 0.975))
 					// If the output throughput is lower than the 85% of the max input throughput invalidate the increase latency action
-					System.out.println("Controller: invalidating increasing latency (output)");
-					minCount.setValidate(false);
+					System.out.println(
+						"[PreAggregateControllerService.controller] invalidating increasing latency (output)");
+//					minCount.setValidate(false);
+					preAggregateGlobalState.setValidate(false);
 				}
 				this.updateGlobalCapacity(
 					preAggregateState.getNumRecordsInPerSecond(),
@@ -182,6 +196,7 @@ public class PreAggregateControllerService extends Thread {
 				if (preAggregateState.getOutPoolUsageMin() == 25
 					&& preAggregateState.getOutPoolUsageMax() == 25) {
 //					minCount.update(preAggregateState.getMinCount() - minCountPercent20);
+					preAggregateGlobalState.decrementIntervalMsNew(100);
 					label = "--";
 				} else {
 					// if the output throughput is greater than the capacity we don't decrease the parameter K
@@ -189,16 +204,19 @@ public class PreAggregateControllerService extends Thread {
 						|| preAggregateState.getNumRecordsOutPerSecond()
 						< this.numRecordsOutPerSecondMax) {
 //						minCount.update(preAggregateState.getMinCount() - minCountPercent05);
+						preAggregateGlobalState.decrementIntervalMsNew(100);
 						label = "-";
 						if (preAggregateState.getNumRecordsOutPerSecond() >= (
 							this.numRecordsOutPerSecondMax * 0.85)) {
 							// If the output throughput is greater than the max output throughput in 85% invalidate the decrease latency action
-							minCount.setValidate(false);
+//							minCount.setValidate(false);
+							preAggregateGlobalState.setValidate(false);
 						}
 						if (preAggregateState.getNumRecordsInPerSecond() >= (
 							this.numRecordsInPerSecondMax * 0.95)) {
 							// If the input throughput is close to the max input throughput in 95% invalidate the decrease latency action
-							minCount.setValidate(false);
+//							minCount.setValidate(false);
+							preAggregateGlobalState.setValidate(false);
 						}
 					}
 				}
@@ -206,33 +224,35 @@ public class PreAggregateControllerService extends Thread {
 				if (preAggregateState.getNumRecordsInPerSecond() >= (this.numRecordsInPerSecondMax
 					* 0.95)) {
 					// this is the same lock of increasing and decreasing latency
-					minCount.setValidate(false);
+//					minCount.setValidate(false);
+					preAggregateGlobalState.setValidate(false);
 				}
 			}
-			String msg = "Controller-" + subtaskIndex +
-				" outPool-min[" + preAggregateState.getOutPoolUsageMin() + "]max["
+			String msg = "[PreAggregateControllerService.controller] id[" + subtaskIndex +
+				"]outPool-min[" + preAggregateState.getOutPoolUsageMin() + "]max["
 				+ preAggregateState.getOutPoolUsageMax() +
 				"]mean[" + preAggregateState.getOutPoolUsageMean() + "]50["
 				+ preAggregateState.getOutPoolUsage05() +
 				"]75[" + preAggregateState.getOutPoolUsage075() + "]95["
 				+ preAggregateState.getOutPoolUsage095() +
-				"]99[" + preAggregateState.getOutPoolUsage099() + "]StdDev[" + df.format(
+				"]99[" + preAggregateState.getOutPoolUsage099() + "]sDev[" + df.format(
 				preAggregateState.getOutPoolUsageStdDev()) + "]" +
 				" IN[" + df.format(preAggregateState.getNumRecordsInPerSecond()) + "]max["
 				+ df.format(this.numRecordsInPerSecondMax) + "]" +
 				" OUT[" + df.format(preAggregateState.getNumRecordsOutPerSecond()) + "]max["
 				+ df.format(this.numRecordsOutPerSecondMax) + "]" +
-				" K" + label + ": " + preAggregateState.getIntervalMs() + "-["
-				+ minCount.isValidate() + "]";
-			// " t:" + sdf.format(new Date(System.currentTimeMillis()));
+				" interval[" + preAggregateState.getIntervalMs() + "]" + label + " "
+				+ preAggregateGlobalState.isValidate();
 			System.out.println(msg);
 		}
-		if (minCount.isOverloaded() || minCount.isValidate()) {
-			preAggregateParameter = minCount.getAverage();
+		if (preAggregateGlobalState.isOverloaded() || preAggregateGlobalState.isValidate()) {
+//			preAggregateParameter = minCount.getAverage();
+			preAggregateIntervalMsNew = preAggregateGlobalState.getIntervalMsNew();
 		}
 		this.monitorCount++;
-		System.out.println("Next global preAgg parameter K: " + preAggregateParameter);
-		return preAggregateParameter;
+		System.out.println("[PreAggregateControllerService.controller] Next global preAgg intervalMs: "
+			+ preAggregateIntervalMsNew);
+		return preAggregateIntervalMsNew;
 	}
 
 	private void updateGlobalCapacity(double numRecordsInPerSecond, double numRecordsOutPerSecond) {
@@ -259,10 +279,10 @@ public class PreAggregateControllerService extends Thread {
 	 *
 	 * @throws Exception
 	 */
-	private void publish(int newMaxCountPreAggregate) throws Exception {
+	private void publish(long newMaxCountPreAggregate) throws Exception {
 		final LinkedList<Future<Void>> queue = new LinkedList<Future<Void>>();
 		UTF8Buffer topic = new UTF8Buffer(TOPIC_PRE_AGG_PARAMETER);
-		Buffer msg = new AsciiBuffer(Integer.toString(newMaxCountPreAggregate));
+		Buffer msg = new AsciiBuffer(Long.toString(newMaxCountPreAggregate));
 
 		// Send the publish without waiting for it to complete. This allows us to send multiple message without blocking.
 		queue.add(connection.publish(topic, msg, QoS.AT_LEAST_ONCE, false));
