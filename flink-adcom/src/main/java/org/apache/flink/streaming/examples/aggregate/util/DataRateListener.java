@@ -1,12 +1,6 @@
 package org.apache.flink.streaming.examples.aggregate.util;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Serializable;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 public class DataRateListener extends Thread implements Serializable {
@@ -65,7 +59,7 @@ public class DataRateListener extends Thread implements Serializable {
 
 				String line;
 				while ((line = br.readLine()) != null) {
-					System.out.println(line);
+					// System.out.println(line);
 					if (isNumeric(line)) {
 						if (Long.parseLong(line) > 0) {
 							long millisec = Math.round(1_000_000_000 / Long.parseLong(line));
@@ -80,7 +74,9 @@ public class DataRateListener extends Thread implements Serializable {
 					} else if ("SHUTDOWN".equalsIgnoreCase(line)) {
 						running = false;
 					} else {
-						System.out.println(line);
+						System.out.println(
+							"[DataRateListener] ERROR: new frequency must be a number. But it is: "
+								+ line);
 					}
 				}
 				Thread.sleep(60 * 1000);

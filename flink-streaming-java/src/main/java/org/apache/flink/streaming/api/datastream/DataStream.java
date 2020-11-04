@@ -1430,4 +1430,9 @@ public class DataStream<T> {
 		return combine(preAggregateFunction, 500, true);
 	}
 
+	public <R> SingleOutputStreamOperator<R> adCombine(PreAggregateFunction<?, ?, T, R> preAggregateFunction,
+													   long intervalMs) {
+		return combine(preAggregateFunction, intervalMs, true);
+	}
+
 }

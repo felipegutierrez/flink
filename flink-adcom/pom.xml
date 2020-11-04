@@ -219,7 +219,6 @@
 						</goals>
 						<configuration>
 							<classifier>TaxiRideCountPreAggregate</classifier>
-
 							<archive>
 								<manifestEntries>
 									<program-class>
@@ -227,17 +226,52 @@
 									</program-class>
 								</manifestEntries>
 							</archive>
-
 							<includes>
 								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountPreAggregate$*.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSource.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSourceParallel.class</include>
-								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideTokenizerMap.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideDriverTokenizerMap.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideCountPreAggregateFunction.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideKeySelector.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSumReduceFunction.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideFlatOutputMap.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateListener.class</include>
+							</includes>
+						</configuration>
+					</execution>
+					<!-- TaxiRideDistanceAveragePreAggregate -->
+					<execution>
+						<id>TaxiRideDistanceAveragePreAggregate</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>TaxiRideDistanceAveragePreAggregate</classifier>
+							<archive>
+								<manifestEntries>
+									<program-class>
+										org.apache.flink.streaming.examples.aggregate.TaxiRideDistanceAveragePreAggregate
+									</program-class>
+								</manifestEntries>
+							</archive>
+							<includes>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceAveragePreAggregate.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideDistanceAveragePreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSourceParallel.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideDistanceTokenizerMap.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRidePassengerSumPreAggregateFunction.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideDriverKeySelector.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideAveragePassengersReducer.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideAverageOutputFlatMap.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>

@@ -52,7 +52,7 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 		this.port = 1883;
 		this.intervalMs = intervalMs;
 		this.subtaskId = subtaskId;
-		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER + "-" + this.subtaskId;
+		this.topic = TOPIC_PRE_AGGREGATE_PARAMETER;
 		this.enableController = enableController;
 		this.running = true;
 		this.disclaimer();
@@ -71,31 +71,43 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 		if (!this.enableController) {
 			System.out.println(
 				"[PreAggregateProcTimeListener] controller is not enabled then the listener doesn't have to start.");
-			return;
-		}
-		try {
-			if (subscriber == null) {
-				connect();
-			}
+		} else {
 			while (running) {
-				Message msg = subscriber.receive(10, TimeUnit.SECONDS);
-				if (msg != null) {
-					msg.ack();
-					String message = new String(msg.getPayload(), UTF_8);
-					System.out.println(
-						"[PreAggregateProcTimeListener] pre-agg[" + subtaskId + "] received msg: "
-							+ message);
-					if (isInteger(message)) {
-						this.intervalMs = Long.valueOf(message).longValue();
-					} else {
-						System.out.println(
-							"[PreAggregateProcTimeListener] The parameter sent is not an integer: "
-								+ message);
+				try {
+					if (subscriber == null) {
+						connect();
 					}
+					Message msg = subscriber.receive(10, TimeUnit.SECONDS);
+					if (msg != null) {
+						msg.ack();
+						String message = new String(msg.getPayload(), UTF_8);
+						System.out.println(
+							"[PreAggregateProcTimeListener] pre-agg[" + subtaskId
+								+ "] received msg: "
+								+ message);
+						if (isInteger(message)) {
+							long newIntervalMs = Long.valueOf(message).longValue();
+							// Not allow to have intervals less than 100 milliseconds
+							if (newIntervalMs >= 100) {
+								this.intervalMs = newIntervalMs;
+							} else if (newIntervalMs == 0) {
+								System.out.println(
+									"[PreAggregateProcTimeListener] Interval invalid. It is likely that the pre-agg is in a good shape.");
+							} else {
+								this.intervalMs = 100;
+								System.out.println(
+									"[PreAggregateProcTimeListener] WARN: Interval less than 100 milliseconds are set to 100 milliseconds.");
+							}
+						} else {
+							System.out.println(
+								"[PreAggregateProcTimeListener] The parameter sent is not an integer: "
+									+ message);
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
 	}
 

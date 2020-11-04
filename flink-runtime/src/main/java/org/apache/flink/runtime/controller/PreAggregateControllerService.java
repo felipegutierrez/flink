@@ -60,7 +60,7 @@ public class PreAggregateControllerService extends Thread {
 		} else if (brokerServerHost.contains("akka.tcp")) {
 			this.host = extractIP(brokerServerHost);
 		} else {
-			this.host = brokerServerHost;
+			this.host = "127.0.0.1";
 		}
 		this.port = 1883;
 
@@ -101,7 +101,14 @@ public class PreAggregateControllerService extends Thread {
 			if (mqtt == null) this.connect();
 			while (running) {
 				Thread.sleep(this.controllerFrequencySec * 1000);
-				publish(computePreAggregateParameter());
+				long newIntervalMs = computePreAggregateProcTimeIntervalMs();
+				if (newIntervalMs != 0) {
+					publish(newIntervalMs);
+				} else {
+					System.out.println(
+						"[PreAggregateControllerService.controller] interval[" + newIntervalMs
+							+ "] invalid. It is likely that the pre-agg is in a good shape.");
+				}
 			}
 		} catch (InterruptedException e) {
 			e.printStackTrace();
@@ -110,12 +117,7 @@ public class PreAggregateControllerService extends Thread {
 		}
 	}
 
-	/**
-	 * Compute the new global pre-aggregate parameter based on the state stored at this.preAggregateListener.preAggregateState.
-	 *
-	 * @return
-	 */
-	private long computePreAggregateParameter() {
+	private long computePreAggregateProcTimeIntervalMs() {
 //		Integer preAggregateParameter = 0;
 		Long preAggregateIntervalMsNew = 0L;
 //		MinCount minCount = new MinCount();
@@ -250,8 +252,9 @@ public class PreAggregateControllerService extends Thread {
 			preAggregateIntervalMsNew = preAggregateGlobalState.getIntervalMsNew();
 		}
 		this.monitorCount++;
-		System.out.println("[PreAggregateControllerService.controller] Next global preAgg intervalMs: "
-			+ preAggregateIntervalMsNew);
+		System.out.println(
+			"[PreAggregateControllerService.controller] Next global preAgg intervalMs: "
+				+ preAggregateIntervalMsNew);
 		return preAggregateIntervalMsNew;
 	}
 
@@ -272,13 +275,6 @@ public class PreAggregateControllerService extends Thread {
 		}
 	}
 
-	/**
-	 * This method is used to publish the new global pre-aggregation parameter K
-	 *
-	 * @param newMaxCountPreAggregate
-	 *
-	 * @throws Exception
-	 */
 	private void publish(long newMaxCountPreAggregate) throws Exception {
 		final LinkedList<Future<Void>> queue = new LinkedList<Future<Void>>();
 		UTF8Buffer topic = new UTF8Buffer(TOPIC_PRE_AGG_PARAMETER);
@@ -300,55 +296,6 @@ public class PreAggregateControllerService extends Thread {
 			return matcher.group();
 		} else {
 			return "127.0.0.1";
-		}
-	}
-
-	private class MinCount {
-		private Integer minimum;
-		private Integer maximum;
-		private boolean validate;
-		private boolean overloaded;
-
-		public MinCount() {
-			this.validate = true;
-			this.overloaded = false;
-		}
-
-		public void update(int minCount) {
-			if (this.minimum == null && this.maximum == null) {
-				this.minimum = Integer.valueOf(minCount);
-				this.maximum = Integer.valueOf(minCount);
-			} else {
-				if (this.minimum != null && minCount < this.minimum.intValue()) {
-					this.minimum = Integer.valueOf(minCount);
-				}
-				if (this.maximum != null && minCount > this.maximum.intValue()) {
-					this.maximum = Integer.valueOf(minCount);
-				}
-			}
-		}
-
-		public int getAverage() {
-			if (this.minimum == null || this.maximum == null) {
-				return 0;
-			}
-			return (this.minimum.intValue() + this.maximum.intValue()) / 2;
-		}
-
-		public boolean isValidate() {
-			return validate;
-		}
-
-		public void setValidate(boolean validate) {
-			this.validate = validate;
-		}
-
-		public boolean isOverloaded() {
-			return this.overloaded;
-		}
-
-		public void setOverloaded(boolean overloaded) {
-			this.overloaded = overloaded;
 		}
 	}
 }

@@ -4,7 +4,7 @@ import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
-public class TaxiRideTokenizerMap implements MapFunction<TaxiRide, Tuple2<Long, Long>> {
+public class TaxiRideDriverTokenizerMap implements MapFunction<TaxiRide, Tuple2<Long, Long>> {
 	@Override
 	public Tuple2<Long, Long> map(TaxiRide ride) {
 		return new Tuple2<Long, Long>(ride.driverId, 1L);

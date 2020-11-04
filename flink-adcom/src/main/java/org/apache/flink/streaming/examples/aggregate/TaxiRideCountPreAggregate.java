@@ -14,7 +14,7 @@ import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideKeySelector;
 import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
 import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
 import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSumReduceFunction;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideTokenizerMap;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDriverTokenizerMap;
 import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
@@ -106,7 +106,7 @@ public class TaxiRideCountPreAggregate {
 			rides = env.addSource(new TaxiRideSource(input)).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
-		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideDriverTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
 		if (!enableController && preAggregationProcessingTimer == -1) {
@@ -119,7 +119,7 @@ public class TaxiRideCountPreAggregate {
 		} else if (enableController) {
 			// dynamic combiner with PI controller
 			PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
-			preAggregatedStream = tuples.adCombine(taxiRidePreAggregateFunction).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
+			preAggregatedStream = tuples.adCombine(taxiRidePreAggregateFunction, preAggregationProcessingTimer).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).disableChaining().slotSharingGroup(slotGroup01);
 		}
 
 		KeyedStream<Tuple2<Long, Long>, Long> keyedByDriverId = preAggregatedStream.keyBy(new TaxiRideKeySelector());
