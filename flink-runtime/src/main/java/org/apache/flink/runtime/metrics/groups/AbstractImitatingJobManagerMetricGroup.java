@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.metrics.groups;
 
 import org.apache.flink.metrics.CharacterFilter;
+import org.apache.flink.metrics.Metric;
 import org.apache.flink.runtime.metrics.MetricRegistry;
 import org.apache.flink.runtime.metrics.dump.QueryScopeInfo;
 import org.apache.flink.runtime.metrics.scope.ScopeFormat;
@@ -58,5 +59,10 @@ class AbstractImitatingJobManagerMetricGroup extends AbstractMetricGroup<Abstrac
 	@Override
 	protected final QueryScopeInfo createQueryServiceMetricInfo(CharacterFilter filter) {
 		return new QueryScopeInfo.JobManagerQueryScopeInfo();
+	}
+
+	@Override
+	public Metric getMetric(String name) {
+		return null;
 	}
 }

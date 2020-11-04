@@ -393,11 +393,6 @@ public abstract class AbstractMetricGroup<A extends AbstractMetricGroup<?>> impl
 		return meter;
 	}
 
-	// @Override
-	// public Metric getMetric(String name) {
-	// 	return metrics.get(name);
-	// }
-
 	/**
 	 * Adds the given metric to the group and registers it at the registry, if the group
 	 * is not yet closed, and if no metric with the same name has been registered before.
@@ -516,5 +511,11 @@ public abstract class AbstractMetricGroup<A extends AbstractMetricGroup<?>> impl
 		KEY,
 		VALUE,
 		GENERIC
+	}
+
+	// add this method to collect metrics on the pre-aggregate operator (PreAggregateProcTimeStreamAbstractOperator)
+	@Override
+	public Metric getMetric(String name) {
+		return metrics.get(name);
 	}
 }

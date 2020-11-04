@@ -25,6 +25,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.Meter;
+import org.apache.flink.metrics.Metric;
 import org.apache.flink.metrics.MetricGroup;
 
 import org.junit.Test;
@@ -260,6 +261,11 @@ public class WatermarkStrategyTest {
 		@Override
 		public String getMetricIdentifier(
 			String metricName, CharacterFilter filter) {
+			return null;
+		}
+
+		@Override
+		public Metric getMetric(String name) {
 			return null;
 		}
 	}

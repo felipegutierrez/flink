@@ -21,6 +21,7 @@ package org.apache.flink.runtime.metrics.groups;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.metrics.CharacterFilter;
+import org.apache.flink.metrics.Metric;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.metrics.MetricRegistry;
@@ -153,6 +154,11 @@ public class TaskManagerMetricGroup extends ComponentMetricGroup<TaskManagerMetr
 	@Override
 	protected String getGroupName(CharacterFilter filter) {
 		return "taskmanager";
+	}
+
+	@Override
+	public Metric getMetric(String name) {
+		return null;
 	}
 }
 

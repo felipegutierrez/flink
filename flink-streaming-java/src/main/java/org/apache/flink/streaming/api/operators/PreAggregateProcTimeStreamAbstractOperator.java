@@ -6,7 +6,12 @@ import org.apache.flink.api.common.functions.PreAggregateFunction;
 import org.apache.flink.api.common.functions.util.FunctionUtils;
 import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
+import org.apache.flink.metrics.MeterView;
+import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.runtime.metrics.groups.OperatorMetricGroup;
+import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
 import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
@@ -136,6 +141,29 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 		System.out.println("intervalMs: " + preAggregateProcTimeListener.getIntervalMs() + " - " +
 			PreAggregateProcTimeStreamAbstractOperator.class.getSimpleName() + ".onProcessingTime: "
 			+ sdf.format(new Timestamp(System.currentTimeMillis())));
+
+		// TODO: this has to be called asynchronously in another thread to reduce footprint
+		// update outPoolUsage metrics to Prometheus+Grafana
+		float outPoolUsage = 0.0f;
+		OperatorMetricGroup operatorMetricGroup = (OperatorMetricGroup) this.getMetricGroup();
+		TaskMetricGroup taskMetricGroup = operatorMetricGroup.parent();
+		MetricGroup metricGroup = taskMetricGroup.getGroup("buffers");
+		Gauge<Float> gaugeOutPoolUsage = (Gauge<Float>) metricGroup.getMetric("outPoolUsage");
+		if (gaugeOutPoolUsage != null && gaugeOutPoolUsage.getValue() != null) {
+			outPoolUsage = gaugeOutPoolUsage.getValue().floatValue();
+			this.preAggregateMonitor.getOutPoolUsageHistogram().update((long) (outPoolUsage * 100));
+		}
+		// update records_per_second metrics to Prometheus+Grafana
+		MeterView meterNumRecordsOutPerSecond = (MeterView) taskMetricGroup.getMetric(
+			"numRecordsOutPerSecond");
+		MeterView meterNumRecordsInPerSecond = (MeterView) taskMetricGroup.getMetric(
+			"numRecordsInPerSecond");
+		if (meterNumRecordsOutPerSecond != null) {
+			this.preAggregateMonitor.setNumRecordsOutPerSecond(meterNumRecordsOutPerSecond.getRate());
+		}
+		if (meterNumRecordsInPerSecond != null) {
+			this.preAggregateMonitor.setNumRecordsInPerSecond(meterNumRecordsInPerSecond.getRate());
+		}
 	}
 
 	private void collect() throws Exception {

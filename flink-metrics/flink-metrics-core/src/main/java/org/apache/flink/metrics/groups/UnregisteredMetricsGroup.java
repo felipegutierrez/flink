@@ -23,6 +23,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.Meter;
+import org.apache.flink.metrics.Metric;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.SimpleCounter;
 
@@ -118,5 +119,11 @@ public class UnregisteredMetricsGroup implements MetricGroup {
 	@Override
 	public String getMetricIdentifier(String metricName, CharacterFilter filter) {
 		return metricName;
+	}
+
+	// add this method to collect metrics on the pre-aggregate operator (PreAggregateProcTimeStreamAbstractOperator)
+	@Override
+	public Metric getMetric(String name) {
+		return null;
 	}
 }

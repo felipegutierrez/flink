@@ -128,4 +128,16 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 	public void cancel() {
 		this.running = false;
 	}
+
+	public Histogram getOutPoolUsageHistogram() {
+		return outPoolUsageHistogram;
+	}
+
+	public void setNumRecordsOutPerSecond(double numRecordsOutPerSecond) {
+		this.numRecordsOutPerSecond = numRecordsOutPerSecond;
+	}
+
+	public void setNumRecordsInPerSecond(double numRecordsInPerSecond) {
+		this.numRecordsInPerSecond = numRecordsInPerSecond;
+	}
 }

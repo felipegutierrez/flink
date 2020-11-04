@@ -374,5 +374,10 @@ public class MetricGroupTest extends TestLogger {
 		public MetricGroup addGroup(String name) {
 			return new DummyAbstractMetricGroup(registry);
 		}
+
+		@Override
+		public Metric getMetric(String name) {
+			return null;
+		}
 	}
 }

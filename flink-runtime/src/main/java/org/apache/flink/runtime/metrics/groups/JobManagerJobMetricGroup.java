@@ -20,6 +20,7 @@ package org.apache.flink.runtime.metrics.groups;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.metrics.Metric;
 import org.apache.flink.runtime.metrics.MetricRegistry;
 
 import javax.annotation.Nullable;
@@ -53,5 +54,10 @@ public class JobManagerJobMetricGroup extends JobMetricGroup<JobManagerMetricGro
 	@Override
 	protected Iterable<? extends ComponentMetricGroup> subComponents() {
 		return Collections.emptyList();
+	}
+
+	@Override
+	public Metric getMetric(String name) {
+		return null;
 	}
 }

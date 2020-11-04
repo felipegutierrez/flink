@@ -20,6 +20,7 @@ package org.apache.flink.runtime.metrics.groups;
 
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.metrics.CharacterFilter;
+import org.apache.flink.metrics.Metric;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.metrics.MetricRegistry;
 import org.apache.flink.runtime.metrics.dump.QueryScopeInfo;
@@ -112,6 +113,11 @@ public class JobManagerMetricGroup extends ComponentMetricGroup<JobManagerMetric
 	@Override
 	protected String getGroupName(CharacterFilter filter) {
 		return "jobmanager";
+	}
+
+	@Override
+	public Metric getMetric(String name) {
+		return null;
 	}
 }
 

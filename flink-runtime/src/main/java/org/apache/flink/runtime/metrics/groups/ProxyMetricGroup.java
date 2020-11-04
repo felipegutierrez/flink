@@ -124,4 +124,10 @@ public class ProxyMetricGroup<P extends MetricGroup> implements MetricGroup {
 	public String getMetricIdentifier(String metricName, CharacterFilter filter) {
 		return parentMetricGroup.getMetricIdentifier(metricName, filter);
 	}
+
+	// add this method to collect metrics on the pre-aggregate operator (PreAggregateProcTimeStreamAbstractOperator)
+	@Override
+	public final Metric getMetric(String name) {
+		return parentMetricGroup.getMetric(name);
+	}
 }

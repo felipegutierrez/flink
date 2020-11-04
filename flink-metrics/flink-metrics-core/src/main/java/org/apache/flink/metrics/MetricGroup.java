@@ -202,4 +202,7 @@ public interface MetricGroup {
 	 * @return fully qualified metric name
 	 */
 	String getMetricIdentifier(String metricName, CharacterFilter filter);
+
+	// add this method to collect metrics on the pre-aggregate operator (PreAggregateProcTimeStreamAbstractOperator)
+	Metric getMetric(String name);
 }

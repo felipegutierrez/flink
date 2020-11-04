@@ -63,6 +63,11 @@ public class AbstractMetricGroupTest extends TestLogger {
 
 		AbstractMetricGroup group = new AbstractMetricGroup<AbstractMetricGroup<?>>(registry, new String[0], null) {
 			@Override
+			public Metric getMetric(String name) {
+				return null;
+			}
+
+			@Override
 			protected QueryScopeInfo createQueryServiceMetricInfo(CharacterFilter filter) {
 				return null;
 			}
