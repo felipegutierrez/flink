@@ -88,7 +88,7 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 		// DANGER: the reservoirWindow time (seconds) has to be at least 2 times greater than
 		// the PreAggregateProcTimeSignalsMonitor frequency to read signals,
 		// otherwise the histogram gets empty.
-		int reservoirWindow = 130;
+		int reservoirWindow = 120;
 		com.codahale.metrics.Histogram dropwizardOutPoolBufferHistogram = new com.codahale.metrics.Histogram(
 			new SlidingTimeWindowArrayReservoir(reservoirWindow, TimeUnit.SECONDS));
 		Histogram outPoolUsageHistogram = getRuntimeContext().getMetricGroup().histogram(

@@ -169,38 +169,74 @@ public class PreAggregateSignalsState {
 	}
 
 	public long getOutPoolUsageMin() {
+		return outPoolUsageMin[0];
+	}
+
+	public long getOutPoolUsageMinAvg() {
 		return average(outPoolUsageMin);
 	}
 
 	public long getOutPoolUsageMax() {
+		return outPoolUsageMax[0];
+	}
+
+	public long getOutPoolUsageMaxAvg() {
 		return average(outPoolUsageMax);
 	}
 
 	public double getOutPoolUsageMean() {
+		return outPoolUsageMean[0];
+	}
+
+	public double getOutPoolUsageMeanAvg() {
 		return average(outPoolUsageMean);
 	}
 
 	public double getOutPoolUsage05() {
+		return outPoolUsage05[0];
+	}
+
+	public double getOutPoolUsage05Avg() {
 		return average(outPoolUsage05);
 	}
 
 	public double getOutPoolUsage075() {
+		return outPoolUsage075[0];
+	}
+
+	public double getOutPoolUsage075Avg() {
 		return average(outPoolUsage075);
 	}
 
 	public double getOutPoolUsage095() {
+		return outPoolUsage095[0];
+	}
+
+	public double getOutPoolUsage095Avg() {
 		return average(outPoolUsage095);
 	}
 
 	public double getOutPoolUsage099() {
+		return outPoolUsage099[0];
+	}
+
+	public double getOutPoolUsage099Avg() {
 		return average(outPoolUsage099);
 	}
 
 	public double getOutPoolUsageStdDev() {
+		return outPoolUsageStdDev[0];
+	}
+
+	public double getOutPoolUsageStdDevAvg() {
 		return average(outPoolUsageStdDev);
 	}
 
 	public double getNumRecordsInPerSecond() {
+		return numRecordsInPerSecond[0];
+	}
+
+	public double getNumRecordsInPerSecondAvg() {
 		return average(numRecordsInPerSecond);
 	}
 
@@ -212,6 +248,10 @@ public class PreAggregateSignalsState {
 	}
 
 	public double getNumRecordsOutPerSecond() {
+		return numRecordsOutPerSecond[0];
+	}
+
+	public double getNumRecordsOutPerSecondAvg() {
 		return average(numRecordsOutPerSecond);
 	}
 

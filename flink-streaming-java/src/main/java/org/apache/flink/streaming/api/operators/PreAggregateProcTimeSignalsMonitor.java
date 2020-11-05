@@ -1,10 +1,9 @@
 package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.metrics.Histogram;
+import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
-
-import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 
 import org.fusesource.hawtbuf.AsciiBuffer;
 import org.fusesource.hawtbuf.Buffer;
@@ -15,6 +14,7 @@ import org.fusesource.mqtt.client.MQTT;
 import org.fusesource.mqtt.client.QoS;
 
 import java.io.Serializable;
+import java.text.DecimalFormat;
 import java.util.LinkedList;
 
 /**
@@ -22,19 +22,23 @@ import java.util.LinkedList;
  */
 public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serializable {
 
+	private final DecimalFormat df = new DecimalFormat("#.###");
 	/** topi on the JobManager controller */
 	private final String TOPIC_PRE_AGG_STATE = "topic-pre-aggregate-state";
 	/** Histogram metrics to monitor network buffer */
 	private final Histogram outPoolUsageHistogram;
 	/** Gauge metrics to monitor latency parameter */
 	private final PreAggIntervalMsGauge preAggIntervalMsGauge;
-	private final int controllerFrequencySec;
+	private final long publishSignalsFrequencySec;
 	private final int subtaskId;
 	private final boolean enableController;
 	private final String topic;
 	private final String host;
 	private final int port;
-	private final long TIMEOUT_TO_COLLECT_SIGNALS = 30000;
+	// DANGER: this time has to be lower than the controller time on the runtime package [PreAggregateControllerService]
+	private final long PUBLISH_SIGNALS_FREQ_SEC = 29 * 1000;
+	// frequency to collect signals from the pre-agg operator
+	private final long TIMEOUT_TO_COLLECT_SIGNALS = 27 * 1000;
 	/** time elapse to the next monitoring collect of signals */
 	private long timeStart;
 	private long intervalMs;
@@ -59,7 +63,7 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 		this.outPoolUsageHistogram = outPoolUsageHistogram;
 		this.preAggIntervalMsGauge = preAggIntervalMsGauge;
 		this.running = true;
-		this.controllerFrequencySec = 60;
+		this.publishSignalsFrequencySec = PUBLISH_SIGNALS_FREQ_SEC;
 		this.subtaskId = subtaskId;
 		this.enableController = enableController;
 
@@ -100,9 +104,8 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 		try {
 			if (mqtt == null) this.connect();
 			while (running) {
-				Thread.sleep(controllerFrequencySec * 1000);
+				Thread.sleep(publishSignalsFrequencySec);
 				String preAggSignals = this.updateSignals();
-				// if (this.enableController) {
 				this.publish(preAggSignals);
 			}
 		} catch (Exception e) {
@@ -133,11 +136,12 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 		double outPoolUsage099 = this.outPoolUsageHistogram.getStatistics().getQuantile(0.99);
 		double outPoolUsageStdDev = this.outPoolUsageHistogram.getStatistics().getStdDev();
 
-		String msg =
-			this.subtaskId + "|" + outPoolUsageMin + "|" + outPoolUsageMax + "|" + outPoolUsageMean
-				+ "|" + outPoolUsage05 + "|" + outPoolUsage075 + "|" + outPoolUsage095 + "|"
-				+ outPoolUsage099 + "|" + outPoolUsageStdDev + "|" + this.numRecordsInPerSecond
-				+ "|" + this.numRecordsOutPerSecond + "|" + this.intervalMs;
+		String msg = subtaskId + "|" + outPoolUsageMin + "|" + outPoolUsageMax + "|" +
+			outPoolUsageMean + "|" + outPoolUsage05 + "|" + outPoolUsage075 + "|" + outPoolUsage095
+			+ "|" + outPoolUsage099 + "|" + outPoolUsageStdDev + "|" +
+			df.format(this.numRecordsInPerSecond) + "|" +
+			df.format(this.numRecordsOutPerSecond) + "|" +
+			this.intervalMs;
 
 		// Update parameters to Prometheus+Grafana
 		this.preAggIntervalMsGauge.updateValue(this.intervalMs);

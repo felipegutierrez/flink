@@ -257,6 +257,7 @@
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSumReduceFunction.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideFlatOutputMap.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GenericParameters.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
@@ -287,6 +288,7 @@
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSourceParallel.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideTableOutputMap.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GenericParameters.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
@@ -321,6 +323,7 @@
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideAveragePassengersReducer.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideAverageOutputFlatMap.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GenericParameters.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
 								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>

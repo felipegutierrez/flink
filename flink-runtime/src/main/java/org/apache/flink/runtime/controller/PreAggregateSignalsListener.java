@@ -56,8 +56,8 @@ public class PreAggregateSignalsListener extends Thread {
 					msg.ack();
 					String message = new String(msg.getPayload(), UTF_8);
 					if (message != null) {
-						System.out.println(
-							"[PreAggregateSignalsListener.controller] received msg: " + message);
+						// Look at PreAggregateControllerService.computeAverageOfSignals() that receives the same message
+						// System.out.println("[PreAggregateSignalsListener.controller] received msg: " + message);
 						this.addState(message);
 					} else {
 						System.out.println(

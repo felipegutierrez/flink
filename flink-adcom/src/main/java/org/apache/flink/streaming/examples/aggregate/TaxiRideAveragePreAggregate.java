@@ -1,109 +1,13 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple4;
-import org.apache.flink.api.java.tuple.Tuple5;
-import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
-import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
-import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
-import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
-import org.apache.flink.streaming.examples.aggregate.util.TaxiRideDistanceCalculator;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
-import org.apache.flink.util.Collector;
-
-import javax.annotation.Nullable;
-
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ConcurrentMap;
-
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.COMBINER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.CONTROLLER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.DISABLE_OPERATOR_CHAINING;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_PRE_AGGREGATE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_REDUCER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PARALLELISM_GROUP_02;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW_TIMEOUT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_HOST;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_PORT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_SPLIT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SOURCE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
+import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 
 public class TaxiRideAveragePreAggregate {
 	public static void main(String[] args) throws Exception {
-		ParameterTool params = ParameterTool.fromArgs(args);
-		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
-		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
-		int sinkPort = params.getInt(SINK_PORT, 1883);
-		String output = params.get(SINK, "");
-		int preAggregationWindowCount = params.getInt(PRE_AGGREGATE_WINDOW, 1);
-		long preAggregationWindowTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
-		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
-		int parallelisGroup02 = params.getInt(
-			PARALLELISM_GROUP_02,
-			ExecutionConfig.PARALLELISM_DEFAULT);
-		boolean enableCombiner = params.getBoolean(COMBINER, true);
-		boolean enableController = params.getBoolean(CONTROLLER, true);
-		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
+		GenericParameters genericParam = new GenericParameters(args);
+		genericParam.printParameters();
 
 		/*
-		System.out.println("Download data from:");
-		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
-		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
-		System.out.println("data source                                             : " + input);
-		System.out.println("data sink                                               : " + output);
-		System.out.println(
-			"data sink host:port                                     : " + sinkHost + ":"
-				+ sinkPort);
-		System.out.println(
-			"data sink topic                                         : " + TOPIC_DATA_SINK);
-		System.out.println(
-			"Feedback loop Controller                                : " + enableController);
-		System.out.println(
-			"Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
-		System.out.println(
-			"Disable operator chaining                               : " + disableOperatorChaining);
-		System.out.println(
-			"Enable combiner                                         : " + enableCombiner);
-		System.out.println("pre-aggregate window [count]                            : "
-			+ preAggregationWindowCount);
-		System.out.println("pre-aggregate window [seconds]                          : "
-			+ preAggregationWindowTimer);
-		System.out.println(
-			"Parallelism group 02                                    : " + parallelisGroup02);
-		System.out.println("Changing pre-aggregation frequency before shuffling:");
-		System.out.println(
-			"mosquitto_pub -h 127.0.0.1 -p 1883 -t topic-pre-aggregate-parameter -m \"100\"");
-		System.out.println(
-			DataRateListener.class.getSimpleName() + " class to read data rate from file ["
-				+ DataRateListener.DATA_RATE_FILE + "] in milliseconds.");
-		System.out.println(
-			"This listener reads every 60 seconds only the first line from the data rate file.");
-		System.out.println("Use the following command to change the nanoseconds data rate:");
-		System.out.println("1000000 nanoseconds = 1 millisecond");
-		System.out.println("1000000000 nanoseconds = 1000 milliseconds = 1 second");
-		System.out.println("echo \"1000000000\" > " + DataRateListener.DATA_RATE_FILE);
-
 		// set up streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		if (disableOperatorChaining) {

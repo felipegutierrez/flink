@@ -1,6 +1,12 @@
 package org.apache.flink.streaming.examples.aggregate.util;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 
 public class DataRateListener extends Thread implements Serializable {
@@ -65,7 +71,7 @@ public class DataRateListener extends Thread implements Serializable {
 							long millisec = Math.round(1_000_000_000 / Long.parseLong(line));
 							System.out.println("[DataRateListener] Reading [" + line
 								+ "] new frequency to generate data: " + millisec
-								+ " milliseconds.");
+								+ " rec/sec.");
 							delayInNanoSeconds = Long.parseLong(line);
 						} else {
 							System.out.println(

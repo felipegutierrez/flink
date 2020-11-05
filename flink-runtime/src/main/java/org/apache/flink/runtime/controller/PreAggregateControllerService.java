@@ -1,5 +1,7 @@
 package org.apache.flink.runtime.controller;
 
+import org.apache.flink.api.java.tuple.Tuple2;
+
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 
 import org.fusesource.hawtbuf.AsciiBuffer;
@@ -42,6 +44,7 @@ public class PreAggregateControllerService extends Thread {
 	private double numRecordsOutPerSecondMax;
 	private int monitorCount;
 	private boolean inputRecPerSecFlag;
+	private Reference reference;
 
 	public PreAggregateControllerService() throws Exception {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
@@ -54,6 +57,7 @@ public class PreAggregateControllerService extends Thread {
 		this.numRecordsOutPerSecondMax = 0.0;
 		this.controllerFrequencySec = 60; // 120;
 		this.running = true;
+		this.reference = new Reference(35, 80, 25, 90);
 
 		if (Strings.isNullOrEmpty(brokerServerHost)
 			|| brokerServerHost.equalsIgnoreCase("localhost")) {
@@ -102,7 +106,8 @@ public class PreAggregateControllerService extends Thread {
 			if (mqtt == null) this.connect();
 			while (running) {
 				Thread.sleep(this.controllerFrequencySec * 1000);
-				Long newIntervalMs = computePreAggregateProcTimeIntervalMs();
+				// Long newIntervalMs = computePreAggregateProcTimeIntervalMs();
+				Long newIntervalMs = computeNextProcTimeIntervalMs();
 				if (newIntervalMs != null && newIntervalMs != 0) {
 					publish(newIntervalMs);
 				} else {
@@ -118,6 +123,104 @@ public class PreAggregateControllerService extends Thread {
 		}
 	}
 
+	private Long computeNextProcTimeIntervalMs() {
+		// @formatter:off
+		System.out.println("[PreAggregateControllerService.controller] started at: " + sdf.format(new Date()));
+		Long preAggregateIntervalMsNew = 0L;
+
+		// 1 - define the reference for the output buffers: this.reference
+
+		// 2 - collect the signals and compute the average
+		PreAggregateGlobalState preAggregateGlobalState = computeAverageOfSignals();
+		// 3 - check if at least one of the output buffers is 100%. This might be a skew workload.
+		if (preAggregateGlobalState.isOverloaded()) {
+			preAggregateGlobalState.incrementIntervalMsNew(200);
+			preAggregateGlobalState.setValidate(true);
+		}
+		// 4 - check if the average output buffers are out of the reference. Then, compute the correction.
+		else if (preAggregateGlobalState.getOutPoolUsageAvg() < reference.getMin() || preAggregateGlobalState.getOutPoolUsageAvg() > reference.getMax()) {
+			// 4.1 - BACKPRESSURE: increment latency
+			if (preAggregateGlobalState.getOutPoolUsageAvg() > reference.getMax()) {
+				if (preAggregateGlobalState.getOutPoolUsageAvg() >= reference.getMaxHigh()) {
+					preAggregateGlobalState.incrementIntervalMsNew(200);
+				} else {
+					preAggregateGlobalState.incrementIntervalMsNew(100);
+				}
+				preAggregateGlobalState.setValidate(true);
+			}
+			// 4.2 - TOO LOW PRESSURE: decrement latency
+			else if (preAggregateGlobalState.getOutPoolUsageAvg() < reference.getMin()) {
+				if (preAggregateGlobalState.getOutPoolUsageAvg() <= reference.getMinLow()) {
+					preAggregateGlobalState.decrementIntervalMsNew(200);
+				} else {
+					preAggregateGlobalState.decrementIntervalMsNew(100);
+				}
+				preAggregateGlobalState.setValidate(true);
+			}
+			// 4.3 - should not fall here
+			else { System.out.println("should not fall here"); }
+		}
+		// 5 - check if the average output buffers are within the reference. Then compute a small correction.
+		else {
+			System.out.println("[PreAggregateControllerService.controller] within the reference.");
+		}
+		// 6 - get the new intervalMs
+		if (preAggregateGlobalState.isValidate()) {
+			preAggregateIntervalMsNew = preAggregateGlobalState.getIntervalMsNew();
+		}
+		System.out.println("[PreAggregateControllerService.controller] Next global preAgg intervalMs: " + preAggregateIntervalMsNew);
+		System.out.println("[PreAggregateControllerService.controller] done at: " + sdf.format(new Date()));
+		return preAggregateIntervalMsNew;
+		// @formatter:on
+	}
+
+	private PreAggregateGlobalState computeAverageOfSignals() {
+		PreAggregateGlobalState preAggregateGlobalState = new PreAggregateGlobalState();
+		int subtasksCount = 0;
+		double outPoolUsageMeanTotal = 0;
+		// double outPoolUsage75PerTotal = 0;
+		for (Map.Entry<Integer, PreAggregateSignalsState> entry : this.preAggregateListener.preAggregateState
+			.entrySet()) {
+			// get the subtask ID
+			Integer subtaskIndex = entry.getKey();
+			PreAggregateSignalsState preAggregateState = entry.getValue();
+			// get the current intervalMs and set on the global state
+			preAggregateGlobalState.setIntervalMsCurrent(preAggregateState.getIntervalMs());
+			// collect the output poll mean usage for each subtask
+			double outPoolUsageMean = preAggregateState.getOutPoolUsageMean();
+			outPoolUsageMeanTotal = outPoolUsageMeanTotal + outPoolUsageMean;
+			double outPoolUsage75Perc = preAggregateState.getOutPoolUsage075();
+			// check if this subtask is overloaded
+			if (outPoolUsageMean >= 100.0 || outPoolUsage75Perc >= 100.0) preAggregateGlobalState.setOverloaded(true);
+			// count the number of subtasks
+			subtasksCount++;
+			// print the signals
+			String msg = "[PreAggregateControllerService.controller] " + subtaskIndex +
+				"|min:" + preAggregateState.getOutPoolUsageMin() +
+				"|max:" + preAggregateState.getOutPoolUsageMax() +
+				"|mean:" + preAggregateState.getOutPoolUsageMean() +
+				"|50:" + preAggregateState.getOutPoolUsage05() +
+				"|75:" + preAggregateState.getOutPoolUsage075() +
+				"|95:" + preAggregateState.getOutPoolUsage095() +
+				"|99:" + preAggregateState.getOutPoolUsage099() +
+				"|stdD:" + df.format(preAggregateState.getOutPoolUsageStdDev()) +
+				"|IN[" + df.format(preAggregateState.getNumRecordsInPerSecond()) +
+				"|max:" + df.format(this.numRecordsInPerSecondMax) + "]" +
+				"|OUT[" + df.format(preAggregateState.getNumRecordsOutPerSecond()) +
+				"|max:" + df.format(this.numRecordsOutPerSecondMax) + "]|" +
+				preAggregateState.getIntervalMs();
+			System.out.println(msg);
+		}
+		// update the out poll usage average global (for all subtasks)
+		preAggregateGlobalState.setOutPoolUsageAvg(outPoolUsageMeanTotal / subtasksCount);
+		return preAggregateGlobalState;
+	}
+
+	/**
+	 * @return
+	 *
+	 * @deprecated use computeNextProcTimeIntervalMs()
+	 */
 	private Long computePreAggregateProcTimeIntervalMs() {
 		// @formatter:off
 		System.out.println("[PreAggregateControllerService.controller] started at: " + sdf.format(new Date()));
@@ -258,6 +361,36 @@ public class PreAggregateControllerService extends Thread {
 			return matcher.group();
 		} else {
 			return "127.0.0.1";
+		}
+	}
+
+	private static class Reference {
+		private Integer min;
+		private Integer max;
+		private Integer minLow;
+		private Integer maxHigh;
+
+		public Reference(Integer min, Integer max, Integer minLow, Integer maxHigh) {
+			this.min = min;
+			this.max = max;
+			this.minLow = minLow;
+			this.maxHigh = maxHigh;
+		}
+
+		public Integer getMin() {
+			return min;
+		}
+
+		public Integer getMax() {
+			return max;
+		}
+
+		public Integer getMinLow() {
+			return minLow;
+		}
+
+		public Integer getMaxHigh() {
+			return maxHigh;
 		}
 	}
 }

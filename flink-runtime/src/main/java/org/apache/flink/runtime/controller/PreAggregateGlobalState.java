@@ -5,6 +5,8 @@ public class PreAggregateGlobalState {
 	private Long intervalMsNew;
 	private boolean validate;
 	private boolean overloaded;
+	/** average signals received */
+	private Double outPoolUsageAvg;
 
 	public PreAggregateGlobalState() {
 		this.validate = true;
@@ -59,5 +61,13 @@ public class PreAggregateGlobalState {
 		} else if (this.intervalMsCurrent == null) {
 			System.out.println("[PreAggregateGlobalState.controller.dec] intervalMsCurrent is null!");
 		}
+	}
+
+	public Double getOutPoolUsageAvg() {
+		return outPoolUsageAvg;
+	}
+
+	public void setOutPoolUsageAvg(Double outPoolUsageAvg) {
+		this.outPoolUsageAvg = outPoolUsageAvg;
 	}
 }
