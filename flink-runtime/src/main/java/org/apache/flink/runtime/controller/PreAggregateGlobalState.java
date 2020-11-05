@@ -34,8 +34,6 @@ public class PreAggregateGlobalState {
 	public void setIntervalMsCurrent(Long intervalMsCurrent) {
 		if (this.intervalMsCurrent == null) {
 			this.intervalMsCurrent = intervalMsCurrent;
-		} else {
-			System.out.println("[PreAggregateGlobalState.controller] intervalMsCurrent already set!");
 		}
 	}
 
@@ -47,9 +45,9 @@ public class PreAggregateGlobalState {
 		if (this.intervalMsNew == null && this.intervalMsCurrent != null) {
 			this.intervalMsNew = this.intervalMsCurrent + inc;
 		} else if (this.intervalMsNew != null) {
-			System.out.println("[PreAggregateGlobalState.controller.dec] intervalMsNew already set!");
+			System.out.println("[PreAggregateGlobalState.controller.inc] intervalMsNew already set!");
 		} else if (this.intervalMsCurrent == null) {
-			System.out.println("[PreAggregateGlobalState.controller.dec] intervalMsCurrent is null!");
+			System.out.println("[PreAggregateGlobalState.controller.inc] intervalMsCurrent is null!");
 		}
 	}
 
