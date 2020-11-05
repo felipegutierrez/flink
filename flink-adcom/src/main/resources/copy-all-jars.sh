@@ -11,13 +11,14 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-dist/target/flink-1.1
 # Flink applications
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/flink-examples-streaming_2.12-1.12-SNAPSHOT-WordCount.jar ../flink-app/
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar ../flink-app/
+cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideDistanceAveragePreAggregate.jar ../flink-app/
 
 # Executing Flink applications
 # ./bin/flink run ../flink-app/flink-examples-streaming_2.12-1.12-SNAPSHOT-WordCount.jar --input /home/felipe/Temp/1524-0-4.txt
 
 # TaxiRide pre-aggregation
-# ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller false -pre-aggregate-window-timeout 2000 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par false -output mqtt -sinkHost 127.0.0.1
 # ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller false -pre-aggregate-window-timeout 2000 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
+# ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
 
 
 # Changing the data rate

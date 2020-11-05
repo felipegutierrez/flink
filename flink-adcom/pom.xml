@@ -43,6 +43,28 @@
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-shaded-jackson</artifactId>
 		</dependency>
+		<!-- Table ecosystem -->
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-table-api-java-bridge_${scala.binary.version}</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-table-api-scala-bridge_${scala.binary.version}</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-table-planner_${scala.binary.version}</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-table-planner-blink_${scala.binary.version}</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<!-- additional libraries -->
 		<dependency>
 			<groupId>joda-time</groupId>
 			<artifactId>joda-time</artifactId>
@@ -221,9 +243,7 @@
 							<classifier>TaxiRideCountPreAggregate</classifier>
 							<archive>
 								<manifestEntries>
-									<program-class>
-										org.apache.flink.streaming.examples.aggregate.TaxiRideCountPreAggregate
-									</program-class>
+									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideCountPreAggregate</program-class>
 								</manifestEntries>
 							</archive>
 							<includes>
@@ -246,6 +266,36 @@
 							</includes>
 						</configuration>
 					</execution>
+					<!-- TaxiRideCountTablePreAggregate -->
+					<execution>
+						<id>TaxiRideCountTablePreAggregate</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>TaxiRideCountTablePreAggregate</classifier>
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideCountTablePreAggregate</program-class>
+								</manifestEntries>
+							</archive>
+							<includes>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountTablePreAggregate.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TaxiRideCountTablePreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideSourceParallel.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/TaxiRideTableOutputMap.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiRide.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/TaxiFare.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/ExerciseBase.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GeoUtils.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateListener.class</include>
+							</includes>
+						</configuration>
+					</execution>
 					<!-- TaxiRideDistanceAveragePreAggregate -->
 					<execution>
 						<id>TaxiRideDistanceAveragePreAggregate</id>
@@ -257,9 +307,7 @@
 							<classifier>TaxiRideDistanceAveragePreAggregate</classifier>
 							<archive>
 								<manifestEntries>
-									<program-class>
-										org.apache.flink.streaming.examples.aggregate.TaxiRideDistanceAveragePreAggregate
-									</program-class>
+									<program-class>org.apache.flink.streaming.examples.aggregate.TaxiRideDistanceAveragePreAggregate</program-class>
 								</manifestEntries>
 							</archive>
 							<includes>

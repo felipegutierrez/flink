@@ -38,6 +38,7 @@ public class CommonParameters {
 	// other parameters
 	public static final String PARALLELISM_GROUP_01 = "parallelism-group-01";
 	public static final String PARALLELISM_GROUP_02 = "parallelism-group-02";
+	public static final String TABLE_PARALLELISM = "parallelism-table";
 	public static final String SLOT_GROUP_DEFAULT = "default";
 	public static final String SLOT_GROUP_01_01 = "group-01-01";
 	public static final String SLOT_GROUP_01_02 = "group-01-02";
@@ -50,6 +51,10 @@ public class CommonParameters {
 	public static final String PRE_AGGREGATE_STRATEGY = "strategy";
 	public static final String SLOT_GROUP_SPLIT = "slotSplit";
 	public static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
+	public static final String TABLE_MINI_BATCH_ENABLE = "mini_batch_enabled";
+	public static final String TABLE_MINI_BATCH_LATENCY = "mini_batch_latency";
+	public static final String TABLE_MINI_BATCH_SIZE = "mini_batch_size";
+	public static final String TABLE_MINI_BATCH_TWO_PHASE = "mini_batch_two_phase";
 	public static final String ENABLE_END_TO_END_LATENCY_MONITOR = "enableEndToEndLatency";
 	public static final String CONTROLLER = "controller";
 	public static final String COMBINER = "combiner";
