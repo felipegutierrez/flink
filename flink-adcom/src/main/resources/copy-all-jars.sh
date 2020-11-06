@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+########################################################################
+# LOCAL ENVIRONMENT
+########################################################################
 # Flink libraries
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-dist/target/flink-1.12-SNAPSHOT-bin/flink-1.12-SNAPSHOT/lib/flink-csv-1.12-SNAPSHOT.jar lib/flink-csv-1.11.2.jar
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-dist/target/flink-1.12-SNAPSHOT-bin/flink-1.12-SNAPSHOT/lib/flink-dist_2.12-1.12-SNAPSHOT.jar lib/flink-dist_2.12-1.11.2.jar
@@ -16,18 +19,39 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # Flink using Table API
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar ../flink-app/
 
-
 # Executing Flink applications
 # ./bin/flink run ../flink-app/flink-examples-streaming_2.12-1.12-SNAPSHOT-WordCount.jar --input /home/felipe/Temp/1524-0-4.txt
 
-# TaxiRide pre-aggregation AdCom
+# AdCom: TaxiRide pre-aggregation
 # ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller false -pre-aggregate-window-timeout 2000 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
 # ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
 
-# TaxiRide pre-aggregation Table API
+# Table API: TaxiRide pre-aggregation
 # ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
 
+########################################################################
+# CLUSTER ENVIRONMENT
+########################################################################
+# AdCom: scaling parallel instance of the pre-agg
+# 8  reducers
 
+# 16 reducers
+
+# 24 reducers
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 24 -output mqtt -sinkHost 130.239.48.137
+
+# Table API: TaxiRide pre-aggregation
+# 8  reducers
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 130.239.48.135 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 8
+# 16 reducers
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 130.239.48.134 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 16
+# 24 reducers
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 130.239.48.137 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 24
+
+
+########################################################################
+# Data rate configuration
+########################################################################
 # Changing the data rate
 # echo '1000000000' > /tmp/datarate.txt    # 1    rec/sec
 # echo '2000000' > /tmp/datarate.txt       # 500  rec/sec
@@ -43,5 +67,6 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # echo '1000' > /tmp/datarate.txt          # 1M   rec/sec
 # echo '500' > /tmp/datarate.txt           # 2M   rec/sec
 
-
+# scp /tmp/datarate.txt worker01:/tmp/datarate.txt && scp /tmp/datarate.txt worker02:/tmp/datarate.txt && scp /tmp/datarate.txt worker03:/tmp/datarate.txt
+# scp /tmp/datarate.txt r01:/tmp/datarate.txt && scp /tmp/datarate.txt r02:/tmp/datarate.txt && scp /tmp/datarate.txt r04:/tmp/datarate.txt
 

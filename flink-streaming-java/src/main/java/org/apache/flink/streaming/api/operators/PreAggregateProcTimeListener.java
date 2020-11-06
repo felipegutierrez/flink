@@ -145,12 +145,13 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 	}
 
 	private void disclaimer() {
-		// @formatter:off
-		System.out.println("[PreAggregateProcTimeListener] This is the application [" + PreAggregateProcTimeListener.class.getSimpleName() + "].");
-		System.out.println("[PreAggregateProcTimeListener] It listens new frequency parameters from an MQTT broker.");
+		System.out.println(
+			"[PreAggregateProcTimeListener] started at [" + this.host + "] for subtask ["
+				+ this.subtaskId + "]. It listens new frequency parameters from an MQTT broker.");
 		System.out.println("[PreAggregateProcTimeListener] To publish on this broker use:");
-		System.out.println("[PreAggregateProcTimeListener] mosquitto_pub -h " + this.host + " -p " + this.port + " -t " + this.topic + " -m \"intervalMs\"");
+		System.out.println(
+			"[PreAggregateProcTimeListener] mosquitto_pub -h " + this.host + " -p " + this.port
+				+ " -t " + this.topic + " -m \"intervalMs\"");
 		System.out.println();
-		// @formatter:on
 	}
 }

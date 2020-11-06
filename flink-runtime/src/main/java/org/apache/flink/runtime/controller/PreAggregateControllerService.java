@@ -1,7 +1,5 @@
 package org.apache.flink.runtime.controller;
 
-import org.apache.flink.api.java.tuple.Tuple2;
-
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 
 import org.fusesource.hawtbuf.AsciiBuffer;
@@ -33,7 +31,10 @@ public class PreAggregateControllerService extends Thread {
 	private final int controllerFrequencySec;
 	private final boolean running;
 	private final PreAggregateSignalsListener preAggregateListener;
-	private final String host;
+	// host of the jobManager
+	private final String hostListener;
+	// host of all task managers
+	private final String hostPublish;
 	private final int port;
 	// TODO: use Akka RPC instead of MQTT protocol
 	/** MQTT broker is used to set the parameter K to all PreAgg operators */
@@ -44,7 +45,7 @@ public class PreAggregateControllerService extends Thread {
 	private double numRecordsOutPerSecondMax;
 	private int monitorCount;
 	private boolean inputRecPerSecFlag;
-	private Reference reference;
+	private final Reference reference;
 
 	public PreAggregateControllerService() throws Exception {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
@@ -61,16 +62,17 @@ public class PreAggregateControllerService extends Thread {
 
 		if (Strings.isNullOrEmpty(brokerServerHost)
 			|| brokerServerHost.equalsIgnoreCase("localhost")) {
-			this.host = "127.0.0.1";
+			this.hostListener = "127.0.0.1";
 		} else if (brokerServerHost.contains("akka.tcp")) {
-			this.host = extractIP(brokerServerHost);
+			this.hostListener = extractIP(brokerServerHost);
 		} else {
-			this.host = "127.0.0.1";
+			this.hostListener = "127.0.0.1";
 		}
+		this.hostPublish = null;
 		this.port = 1883;
 
 		this.preAggregateListener = new PreAggregateSignalsListener(
-			this.host,
+			this.hostListener,
 			this.port,
 			TOPIC_PRE_AGG_STATE);
 		this.preAggregateListener.start();
@@ -84,14 +86,14 @@ public class PreAggregateControllerService extends Thread {
 	}
 
 	private void disclaimer() {
-		// @formatter:off
-		System.out.println("[PreAggregateControllerService.controller] initialized and scheduled to every " + this.controllerFrequencySec + " seconds.");
-		// @formatter:on
+		System.out.println(
+			"[PreAggregateControllerService.controller] Controller started at [" + this.hostListener +
+				"] scheduled to every " + this.controllerFrequencySec + " seconds.");
 	}
 
 	private void connect() throws Exception {
 		mqtt = new MQTT();
-		mqtt.setHost(host, port);
+		mqtt.setHost(hostPublish, port);
 
 		connection = mqtt.futureConnection();
 		connection.connect().await();
@@ -191,7 +193,8 @@ public class PreAggregateControllerService extends Thread {
 			outPoolUsageMeanTotal = outPoolUsageMeanTotal + outPoolUsageMean;
 			double outPoolUsage75Perc = preAggregateState.getOutPoolUsage075();
 			// check if this subtask is overloaded
-			if (outPoolUsageMean >= 100.0 || outPoolUsage75Perc >= 100.0) preAggregateGlobalState.setOverloaded(true);
+			if (outPoolUsageMean >= 100.0 || outPoolUsage75Perc >= 100.0)
+				preAggregateGlobalState.setOverloaded(true);
 			// count the number of subtasks
 			subtasksCount++;
 			// print the signals
@@ -365,10 +368,10 @@ public class PreAggregateControllerService extends Thread {
 	}
 
 	private static class Reference {
-		private Integer min;
-		private Integer max;
-		private Integer minLow;
-		private Integer maxHigh;
+		private final Integer min;
+		private final Integer max;
+		private final Integer minLow;
+		private final Integer maxHigh;
 
 		public Reference(Integer min, Integer max, Integer minLow, Integer maxHigh) {
 			this.min = min;

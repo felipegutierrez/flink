@@ -45,15 +45,12 @@ public class TaxiRideCountTablePreAggregate {
 		if (genericParam.isTwoPhaseAgg()) {
 			configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE");
 		}
-		//if (genericParam.isDisableOperatorChaining()) {
-		//	env.disableOperatorChaining();
-		//}
 
 		DataStream<TaxiRide> rides = null;
 		if (genericParam.isParallelSource()) {
-			rides = env.addSource(new TaxiRideSourceParallel(genericParam.getInput())).disableChaining().name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSourceParallel(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
 		} else {
-			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).disableChaining().name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
 		}
 
 		// "rideId, isStart, startTime, endTime, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
@@ -68,7 +65,7 @@ public class TaxiRideCountTablePreAggregate {
 		});
 		DataStream<String> rideCounts = tableEnv
 			.toRetractStream(resultTableStream, typeInfo)
-			.map(new TaxiRideTableOutputMap()).disableChaining().name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
+			.map(new TaxiRideTableOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
 
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
 			rideCounts.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);

@@ -1,9 +1,10 @@
 package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.metrics.Histogram;
-import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
+
+import org.apache.flink.streaming.util.functions.PreAggIntervalMsGauge;
 
 import org.fusesource.hawtbuf.AsciiBuffer;
 import org.fusesource.hawtbuf.Buffer;
@@ -78,13 +79,14 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 	}
 
 	private void disclaimer() {
-		// @formatter:off
-		System.out.println("[PreAggregateProcTimeSignalsMonitor] It collects and publishes signals to the pre-agg controller using an MQTT broker.");
+		System.out.println("[PreAggregateProcTimeSignalsMonitor] started at [" + this.host
+			+ "] for subtask [" + this.subtaskId
+			+ "]. It collects and publishes signals to the pre-agg controller using an MQTT broker.");
 		if (!this.enableController) {
-			System.out.println("[PreAggregateProcTimeSignalsMonitor] Controller is not enable then the monitor doesn't have to send signals.");
+			System.out.println(
+				"[PreAggregateProcTimeSignalsMonitor] Controller is not enable then the monitor doesn't have to send signals.");
 		}
 		System.out.println();
-		// @formatter:on
 	}
 
 	private void connect() throws Exception {
