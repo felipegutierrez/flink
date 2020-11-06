@@ -6,14 +6,13 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideTableOutputMap;
+import org.apache.flink.streaming.examples.aggregate.udfs.*;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+
+import org.apache.logging.log4j.util.Strings;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 import static org.apache.flink.table.api.Expressions.$;
@@ -39,22 +38,31 @@ public class TaxiRideCountTablePreAggregate {
 		configuration.setInteger("table.exec.resource.default-parallelism", genericParam.getParallelismTableApi());
 		// local-global aggregation depends on mini-batch is enabled
 		configuration.setString("table.exec.mini-batch.enabled", Boolean.toString(genericParam.isMini_batch_enabled()));
-		configuration.setString("table.exec.mini-batch.allow-latency", genericParam.getMini_batch_allow_latency());
-		configuration.setString("table.exec.mini-batch.size", genericParam.getMini_batch_size());
+		if (!Strings.isEmpty(genericParam.getMini_batch_allow_latency())) {
+			configuration.setString("table.exec.mini-batch.allow-latency", genericParam.getMini_batch_allow_latency());
+		}
+		if (genericParam.getMini_batch_size() > 0) {
+			configuration.setString("table.exec.mini-batch.size", String.valueOf(genericParam.getMini_batch_size()));
+		}
 		// enable two-phase, i.e. local-global aggregation
 		if (genericParam.isTwoPhaseAgg()) {
 			configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE");
 		}
+		if (genericParam.isDisableOperatorChaining()) {
+			env.disableOperatorChaining();
+		}
 
 		DataStream<TaxiRide> rides = null;
 		if (genericParam.isParallelSource()) {
-			rides = env.addSource(new TaxiRideSourceParallel(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSourceParallel(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(SLOT_GROUP_01_01);
 		} else {
-			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(SLOT_GROUP_01_01);
 		}
 
+		DataStream<TaxiRide> ridesToken = rides.map(new TaxiRideDummyMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).disableChaining().slotSharingGroup(SLOT_GROUP_01_01);
+
 		// "rideId, isStart, startTime, endTime, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
-		Table ridesTableStream = tableEnv.fromDataStream(rides);
+		Table ridesTableStream = tableEnv.fromDataStream(ridesToken);
 
 		Table resultTableStream = ridesTableStream
 			.groupBy($("taxiId"))
@@ -70,7 +78,7 @@ public class TaxiRideCountTablePreAggregate {
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
 			rideCounts.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (genericParam.getOutput().equalsIgnoreCase(SINK_TEXT)) {
-			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);//.slotSharingGroup(slotGroup02);
+			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else {
 			System.out.println("discarding output");
 		}
