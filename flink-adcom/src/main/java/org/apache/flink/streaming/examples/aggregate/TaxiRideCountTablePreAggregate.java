@@ -15,17 +15,12 @@ import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_TEXT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 import static org.apache.flink.table.api.Expressions.$;
 
 /**
  * <pre>
- * -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
+ * -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
  * </pre>
  */
 public class TaxiRideCountTablePreAggregate {
@@ -50,15 +45,15 @@ public class TaxiRideCountTablePreAggregate {
 		if (genericParam.isTwoPhaseAgg()) {
 			configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE");
 		}
-		if (genericParam.isDisableOperatorChaining()) {
-			env.disableOperatorChaining();
-		}
+		//if (genericParam.isDisableOperatorChaining()) {
+		//	env.disableOperatorChaining();
+		//}
 
 		DataStream<TaxiRide> rides = null;
 		if (genericParam.isParallelSource()) {
-			rides = env.addSource(new TaxiRideSourceParallel(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSourceParallel(genericParam.getInput())).disableChaining().name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
 		} else {
-			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).disableChaining().name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);//.slotSharingGroup(slotGroup01);
 		}
 
 		// "rideId, isStart, startTime, endTime, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
@@ -73,7 +68,7 @@ public class TaxiRideCountTablePreAggregate {
 		});
 		DataStream<String> rideCounts = tableEnv
 			.toRetractStream(resultTableStream, typeInfo)
-			.map(new TaxiRideTableOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
+			.map(new TaxiRideTableOutputMap()).disableChaining().name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
 
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
 			rideCounts.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);

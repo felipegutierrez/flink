@@ -41,7 +41,7 @@ public class GenericParameters {
 		disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		mini_batch_enabled = params.getBoolean(TABLE_MINI_BATCH_ENABLE, false);
 		parallelismTableApi = params.getInt(TABLE_PARALLELISM, ExecutionConfig.PARALLELISM_DEFAULT);
-		mini_batch_allow_latency = params.get(TABLE_MINI_BATCH_LATENCY, "1s");
+		mini_batch_allow_latency = params.get(TABLE_MINI_BATCH_LATENCY, "1_s").replace("_", " ");
 		mini_batch_size = params.get(TABLE_MINI_BATCH_SIZE, "1000");
 		twoPhaseAgg = params.getBoolean(TABLE_MINI_BATCH_TWO_PHASE, false);
 		// @formatter:on

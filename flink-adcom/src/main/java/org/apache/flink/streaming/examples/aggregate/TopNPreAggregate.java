@@ -17,19 +17,6 @@
 
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.*;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.util.Collector;
-
-import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
-
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
-
 /**
  * This is a dynamic pre-aggregator of items to be placed before the shuffle phase in a DAG. There are three types of use
  * case to test in this class.
@@ -65,6 +52,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
 public class TopNPreAggregate {
 	public static void main(String[] args) throws Exception {
 		// Checking input parameters
+		/*
 		final ParameterTool params = ParameterTool.fromArgs(args);
 
 		String input = params.get(SOURCE, "");
@@ -199,6 +187,7 @@ public class TopNPreAggregate {
 	// *************************************************************************
 	// USER FUNCTIONS
 	// *************************************************************************
+	/*
 	public static final class SensorTokenizer implements FlatMapFunction<String, Tuple2<Integer, Double>> {
 
 		@Override
@@ -256,48 +245,6 @@ public class TopNPreAggregate {
 
 		@Override
 		public void collect(Map<Integer, Double[]> buffer, Collector<Tuple2<Integer, Double[]>> out) throws Exception {
-			for (Map.Entry<Integer, Double[]> entry : buffer.entrySet()) {
-				Double[] values = entry.getValue();
-				out.collect(Tuple2.of(entry.getKey(), values));
-			}
-		}
-	}
-
-	/*
-	private static class TopNPreAggregateConcurrentFunction
-		extends PreAggregateConcurrentFunction<Integer, Double[], Tuple2<Integer, Double>, Tuple2<Integer, Double[]>> {
-		private final Double MIN_VALUE = -999999.9;
-		private final int topN;
-
-		public TopNPreAggregateConcurrentFunction(int topN) {
-			this.topN = topN;
-		}
-
-		@Override
-		public Double[] addInput(@Nullable Double[] value, Tuple2<Integer, Double> input) throws Exception {
-			if (value == null) {
-				value = new Double[this.topN];
-				for (int i = 0; i < this.topN; i++) {
-					if (i == this.topN - 1) {
-						value[i] = input.f1;
-					} else {
-						value[i] = MIN_VALUE;
-					}
-				}
-			} else {
-				Arrays.sort(value);
-				for (int i = this.topN - 1; i >= 0; i--) {
-					if (value[i] < input.f1) {
-						value[i] = input.f1;
-						break;
-					}
-				}
-			}
-			return value;
-		}
-
-		@Override
-		public void collect(ConcurrentMap<Integer, Double[]> buffer, Collector<Tuple2<Integer, Double[]>> out) throws Exception {
 			for (Map.Entry<Integer, Double[]> entry : buffer.entrySet()) {
 				Double[] values = entry.getValue();
 				out.collect(Tuple2.of(entry.getKey(), values));

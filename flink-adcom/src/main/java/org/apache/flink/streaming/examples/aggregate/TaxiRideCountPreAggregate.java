@@ -56,34 +56,6 @@ public class TaxiRideCountPreAggregate {
 		GenericParameters genericParam = new GenericParameters(args);
 		genericParam.printParameters();
 
-//		ParameterTool params = ParameterTool.fromArgs(args);
-//		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
-//		boolean parallelSource = params.getBoolean(SOURCE_PARALLEL, false);
-//		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
-//		int sinkPort = params.getInt(SINK_PORT, 1883);
-//		String output = params.get(SINK, "");
-//		int timeCharacteristic = params.getInt(TIME_CHARACTERISTIC, 0);
-//		long preAggregationProcessingTimer = params.getLong(PRE_AGGREGATE_WINDOW_TIMEOUT, -1);
-//		int slotSplit = params.getInt(SLOT_GROUP_SPLIT, 0);
-//		int parallelisGroup02 = params.getInt(PARALLELISM_GROUP_02, ExecutionConfig.PARALLELISM_DEFAULT);
-//		boolean enableController = params.getBoolean(CONTROLLER, true);
-//		boolean disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
-//
-//		System.out.println("Download data from:");
-//		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiRides.gz");
-//		System.out.println("wget http://training.ververica.com/trainingData/nycTaxiFares.gz");
-//		System.out.println("data source                                             : " + input);
-//		System.out.println("parallel source                                         : " + parallelSource);
-//		System.out.println("data sink                                               : " + output);
-//		System.out.println("data sink host:port                                     : " + sinkHost + ":" + sinkPort);
-//		System.out.println("data sink topic                                         : " + TOPIC_DATA_SINK);
-//		System.out.println("Slot split 0-no split, 1-combiner, 2-combiner & reducer : " + slotSplit);
-//		System.out.println("Disable operator chaining                               : " + disableOperatorChaining);
-//		System.out.println("Feedback loop Controller                                : " + enableController);
-//		System.out.println("time characteristic 1-Processing 2-Event 3-Ingestion    : " + timeCharacteristic);
-//		System.out.println("pre-aggregate window [milliseconds]                     : " + preAggregationProcessingTimer);
-//		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
-
 		// set up streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 

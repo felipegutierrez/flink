@@ -1,6 +1,6 @@
-# Apache Flink
+# Apache Flink with AdCom
 
-This is an [Apache Flink](https://github.com/apache/flink) branch forked from the original repository of Apache Flink version 1.11.2.
+This is an [Apache Flink](https://github.com/apache/flink) branch forked from the original repository of Apache Flink version 1.11.2 which has an adaptive combiner (AdCom) for stream aggregations.
 
 ## Compiling
 

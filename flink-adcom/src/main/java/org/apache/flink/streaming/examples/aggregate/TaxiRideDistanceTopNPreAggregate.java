@@ -1,26 +1,8 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.util.*;
-import org.apache.flink.util.Collector;
-
-import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ConcurrentMap;
-
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
-
 public class TaxiRideDistanceTopNPreAggregate {
 	public static void main(String[] args) throws Exception {
+		/*
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
@@ -120,13 +102,13 @@ public class TaxiRideDistanceTopNPreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideDistanceTopNPreAggregate.class.getSimpleName());
-
 		 */
 	}
 
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
+	/*
 	private static class TokenizerMap implements MapFunction<TaxiRide, Tuple2<Integer, Double>> {
 		private final Random random;
 

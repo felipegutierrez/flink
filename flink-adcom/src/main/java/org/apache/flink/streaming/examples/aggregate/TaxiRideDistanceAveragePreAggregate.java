@@ -1,49 +1,9 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideAverageOutputFlatMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideAveragePassengersReducer;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDistanceTokenizerMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDriverKeySelector;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRidePassengerSumPreAggregateFunction;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
-import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
-import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
-
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.CONTROLLER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.DISABLE_OPERATOR_CHAINING;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_PRE_AGGREGATE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_REDUCER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PARALLELISM_GROUP_02;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.PRE_AGGREGATE_WINDOW_TIMEOUT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_HOST;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_PORT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_SPLIT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SOURCE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SOURCE_PARALLEL;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TIME_CHARACTERISTIC;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
-
 public class TaxiRideDistanceAveragePreAggregate {
 	public static void main(String[] args) throws Exception {
 		// @formatter:off
+		/*
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
 		boolean parallelSource = params.getBoolean(SOURCE_PARALLEL, false);
@@ -131,6 +91,7 @@ public class TaxiRideDistanceAveragePreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRideDistanceAveragePreAggregate.class.getSimpleName());
+		 */
 		// @formatter:on
 	}
 }

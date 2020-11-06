@@ -1,27 +1,8 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
-import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
-import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
-import org.apache.flink.util.Collector;
-
-import javax.annotation.Nullable;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ConcurrentMap;
-
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
-
 public class TaxiRidePassengerAveragePreAggregate {
 	public static void main(String[] args) throws Exception {
+		/*
 		ParameterTool params = ParameterTool.fromArgs(args);
 		final String input = params.get(SOURCE, ExerciseBase.pathToRideData);
 		String sinkHost = params.get(SINK_HOST, "127.0.0.1");
@@ -114,13 +95,13 @@ public class TaxiRidePassengerAveragePreAggregate {
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
 		env.execute(TaxiRidePassengerAveragePreAggregate.class.getSimpleName());
-
 		 */
 	}
 
 	// *************************************************************************
 	// GENERIC merge function
 	// *************************************************************************
+	/*
 	private static class TokenizerMap implements MapFunction<TaxiRide, Tuple2<Integer, Double>> {
 		private final Random random;
 
@@ -137,6 +118,7 @@ public class TaxiRidePassengerAveragePreAggregate {
 			return Tuple2.of(result, Double.valueOf(ride.passengerCnt));
 		}
 	}
+	 */
 
 	/**
 	 * Count the number of values and sum them.
@@ -145,6 +127,7 @@ public class TaxiRidePassengerAveragePreAggregate {
 	 * Input (Integer, Double): random-key, passengerCnt
 	 * Output (Integer, Double, Long): random-key, passengerCnt.sum, random-key.count
 	 */
+	/*
 	private static class TaxiRidePassengerSumPreAggregateFunction
 		extends PreAggregateFunction<Integer,
 		Tuple2<Integer, Tuple2<Double, Long>>,
@@ -166,36 +149,6 @@ public class TaxiRidePassengerAveragePreAggregate {
 
 		@Override
 		public void collect(Map<Integer, Tuple2<Integer, Tuple2<Double, Long>>> buffer, Collector<Tuple2<Integer, Tuple2<Double, Long>>> out) throws Exception {
-			for (Map.Entry<Integer, Tuple2<Integer, Tuple2<Double, Long>>> entry : buffer.entrySet()) {
-				Double passengerSum = entry.getValue().f1.f0;
-				Long driverIdCount = entry.getValue().f1.f1;
-				out.collect(Tuple2.of(entry.getKey(), Tuple2.of(passengerSum, driverIdCount)));
-			}
-		}
-	}
-
-	/*
-	private static class TaxiRidePassengerSumPreAggregateConcurrentFunction
-		extends PreAggregateConcurrentFunction<Integer,
-		Tuple2<Integer, Tuple2<Double, Long>>,
-		Tuple2<Integer, Double>,
-		Tuple2<Integer, Tuple2<Double, Long>>> {
-
-		@Override
-		public Tuple2<Integer, Tuple2<Double, Long>> addInput(@Nullable Tuple2<Integer, Tuple2<Double, Long>> value, Tuple2<Integer, Double> input) throws Exception {
-			Integer randomKey = input.f0;
-			if (value == null) {
-				Double passengersSum = input.f1;
-				return Tuple2.of(randomKey, Tuple2.of(passengersSum, 1L));
-			} else {
-				Double passengersSum = input.f1 + value.f1.f0;
-				Long driverIdCount = value.f1.f1 + 1;
-				return Tuple2.of(randomKey, Tuple2.of(passengersSum, driverIdCount));
-			}
-		}
-
-		@Override
-		public void collect(ConcurrentMap<Integer, Tuple2<Integer, Tuple2<Double, Long>>> buffer, Collector<Tuple2<Integer, Tuple2<Double, Long>>> out) throws Exception {
 			for (Map.Entry<Integer, Tuple2<Integer, Tuple2<Double, Long>>> entry : buffer.entrySet()) {
 				Double passengerSum = entry.getValue().f1.f0;
 				Long driverIdCount = entry.getValue().f1.f1;
