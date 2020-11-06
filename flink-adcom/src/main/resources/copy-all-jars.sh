@@ -34,19 +34,19 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 ########################################################################
 # AdCom: scaling parallel instance of the pre-agg
 # 8  reducers
-
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX
 # 16 reducers
-
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 16 -output mqtt -sinkHost XXX.XXX.XXX.XXX
 # 24 reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 24 -output mqtt -sinkHost 130.239.48.137
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 24 -output mqtt -sinkHost XXX.XXX.XXX.XXX
 
 # Table API: TaxiRide pre-aggregation
 # 8  reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 130.239.48.135 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 8
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 8
 # 16 reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 130.239.48.134 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 16
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 16
 # 24 reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 130.239.48.137 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 24
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 24
 
 
 ########################################################################
