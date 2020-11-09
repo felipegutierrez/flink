@@ -5,29 +5,11 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideCountPreAggregateFunction;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDriverTokenizerMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideFlatOutputMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideKeySelector;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSumReduceFunction;
+import org.apache.flink.streaming.examples.aggregate.udfs.*;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_PRE_AGGREGATE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_REDUCER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_TEXT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
 /**
  * <pre>
@@ -36,7 +18,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
  * -controller false -pre-aggregate-window 100 -pre-aggregate-window-timeout 1 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
  * </pre>
  */
-public class TaxiRideCountPreAggregate {
+public class TaxiRideCountDistinctPreAggregate {
 	public static void main(String[] args) throws Exception {
 		// @formatter:off
 		GenericParameters genericParam = new GenericParameters(args);
@@ -99,7 +81,7 @@ public class TaxiRideCountPreAggregate {
 		}
 
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
-		env.execute(TaxiRideCountPreAggregate.class.getSimpleName());
+		env.execute(TaxiRideCountDistinctPreAggregate.class.getSimpleName());
 		// @formatter:on
 	}
 }

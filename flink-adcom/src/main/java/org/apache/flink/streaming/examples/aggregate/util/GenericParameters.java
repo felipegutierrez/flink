@@ -20,6 +20,7 @@ public class GenericParameters {
 	private final boolean enableController;
 	private final boolean disableOperatorChaining;
 	private final boolean mini_batch_enabled;
+	private final boolean distinct_agg_split;
 	private final int parallelismTableApi;
 	private final String mini_batch_allow_latency;
 	private final int mini_batch_size;
@@ -40,6 +41,7 @@ public class GenericParameters {
 		enableController = params.getBoolean(CONTROLLER, true);
 		disableOperatorChaining = params.getBoolean(DISABLE_OPERATOR_CHAINING, false);
 		mini_batch_enabled = params.getBoolean(TABLE_MINI_BATCH_ENABLE, false);
+		distinct_agg_split = params.getBoolean(TABLE_DISTINCT_AGG_SPLIT_ENABLE, false);
 		parallelismTableApi = params.getInt(TABLE_PARALLELISM, ExecutionConfig.PARALLELISM_DEFAULT);
 		mini_batch_allow_latency = params.get(TABLE_MINI_BATCH_LATENCY, "").replace("_", " ");
 		mini_batch_size = params.getInt(TABLE_MINI_BATCH_SIZE, 0);
@@ -64,6 +66,7 @@ public class GenericParameters {
 		System.out.println("pre-aggregate window [milliseconds]                     : " + preAggregationProcessingTimer);
 		System.out.println("Parallelism group 02                                    : " + parallelisGroup02);
 		System.out.println("Table API: mini-batch.enable                            : " + mini_batch_enabled);
+		System.out.println("Table API: distinct-agg.split.enabled                   : " + distinct_agg_split);
 		System.out.println("Table API: parallelism                                  : " + parallelismTableApi);
 		System.out.println("Table API: mini-batch.latency                           : " + mini_batch_allow_latency);
 		System.out.println("Table API: mini_batch.size                              : " + mini_batch_size);
@@ -121,6 +124,10 @@ public class GenericParameters {
 
 	public boolean isMini_batch_enabled() {
 		return mini_batch_enabled;
+	}
+
+	public boolean isDistinct_agg_split_enabled() {
+		return distinct_agg_split;
 	}
 
 	public int getParallelismTableApi() {

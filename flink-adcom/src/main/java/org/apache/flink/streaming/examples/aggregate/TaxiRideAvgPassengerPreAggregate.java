@@ -1,18 +1,18 @@
 package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideCountPreAggregateFunction;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDriverTokenizerMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideFlatOutputMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideKeySelector;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiDriverSumCntKeySelector;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideAveragePassengersReducer;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideAvgPassengerOutputMap;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRidePassengerSumAndCountPreAggregateFunction;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRidePassengerTokenizerMap;
 import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
 import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSumReduceFunction;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
@@ -29,14 +29,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
 
-/**
- * <pre>
- * -controller true -pre-aggregate-window 1 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
- *
- * -controller false -pre-aggregate-window 100 -pre-aggregate-window-timeout 1 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
- * </pre>
- */
-public class TaxiRideCountPreAggregate {
+public class TaxiRideAvgPassengerPreAggregate {
 	public static void main(String[] args) throws Exception {
 		// @formatter:off
 		GenericParameters genericParam = new GenericParameters(args);
@@ -68,38 +61,38 @@ public class TaxiRideCountPreAggregate {
 			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
-		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideDriverTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+		DataStream<Tuple3<Long, Double, Long>> tuples = rides.map(new TaxiRidePassengerTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
-		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
+		DataStream<Tuple3<Long, Double, Long>> preAggregatedStream = null;
+		PreAggregateFunction<Long, Tuple3<Long, Double, Long>, Tuple3<Long, Double, Long>, Tuple3<Long, Double, Long>>
+			taxiRideSumAndCountPreAgg = new TaxiRidePassengerSumAndCountPreAggregateFunction();
 		if (!genericParam.isEnableController() && genericParam.getPreAggregationProcessingTimer() == -1) {
 			// no combiner
 			preAggregatedStream = tuples;
 		} else if (!genericParam.isEnableController() && genericParam.getPreAggregationProcessingTimer() > 0) {
 			// static combiner based on timeout
-			preAggregatedStream = tuples.combine(taxiRidePreAggregateFunction, genericParam.getPreAggregationProcessingTimer()).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+			preAggregatedStream = tuples.combine(taxiRideSumAndCountPreAgg, genericParam.getPreAggregationProcessingTimer()).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		} else if (genericParam.isEnableController()) {
 			// dynamic combiner with PI controller
-			preAggregatedStream = tuples.adCombine(taxiRidePreAggregateFunction, genericParam.getPreAggregationProcessingTimer()).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
+			 preAggregatedStream = tuples.adCombine(taxiRideSumAndCountPreAgg, genericParam.getPreAggregationProcessingTimer()).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		}
 
-		KeyedStream<Tuple2<Long, Long>, Long> keyedByDriverId = preAggregatedStream.keyBy(new TaxiRideKeySelector());
+		KeyedStream<Tuple3<Long, Double, Long>, Long> keyedByTaxiRider = preAggregatedStream.keyBy(new TaxiDriverSumCntKeySelector());
 
-		DataStream<Tuple2<Long, Long>> rideCounts = keyedByDriverId.reduce(new TaxiRideSumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02());
+		DataStream<Tuple3<Long, Double, Long>> averagePassengers = keyedByTaxiRider.reduce(new TaxiRideAveragePassengersReducer()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02());
 
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
-			rideCounts
-				.map(new TaxiRideFlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02())
+			averagePassengers
+				.map(new TaxiRideAvgPassengerOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02())
 				.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02());
 		} else if (genericParam.getOutput().equalsIgnoreCase(SINK_TEXT)) {
-			rideCounts
+			averagePassengers
 				.print().name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02());
 		} else {
 			System.out.println("discarding output");
 		}
-
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
-		env.execute(TaxiRideCountPreAggregate.class.getSimpleName());
+		env.execute(TaxiRideAvgPassengerPreAggregate.class.getSimpleName());
 		// @formatter:on
 	}
 }

@@ -15,9 +15,12 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-dist/target/flink-1.1
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-examples/flink-examples-streaming/target/flink-examples-streaming_2.12-1.12-SNAPSHOT-WordCount.jar ../flink-app/
 # Flink using AdCom
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar ../flink-app/
-cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideDistanceAveragePreAggregate.jar ../flink-app/
+cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountDistinctPreAggregate.jar ../flink-app/
+cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideAvgPassengerPreAggregate.jar ../flink-app/
 # Flink using Table API
 cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar ../flink-app/
+cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountDistinctTablePreAggregate.jar ../flink-app/
+cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideAvgPassengerTablePreAggregate.jar ../flink-app/
 
 # Executing Flink applications
 # ./bin/flink run ../flink-app/flink-examples-streaming_2.12-1.12-SNAPSHOT-WordCount.jar --input /home/felipe/Temp/1524-0-4.txt
@@ -40,19 +43,20 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # 24 reducers
 # ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 24 -output mqtt -sinkHost XXX.XXX.XXX.XXX
 
-# Table API: TaxiRide pre-aggregation
+# Table API: TaxiRide pre-aggregation: 3 sec, 5000 records
 # 8  reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 8
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par -disableOperatorChaining false -parallelism-table 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
 # 16 reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 16
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par -disableOperatorChaining false -parallelism-table 16 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
 # 24 reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 24
+# /bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par -disableOperatorChaining false -parallelism-table 24 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
+
 
 
 ########################################################################
 # Data rate configuration
 ########################################################################
-# Changing the data rate
+# Changing the data rate for 1 data source
 # echo '1000000000' > /tmp/datarate.txt    # 1    rec/sec
 # echo '2000000' > /tmp/datarate.txt       # 500  rec/sec
 # echo '1000000' > /tmp/datarate.txt       # 1K   rec/sec
@@ -64,6 +68,20 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # echo '10000' > /tmp/datarate.txt         # 100K rec/sec
 # echo '5000' > /tmp/datarate.txt          # 200K rec/sec
 # echo '2000' > /tmp/datarate.txt          # 500K rec/sec
+# echo '1000' > /tmp/datarate.txt          # 1M   rec/sec
+# echo '500' > /tmp/datarate.txt           # 2M   rec/sec
+# Changing the data rate for 8 data source
+# echo '1000000000' > /tmp/datarate.txt    # 1    rec/sec
+# echo '2000000' > /tmp/datarate.txt       # 500  rec/sec
+# echo '1000000' > /tmp/datarate.txt       # 1K   rec/sec
+# echo '200000' > /tmp/datarate.txt        # 5K   rec/sec
+# echo '100000' > /tmp/datarate.txt        # 10K  rec/sec
+# echo '66666' > /tmp/datarate.txt         # 15K  rec/sec
+# echo '50000' > /tmp/datarate.txt         # 20K  rec/sec
+# echo '20000' > /tmp/datarate.txt         # 50K  rec/sec
+# echo '80000' > /tmp/datarate.txt         # 12,5K r/s total -> 100K rec/sec
+# echo '5000' > /tmp/datarate.txt          # 200K rec/sec
+# echo '16000' > /tmp/datarate.txt         # 65,5K r/s total -> 500K rec/sec
 # echo '1000' > /tmp/datarate.txt          # 1M   rec/sec
 # echo '500' > /tmp/datarate.txt           # 2M   rec/sec
 

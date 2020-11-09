@@ -19,10 +19,10 @@ import static org.apache.flink.table.api.Expressions.$;
 
 /**
  * <pre>
- * -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
+ * -disableOperatorChaining false -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
  * </pre>
  */
-public class TaxiRideCountTablePreAggregate {
+public class TaxiRideAvgPassengerTablePreAggregate {
 	public static void main(String[] args) throws Exception {
 		// @formatter:off
 		GenericParameters genericParam = new GenericParameters(args);
@@ -66,7 +66,7 @@ public class TaxiRideCountTablePreAggregate {
 
 		Table resultTableStream = ridesTableStream
 			.groupBy($("taxiId"))
-			.select($("taxiId"), $("passengerCnt").count().as("passengerCnt"));
+			.select($("taxiId"), $("passengerCnt").avg().as("passengerAvg"));
 
 		// DataStream<TaxiRide> result = tableEnv.toAppendStream(resultTableStream, TaxiRide.class);
 		TypeInformation<Tuple2<Long, Long>> typeInfo = TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {
@@ -84,7 +84,7 @@ public class TaxiRideCountTablePreAggregate {
 		}
 
 		System.out.println(env.getExecutionPlan());
-		env.execute(TaxiRideCountTablePreAggregate.class.getSimpleName());
+		env.execute(TaxiRideAvgPassengerTablePreAggregate.class.getSimpleName());
 		// @formatter:on
 	}
 }

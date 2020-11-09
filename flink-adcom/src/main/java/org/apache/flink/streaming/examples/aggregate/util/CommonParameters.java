@@ -52,6 +52,7 @@ public class CommonParameters {
 	public static final String SLOT_GROUP_SPLIT = "slotSplit";
 	public static final String DISABLE_OPERATOR_CHAINING = "disableOperatorChaining";
 	public static final String TABLE_MINI_BATCH_ENABLE = "mini_batch_enabled";
+	public static final String TABLE_DISTINCT_AGG_SPLIT_ENABLE = "distinct_agg_split_enabled";
 	public static final String TABLE_MINI_BATCH_LATENCY = "mini_batch_latency";
 	public static final String TABLE_MINI_BATCH_SIZE = "mini_batch_size";
 	public static final String TABLE_MINI_BATCH_TWO_PHASE = "mini_batch_two_phase";

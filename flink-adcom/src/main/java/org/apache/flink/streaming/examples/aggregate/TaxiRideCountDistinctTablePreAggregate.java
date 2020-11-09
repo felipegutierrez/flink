@@ -1,28 +1,27 @@
 package org.apache.flink.streaming.examples.aggregate;
 
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.udfs.*;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDummyMap;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 import org.apache.flink.table.api.Table;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 import org.apache.logging.log4j.util.Strings;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
-import static org.apache.flink.table.api.Expressions.$;
 
 /**
  * <pre>
- * -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
+ * -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -distinct_agg_split_enabled true -parallelism-table 4
  * </pre>
  */
-public class TaxiRideCountTablePreAggregate {
+public class TaxiRideCountDistinctTablePreAggregate {
 	public static void main(String[] args) throws Exception {
 		// @formatter:off
 		GenericParameters genericParam = new GenericParameters(args);
@@ -48,6 +47,9 @@ public class TaxiRideCountTablePreAggregate {
 		if (genericParam.isTwoPhaseAgg()) {
 			configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE");
 		}
+		if (genericParam.isDistinct_agg_split_enabled()) {
+			configuration.setString("table.optimizer.distinct-agg.split.enabled", Boolean.toString(genericParam.isDistinct_agg_split_enabled()));
+		}
 		if (genericParam.isDisableOperatorChaining()) {
 			env.disableOperatorChaining();
 		}
@@ -61,30 +63,27 @@ public class TaxiRideCountTablePreAggregate {
 
 		DataStream<TaxiRide> ridesToken = rides.map(new TaxiRideDummyMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).disableChaining();
 
-		// "rideId, isStart, startTime, endTime, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
-		Table ridesTableStream = tableEnv.fromDataStream(ridesToken);
+		// "rideId, isStart, startTime, endTime, startDate, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
+		tableEnv.createTemporaryView("TaxiRide", ridesToken);
+		Table tableCountDistinct = tableEnv.sqlQuery("SELECT startDate, COUNT(driverId) FROM TaxiRide GROUP BY startDate");
+		// print the schema to create the TypeInformation accordingly
+		tableCountDistinct.printSchema();
 
-		Table resultTableStream = ridesTableStream
-			.groupBy($("taxiId"))
-			.select($("taxiId"), $("passengerCnt").count().as("passengerCnt"));
-
-		// DataStream<TaxiRide> result = tableEnv.toAppendStream(resultTableStream, TaxiRide.class);
-		TypeInformation<Tuple2<Long, Long>> typeInfo = TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {
-		});
-		DataStream<String> rideCounts = tableEnv
-			.toRetractStream(resultTableStream, typeInfo)
-			.map(new TaxiRideTableOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
+		TableResult result = tableCountDistinct.execute();
+		System.out.println("TABLE SCHEMA");
+		result.getTableSchema();
+		result.print();
 
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
-			rideCounts.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+			// rideCounts.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (genericParam.getOutput().equalsIgnoreCase(SINK_TEXT)) {
-			rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
+			// rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else {
 			System.out.println("discarding output");
 		}
 
 		System.out.println(env.getExecutionPlan());
-		env.execute(TaxiRideCountTablePreAggregate.class.getSimpleName());
+		env.execute(TaxiRideCountDistinctTablePreAggregate.class.getSimpleName());
 		// @formatter:on
 	}
 }
