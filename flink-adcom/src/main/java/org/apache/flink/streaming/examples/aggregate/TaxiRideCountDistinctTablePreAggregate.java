@@ -1,11 +1,12 @@
 package org.apache.flink.streaming.examples.aggregate;
 
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDummyMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
+import org.apache.flink.streaming.examples.aggregate.udfs.*;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 import org.apache.flink.table.api.Table;
@@ -65,19 +66,20 @@ public class TaxiRideCountDistinctTablePreAggregate {
 
 		// "rideId, isStart, startTime, endTime, startDate, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
 		tableEnv.createTemporaryView("TaxiRide", ridesToken);
-		Table tableCountDistinct = tableEnv.sqlQuery("SELECT startDate, COUNT(driverId) FROM TaxiRide GROUP BY startDate");
+		Table tableCountDistinct = tableEnv.sqlQuery("SELECT startDate, COUNT(DISTINCT driverId) FROM TaxiRide GROUP BY startDate");
 		// print the schema to create the TypeInformation accordingly
 		tableCountDistinct.printSchema();
 
-		TableResult result = tableCountDistinct.execute();
-		System.out.println("TABLE SCHEMA");
-		result.getTableSchema();
-		result.print();
+		TypeInformation<Tuple2<String, Long>> typeInfo = TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {
+		});
+		DataStream<String> rideCountDistinct = tableEnv
+			.toRetractStream(tableCountDistinct, typeInfo)
+			.map(new TaxiRideTableCountDistinctOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
 
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
-			// rideCounts.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);
+			rideCountDistinct.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else if (genericParam.getOutput().equalsIgnoreCase(SINK_TEXT)) {
-			// rideCounts.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
+			rideCountDistinct.print().name(OPERATOR_SINK).uid(OPERATOR_SINK);
 		} else {
 			System.out.println("discarding output");
 		}

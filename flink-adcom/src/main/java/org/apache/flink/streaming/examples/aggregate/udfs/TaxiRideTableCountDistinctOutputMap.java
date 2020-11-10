@@ -7,6 +7,6 @@ public class TaxiRideTableCountDistinctOutputMap implements MapFunction<Tuple2<B
 
 	@Override
 	public String map(Tuple2<Boolean, Tuple2<String, Long>> value) throws Exception {
-		return value.f0 + "|date: " + value.f1.f0 + "| taxi driver count distinct: " + value.f1.f1;
+		return value.f0 + "|start date: " + value.f1.f0 + "| taxi driver count distinct: " + value.f1.f1;
 	}
 }
