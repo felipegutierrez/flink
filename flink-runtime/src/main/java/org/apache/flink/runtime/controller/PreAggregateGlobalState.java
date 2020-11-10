@@ -55,7 +55,9 @@ public class PreAggregateGlobalState {
 
 	public void decrementIntervalMsNew(long dec) {
 		if (this.intervalMsNew == null && this.intervalMsCurrent != null) {
-			this.intervalMsNew = this.intervalMsCurrent - dec;
+			long newValue = this.intervalMsCurrent - dec;
+			this.intervalMsNew = (newValue
+				>= PreAggregateControllerService.MIN_INTERVAL_MS) ? newValue : PreAggregateControllerService.MIN_INTERVAL_MS;
 		} else if (this.intervalMsNew != null) {
 			System.out.println("[PreAggregateGlobalState.controller.dec] intervalMsNew already set!");
 		} else if (this.intervalMsCurrent == null) {

@@ -28,6 +28,7 @@ public class PreAggregateControllerService extends Thread {
 	private final DecimalFormat df = new DecimalFormat("#.###");
 	private final String TOPIC_PRE_AGG_PARAMETER = "topic-pre-aggregate-parameter";
 	private final String TOPIC_PRE_AGG_STATE = "topic-pre-aggregate-state";
+	protected static final int MIN_INTERVAL_MS = 50;
 	private final int controllerFrequencySec;
 	private final boolean running;
 	private final PreAggregateSignalsListener preAggregateListener;
@@ -106,11 +107,11 @@ public class PreAggregateControllerService extends Thread {
 				Thread.sleep(this.controllerFrequencySec * 1000);
 				// Long newIntervalMs = computePreAggregateProcTimeIntervalMs();
 				Long newIntervalMs = computeNextProcTimeIntervalMs();
-				if (newIntervalMs != null && newIntervalMs >= 50) {
+				if (newIntervalMs != null && newIntervalMs >= MIN_INTERVAL_MS) {
 					publish(newIntervalMs);
 				} else {
 					System.out.println(
-						"[PreAggregateControllerService.controller] interval[" + newIntervalMs
+						"[PreAggregateControllerService.controller] interval [" + newIntervalMs
 							+ "] invalid. It is likely that the pre-agg is in a good shape.");
 				}
 			}
