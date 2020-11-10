@@ -31,12 +31,10 @@ public class PreAggregateControllerService extends Thread {
 	private final int controllerFrequencySec;
 	private final boolean running;
 	private final PreAggregateSignalsListener preAggregateListener;
-	// host of the jobManager
-	private final String hostListener;
-	// host of all task managers
-	private final String hostPublish;
+	private final String host;
 	private final int port;
 	// TODO: use Akka RPC instead of MQTT protocol
+	private final Reference reference;
 	/** MQTT broker is used to set the parameter K to all PreAgg operators */
 	private MQTT mqtt;
 	private FutureConnection connection;
@@ -45,7 +43,6 @@ public class PreAggregateControllerService extends Thread {
 	private double numRecordsOutPerSecondMax;
 	private int monitorCount;
 	private boolean inputRecPerSecFlag;
-	private final Reference reference;
 
 	public PreAggregateControllerService() throws Exception {
 		// Job manager and taskManager have to be deployed on the same machine, otherwise use the other constructor
@@ -62,17 +59,16 @@ public class PreAggregateControllerService extends Thread {
 
 		if (Strings.isNullOrEmpty(brokerServerHost)
 			|| brokerServerHost.equalsIgnoreCase("localhost")) {
-			this.hostListener = "127.0.0.1";
+			this.host = "127.0.0.1";
 		} else if (brokerServerHost.contains("akka.tcp")) {
-			this.hostListener = extractIP(brokerServerHost);
+			this.host = extractIP(brokerServerHost);
 		} else {
-			this.hostListener = "127.0.0.1";
+			this.host = "127.0.0.1";
 		}
-		this.hostPublish = null;
 		this.port = 1883;
 
 		this.preAggregateListener = new PreAggregateSignalsListener(
-			this.hostListener,
+			this.host,
 			this.port,
 			TOPIC_PRE_AGG_STATE);
 		this.preAggregateListener.start();
@@ -87,13 +83,13 @@ public class PreAggregateControllerService extends Thread {
 
 	private void disclaimer() {
 		System.out.println(
-			"[PreAggregateControllerService.controller] Controller started at [" + this.hostListener +
+			"[PreAggregateControllerService.controller] Controller started at [" + this.host +
 				"] scheduled to every " + this.controllerFrequencySec + " seconds.");
 	}
 
 	private void connect() throws Exception {
 		mqtt = new MQTT();
-		mqtt.setHost(hostPublish, port);
+		mqtt.setHost(host, port);
 
 		connection = mqtt.futureConnection();
 		connection.connect().await();
@@ -110,7 +106,7 @@ public class PreAggregateControllerService extends Thread {
 				Thread.sleep(this.controllerFrequencySec * 1000);
 				// Long newIntervalMs = computePreAggregateProcTimeIntervalMs();
 				Long newIntervalMs = computeNextProcTimeIntervalMs();
-				if (newIntervalMs != null && newIntervalMs != 0) {
+				if (newIntervalMs != null && newIntervalMs >= 50) {
 					publish(newIntervalMs);
 				} else {
 					System.out.println(

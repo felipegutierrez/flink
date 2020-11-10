@@ -38,7 +38,8 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 ########################################################################
 # AdCom: scaling parallel instance of the pre-agg
 # 8  reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -disableOperatorChaining true -slotSplit 1 -parallelism-group-02 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountDistinctPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -disableOperatorChaining true -slotSplit 1 -parallelism-group-02 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX
 # 16 reducers
 # ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -slotSplit 1 -parallelism-group-02 16 -output mqtt -sinkHost XXX.XXX.XXX.XXX
 # 24 reducers

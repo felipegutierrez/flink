@@ -2,11 +2,7 @@ package org.apache.flink.streaming.api.operators;
 
 import org.apache.flink.shaded.guava18.com.google.common.base.Strings;
 
-import org.fusesource.mqtt.client.BlockingConnection;
-import org.fusesource.mqtt.client.MQTT;
-import org.fusesource.mqtt.client.Message;
-import org.fusesource.mqtt.client.QoS;
-import org.fusesource.mqtt.client.Topic;
+import org.fusesource.mqtt.client.*;
 
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +20,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class PreAggregateProcTimeListener extends Thread implements Serializable {
 
 	public static final String TOPIC_PRE_AGGREGATE_PARAMETER = "topic-pre-aggregate-parameter";
+	private final int MIN_INTERVAL_MS = 50;
 	private final String topic;
 	private final String host;
 	private final int port;
@@ -87,16 +84,16 @@ public class PreAggregateProcTimeListener extends Thread implements Serializable
 								+ message);
 						if (isInteger(message)) {
 							long newIntervalMs = Long.valueOf(message).longValue();
-							// Not allow to have intervals less than 100 milliseconds
-							if (newIntervalMs >= 100) {
+							// Not allow to have intervals less than 50 milliseconds
+							if (newIntervalMs >= MIN_INTERVAL_MS) {
 								this.intervalMs = newIntervalMs;
-							} else if (newIntervalMs == 0) {
-								System.out.println(
-									"[PreAggregateProcTimeListener] Interval invalid. It is likely that the pre-agg is in a good shape.");
 							} else {
-								this.intervalMs = 100;
+								this.intervalMs = MIN_INTERVAL_MS;
 								System.out.println(
-									"[PreAggregateProcTimeListener] WARN: Interval less than 100 milliseconds are set to 100 milliseconds.");
+									"[PreAggregateProcTimeListener] WARN: Interval less than "
+										+ MIN_INTERVAL_MS + " milliseconds are set to "
+										+ MIN_INTERVAL_MS + " milliseconds. "
+										+ "It is likely that the pre-agg is in a good shape.");
 							}
 						} else {
 							System.out.println(
