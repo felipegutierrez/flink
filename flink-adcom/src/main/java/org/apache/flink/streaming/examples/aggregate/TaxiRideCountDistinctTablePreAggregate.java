@@ -10,7 +10,6 @@ import org.apache.flink.streaming.examples.aggregate.udfs.*;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 import org.apache.logging.log4j.util.Strings;
@@ -64,13 +63,13 @@ public class TaxiRideCountDistinctTablePreAggregate {
 
 		DataStream<TaxiRide> ridesToken = rides.map(new TaxiRideDummyMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).disableChaining();
 
-		// "rideId, isStart, startTime, endTime, startDate, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
+		// "rideId, isStart, startTime, endTime, dayOfTheYear, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
 		tableEnv.createTemporaryView("TaxiRide", ridesToken);
-		Table tableCountDistinct = tableEnv.sqlQuery("SELECT startDate, COUNT(DISTINCT driverId) FROM TaxiRide GROUP BY startDate");
+		Table tableCountDistinct = tableEnv.sqlQuery("SELECT dayOfTheYear, COUNT(DISTINCT taxiId) FROM TaxiRide GROUP BY dayOfTheYear");
 		// print the schema to create the TypeInformation accordingly
 		tableCountDistinct.printSchema();
 
-		TypeInformation<Tuple2<String, Long>> typeInfo = TypeInformation.of(new TypeHint<Tuple2<String, Long>>() {
+		TypeInformation<Tuple2<Integer, Long>> typeInfo = TypeInformation.of(new TypeHint<Tuple2<Integer, Long>>() {
 		});
 		DataStream<String> rideCountDistinct = tableEnv
 			.toRetractStream(tableCountDistinct, typeInfo)

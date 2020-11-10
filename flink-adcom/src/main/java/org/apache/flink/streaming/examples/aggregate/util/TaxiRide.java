@@ -31,7 +31,7 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 	public boolean isStart;
 	public DateTime startTime;
 	public DateTime endTime;
-	public String startDate;
+	public int dayOfTheYear;
 	public float startLon;
 	public float startLat;
 	public float endLon;
@@ -53,9 +53,7 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 		this.isStart = isStart;
 		this.startTime = startTime;
 		this.endTime = endTime;
-		this.startDate = (startTime != null) ?
-			startTime.getYear() + "-" + startTime.getMonthOfYear() + "-"
-				+ startTime.getDayOfMonth() : "";
+		this.dayOfTheYear = (startTime != null) ? startTime.getDayOfYear() : 0;
 		this.startLon = startLon;
 		this.startLat = startLat;
 		this.endLon = endLon;
@@ -82,17 +80,15 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 					ride.isStart = true;
 					ride.startTime = DateTime.parse(tokens[2], timeFormatter);
 					ride.endTime = DateTime.parse(tokens[3], timeFormatter);
-					ride.startDate = (ride.startTime != null) ?
-						ride.startTime.getYear() + "-" + ride.startTime.getMonthOfYear() + "-"
-							+ ride.startTime.getDayOfMonth() : "";
+					ride.dayOfTheYear = (ride.startTime
+						!= null) ? ride.startTime.getDayOfYear() : 0;
 					break;
 				case "END":
 					ride.isStart = false;
 					ride.endTime = DateTime.parse(tokens[2], timeFormatter);
 					ride.startTime = DateTime.parse(tokens[3], timeFormatter);
-					ride.startDate = (ride.startTime != null) ?
-						ride.startTime.getYear() + "-" + ride.startTime.getMonthOfYear() + "-"
-							+ ride.startTime.getDayOfMonth() : "";
+					ride.dayOfTheYear = (ride.startTime
+						!= null) ? ride.startTime.getDayOfYear() : 0;
 					break;
 				default:
 					throw new RuntimeException("Invalid record: " + line);
@@ -119,7 +115,7 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 		sb.append(isStart ? "START" : "END").append(",");
 		sb.append(startTime.toString(timeFormatter)).append(",");
 		sb.append(endTime.toString(timeFormatter)).append(",");
-		sb.append(startDate).append(",");
+		sb.append(dayOfTheYear).append(",");
 		sb.append(startLon).append(",");
 		sb.append(startLat).append(",");
 		sb.append(endLon).append(",");

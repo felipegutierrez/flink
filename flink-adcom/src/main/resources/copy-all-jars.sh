@@ -28,6 +28,7 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # AdCom: TaxiRide pre-aggregation
 # ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller false -pre-aggregate-window-timeout 2000 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
 # ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
+# ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountDistinctPreAggregate.jar -controller true -pre-aggregate-window-timeout 500 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
 
 # Table API: TaxiRide pre-aggregation
 # ./bin/flink run ../flink-app/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/nycTaxiRides.gz -output mqtt -sinkHost 192.168.56.101 -disableOperatorChaining false -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 8
@@ -45,11 +46,12 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 
 # Table API: TaxiRide pre-aggregation: 3 sec, 5000 records
 # 8  reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par -disableOperatorChaining false -parallelism-table 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -disableOperatorChaining false -parallelism-table 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountDistinctTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -disableOperatorChaining false -parallelism-table 8 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 500 -mini_batch_two_phase true -distinct_agg_split_enabled true
 # 16 reducers
-# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par -disableOperatorChaining false -parallelism-table 16 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
+# ./bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -disableOperatorChaining false -parallelism-table 16 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
 # 24 reducers
-# /bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par -disableOperatorChaining false -parallelism-table 24 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
+# /bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -disableOperatorChaining false -parallelism-table 24 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
 
 
 

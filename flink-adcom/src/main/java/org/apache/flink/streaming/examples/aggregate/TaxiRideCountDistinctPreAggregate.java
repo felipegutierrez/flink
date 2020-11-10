@@ -1,15 +1,33 @@
 package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.functions.PreAggregateFunction;
-import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.udfs.*;
+import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideCountDistinctPreAggregateFunction;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDateKeySelector;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDistinctFlatOutputMap;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDistinctSumReduceFunction;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDriverDayTokenizerMap;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
+import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_PRE_AGGREGATE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_REDUCER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_TEXT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
 
 /**
  * <pre>
@@ -50,10 +68,10 @@ public class TaxiRideCountDistinctPreAggregate {
 			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
-		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideDriverTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+		DataStream<Tuple3<Integer, Long, Long>> tuples = rides.map(new TaxiRideDriverDayTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
-		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
+		DataStream<Tuple3<Integer, Long, Long>> preAggregatedStream = null;
+		PreAggregateFunction<Integer, Tuple3<Integer, Long, Long>, Tuple3<Integer, Long, Long>, Tuple3<Integer, Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountDistinctPreAggregateFunction();
 		if (!genericParam.isEnableController() && genericParam.getPreAggregationProcessingTimer() == -1) {
 			// no combiner
 			preAggregatedStream = tuples;
@@ -65,13 +83,13 @@ public class TaxiRideCountDistinctPreAggregate {
 			preAggregatedStream = tuples.adCombine(taxiRidePreAggregateFunction, genericParam.getPreAggregationProcessingTimer()).name(OPERATOR_PRE_AGGREGATE).uid(OPERATOR_PRE_AGGREGATE).slotSharingGroup(slotGroup01);
 		}
 
-		KeyedStream<Tuple2<Long, Long>, Long> keyedByDriverId = preAggregatedStream.keyBy(new TaxiRideKeySelector());
+		KeyedStream<Tuple3<Integer, Long, Long>, Integer> keyedByDriverId = preAggregatedStream.keyBy(new TaxiRideDateKeySelector());
 
-		DataStream<Tuple2<Long, Long>> rideCounts = keyedByDriverId.reduce(new TaxiRideSumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02());
+		DataStream<Tuple3<Integer, Long, Long>> rideCounts = keyedByDriverId.reduce(new TaxiRideDistinctSumReduceFunction()).name(OPERATOR_REDUCER).uid(OPERATOR_REDUCER).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02());
 
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
 			rideCounts
-				.map(new TaxiRideFlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02())
+				.map(new TaxiRideDistinctFlatOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02())
 				.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK).slotSharingGroup(slotGroup02).setParallelism(genericParam.getParallelisGroup02());
 		} else if (genericParam.getOutput().equalsIgnoreCase(SINK_TEXT)) {
 			rideCounts
