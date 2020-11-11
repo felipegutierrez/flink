@@ -24,11 +24,11 @@ import java.util.regex.Pattern;
  */
 public class PreAggregateControllerService extends Thread {
 
+	protected static final int MIN_INTERVAL_MS = 50;
 	private final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
 	private final DecimalFormat df = new DecimalFormat("#.###");
 	private final String TOPIC_PRE_AGG_PARAMETER = "topic-pre-aggregate-parameter";
 	private final String TOPIC_PRE_AGG_STATE = "topic-pre-aggregate-state";
-	protected static final int MIN_INTERVAL_MS = 50;
 	private final int controllerFrequencySec;
 	private final boolean running;
 	private final PreAggregateSignalsListener preAggregateListener;
@@ -56,7 +56,8 @@ public class PreAggregateControllerService extends Thread {
 		this.numRecordsOutPerSecondMax = 0.0;
 		this.controllerFrequencySec = 60; // 120;
 		this.running = true;
-		this.reference = new Reference(35, 80, 25, 90);
+		// 1 - define the reference for the output buffers: this.reference
+		this.reference = new Reference(45, 80, 30, 90);
 
 		if (Strings.isNullOrEmpty(brokerServerHost)
 			|| brokerServerHost.equalsIgnoreCase("localhost")) {
@@ -126,8 +127,7 @@ public class PreAggregateControllerService extends Thread {
 		// @formatter:off
 		System.out.println("[PreAggregateControllerService.controller] started at: " + sdf.format(new Date()));
 		Long preAggregateIntervalMsNew = 0L;
-
-		// 1 - define the reference for the output buffers: this.reference
+		this.inputRecPerSecFlag = false;
 
 		// 2 - collect the signals and compute the average
 		PreAggregateGlobalState preAggregateGlobalState = computeAverageOfSignals();
@@ -194,6 +194,12 @@ public class PreAggregateControllerService extends Thread {
 				preAggregateGlobalState.setOverloaded(true);
 			// count the number of subtasks
 			subtasksCount++;
+			// update max throughput only if the pre-agg is in BACKPRESSURE
+			if (outPoolUsageMean >= reference.getMax()) {
+				updateGlobalCapacity(
+					preAggregateState.getNumRecordsInPerSecond(),
+					preAggregateState.getNumRecordsOutPerSecond());
+			}
 			// print the signals
 			String msg = "[PreAggregateControllerService.controller] " + subtaskIndex +
 				"|min:" + preAggregateState.getOutPoolUsageMin() +
