@@ -47,6 +47,8 @@ public class TaxiRideCountTablePreAggregate {
 		// enable two-phase, i.e. local-global aggregation
 		if (genericParam.isTwoPhaseAgg()) {
 			configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE");
+		} else {
+			configuration.setString("table.optimizer.agg-phase-strategy", "ONE_PHASE");
 		}
 		if (genericParam.isDisableOperatorChaining()) {
 			env.disableOperatorChaining();
