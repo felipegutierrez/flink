@@ -54,7 +54,7 @@ public class PreAggregateControllerService extends Thread {
 		this.monitorCount = 0;
 		this.inputRecPerSecFlag = false;
 		this.numRecordsOutPerSecondMax = 0.0;
-		this.controllerFrequencySec = 60; // 120;
+		this.controllerFrequencySec = 120; // 60 sec, 120 sec
 		this.running = true;
 		// 1 - define the reference for the output buffers: this.reference
 		this.reference = new Reference(45, 80, 30, 90);

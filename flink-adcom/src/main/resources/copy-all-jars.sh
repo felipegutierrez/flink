@@ -61,6 +61,7 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 ########################################################################
 # Changing the data rate for 1 data source
 # echo '1000000000' > /tmp/datarate.txt    # 1    rec/sec
+# echo '10000000' > /tmp/datarate.txt      # 100  rec/sec
 # echo '2000000' > /tmp/datarate.txt       # 500  rec/sec
 # echo '1000000' > /tmp/datarate.txt       # 1K   rec/sec
 # echo '200000' > /tmp/datarate.txt        # 5K   rec/sec
@@ -78,12 +79,12 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # echo '2000000' > /tmp/datarate.txt       # 500  rec/sec
 # echo '1000000' > /tmp/datarate.txt       # 1K   rec/sec
 # echo '200000' > /tmp/datarate.txt        # 5K   rec/sec
-# echo '800000' > /tmp/datarate.txt        # 1.25K r/s -> 10K  rec/sec
+# echo '800000' > /tmp/datarate.txt        # 1.25K r/s total -> 10K  rec/sec
 # echo '66666' > /tmp/datarate.txt         # 15K  rec/sec
-# echo '50000' > /tmp/datarate.txt         # 20K  rec/sec
-# echo '20000' > /tmp/datarate.txt         # 50K  rec/sec
+# echo '400000' > /tmp/datarate.txt        # 2.5K r/s  total -> 20K  rec/sec
+# echo '160000' > /tmp/datarate.txt        # 6.25K r/s total -> 50K  rec/sec
 # echo '80000' > /tmp/datarate.txt         # 12.5K r/s total -> 100K rec/sec
-# echo '5000' > /tmp/datarate.txt          # 200K rec/sec
+# echo '40000' > /tmp/datarate.txt         # 25K r/s   total -> 200K rec/sec
 # echo '16000' > /tmp/datarate.txt         # 65.5K r/s total -> 500K rec/sec
 # echo '1000' > /tmp/datarate.txt          # 1M   rec/sec
 # echo '500' > /tmp/datarate.txt           # 2M   rec/sec

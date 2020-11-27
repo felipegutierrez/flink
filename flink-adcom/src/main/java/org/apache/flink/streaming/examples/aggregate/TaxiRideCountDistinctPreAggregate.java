@@ -5,29 +5,11 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.examples.aggregate.udfs.MqttDataSink;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideCountDistinctPreAggregateFunction;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDateKeySelector;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDistinctFlatOutputMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDistinctSumReduceFunction;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideDriverDayTokenizerMap;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSource;
-import org.apache.flink.streaming.examples.aggregate.udfs.TaxiRideSourceParallel;
+import org.apache.flink.streaming.examples.aggregate.udfs.*;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_FLAT_OUTPUT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_PRE_AGGREGATE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_REDUCER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SINK;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_SOURCE;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_TEXT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
 /**
  * <pre>
@@ -54,11 +36,11 @@ public class TaxiRideCountDistinctPreAggregate {
 			slotGroup01 = SLOT_GROUP_DEFAULT;
 			slotGroup02 = SLOT_GROUP_DEFAULT;
 		} else if (genericParam.getSlotSplit() == 1) {
-			slotGroup01 = SLOT_GROUP_01_01;
+			slotGroup01 = SLOT_GROUP_01;
 			slotGroup02 = SLOT_GROUP_DEFAULT;
 		} else if (genericParam.getSlotSplit() == 2) {
-			slotGroup01 = SLOT_GROUP_01_01;
-			slotGroup02 = SLOT_GROUP_01_02;
+			slotGroup01 = SLOT_GROUP_01;
+			slotGroup02 = SLOT_GROUP_02;
 		}
 
 		DataStream<TaxiRide> rides = null;

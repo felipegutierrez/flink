@@ -145,7 +145,7 @@ public abstract class PreAggregateProcTimeStreamAbstractOperator<K, V, IN, OUT>
 //			+ sdf.format(new Timestamp(System.currentTimeMillis())));
 
 		CompletableFuture.runAsync(() -> {
-			// method call or code to be Async.
+			// Collect AdCom signals to the Reservoir Histogram every 30 seconds
 			if (this.preAggregateMonitor.collectNextSignals()) {
 				// update IntervalMs to Prometheus+Grafana
 				this.preAggregateMonitor.setIntervalMs(preAggregateProcTimeListener.getIntervalMs());

@@ -113,11 +113,11 @@ public class AveragePreAggregate {
 			slotGroup01 = SLOT_GROUP_DEFAULT;
 			slotGroup02 = SLOT_GROUP_DEFAULT;
 		} else if (slotSplit == 1) {
-			slotGroup01 = SLOT_GROUP_01_01;
+			slotGroup01 = SLOT_GROUP_01;
 			slotGroup02 = SLOT_GROUP_DEFAULT;
 		} else if (slotSplit == 2) {
-			slotGroup01 = SLOT_GROUP_01_01;
-			slotGroup02 = SLOT_GROUP_01_02;
+			slotGroup01 = SLOT_GROUP_01;
+			slotGroup02 = SLOT_GROUP_02;
 		}
 
 		/*

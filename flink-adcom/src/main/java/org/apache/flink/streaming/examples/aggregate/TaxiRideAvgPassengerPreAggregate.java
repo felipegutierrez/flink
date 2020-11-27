@@ -24,8 +24,8 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.OPERATOR_TOKENIZER;
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_DATA_MQTT;
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SINK_TEXT;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_01;
-import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01_02;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_01;
+import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_02;
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.SLOT_GROUP_DEFAULT;
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TOPIC_DATA_SINK;
 
@@ -47,11 +47,11 @@ public class TaxiRideAvgPassengerPreAggregate {
 			slotGroup01 = SLOT_GROUP_DEFAULT;
 			slotGroup02 = SLOT_GROUP_DEFAULT;
 		} else if (genericParam.getSlotSplit() == 1) {
-			slotGroup01 = SLOT_GROUP_01_01;
+			slotGroup01 = SLOT_GROUP_01;
 			slotGroup02 = SLOT_GROUP_DEFAULT;
 		} else if (genericParam.getSlotSplit() == 2) {
-			slotGroup01 = SLOT_GROUP_01_01;
-			slotGroup02 = SLOT_GROUP_01_02;
+			slotGroup01 = SLOT_GROUP_01;
+			slotGroup02 = SLOT_GROUP_02;
 		}
 
 		DataStream<TaxiRide> rides = null;

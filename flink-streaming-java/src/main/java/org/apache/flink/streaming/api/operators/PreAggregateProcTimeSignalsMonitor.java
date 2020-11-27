@@ -37,9 +37,9 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 	private final String host;
 	private final int port;
 	// DANGER: this time has to be lower than the controller time on the runtime package [PreAggregateControllerService]
-	private final long PUBLISH_SIGNALS_FREQ_SEC = 29 * 1000;
+	private final long PUBLISH_SIGNALS_FREQ_SEC = 30 * 1000;
 	// frequency to collect signals from the pre-agg operator
-	private final long TIMEOUT_TO_COLLECT_SIGNALS = 27 * 1000;
+	private final long TIMEOUT_TO_COLLECT_SIGNALS = 30 * 1000;
 	/** time elapse to the next monitoring collect of signals */
 	private long timeStart;
 	private long intervalMs;
@@ -106,6 +106,7 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 		try {
 			if (mqtt == null) this.connect();
 			while (running) {
+				// Publish AdCom signals every #publishSignalsFrequencySec (30 seconds) to the Global PI Controller
 				Thread.sleep(publishSignalsFrequencySec);
 				String preAggSignals = this.updateSignals();
 				this.publish(preAggSignals);
@@ -172,6 +173,7 @@ public class PreAggregateProcTimeSignalsMonitor extends Thread implements Serial
 	}
 
 	public boolean collectNextSignals() {
+		// Collect AdCom signals to the Reservoir Histogram every 30 seconds
 		if (System.currentTimeMillis() >= this.timeStart + this.TIMEOUT_TO_COLLECT_SIGNALS) {
 			this.timeStart = System.currentTimeMillis();
 			return true;
