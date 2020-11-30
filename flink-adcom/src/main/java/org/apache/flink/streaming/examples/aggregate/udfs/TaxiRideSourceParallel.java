@@ -85,7 +85,7 @@ public class TaxiRideSourceParallel extends RichParallelSourceFunction<TaxiRide>
 
 			String line;
 			if ((line = br.readLine()) != null) {
-				System.out.println(line);
+				// System.out.println(line);
 				this.dataFilePath = line;
 				System.out.println(
 					"[" + sdf.format(new Date()) + "] Reading workload file [" + this.dataFilePath
