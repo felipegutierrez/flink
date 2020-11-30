@@ -3,10 +3,13 @@ package org.apache.flink.streaming.examples.aggregate.udfs;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
+import org.apache.flink.streaming.examples.aggregate.util.ExerciseBase;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -29,11 +32,12 @@ import java.util.zip.GZIPInputStream;
  */
 public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 
+	public static final String WORKLOAD_FILE = "/tmp/workloadFile.txt";
+	private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss");
 	private final int maxDelayMsecs;
 	private final int watermarkDelayMSecs;
 
-	private final String dataFilePath;
-	private final int servingSpeed;
+	private String dataFilePath;
 	private DataRateListener dataRateListener;
 	private boolean running;
 	private transient BufferedReader reader;
@@ -43,23 +47,9 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 	 * Serves the TaxiRide records from the specified and ordered gzipped input file.
 	 * Rides are served exactly in order of their time stamps
 	 * at the speed at which they were originally generated.
-	 *
-	 * @param dataFilePath The gzipped input file from which the TaxiRide records are read.
 	 */
-	public TaxiRideSource(String dataFilePath) {
-		this(dataFilePath, 0, 1);
-	}
-
-	/**
-	 * Serves the TaxiRide records from the specified and ordered gzipped input file.
-	 * Rides are served exactly in order of their time stamps
-	 * in a serving speed which is proportional to the specified serving speed factor.
-	 *
-	 * @param dataFilePath       The gzipped input file from which the TaxiRide records are read.
-	 * @param servingSpeedFactor The serving speed factor by which the logical serving time is adjusted.
-	 */
-	public TaxiRideSource(String dataFilePath, int servingSpeedFactor) {
-		this(dataFilePath, 0, servingSpeedFactor);
+	public TaxiRideSource() {
+		this(0);
 	}
 
 	/**
@@ -67,19 +57,15 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 	 * Rides are served out-of time stamp order with specified maximum random delay
 	 * in a serving speed which is proportional to the specified serving speed factor.
 	 *
-	 * @param dataFilePath       The gzipped input file from which the TaxiRide records are read.
-	 * @param maxEventDelaySecs  The max time in seconds by which events are delayed.
-	 * @param servingSpeedFactor The serving speed factor by which the logical serving time is adjusted.
+	 * @param maxEventDelaySecs The max time in seconds by which events are delayed.
 	 */
-	public TaxiRideSource(String dataFilePath, int maxEventDelaySecs, int servingSpeedFactor) {
+	public TaxiRideSource(int maxEventDelaySecs) {
 		if (maxEventDelaySecs < 0) {
 			throw new IllegalArgumentException("Max event delay must be positive");
 		}
 		this.running = true;
-		this.dataFilePath = dataFilePath;
 		this.maxDelayMsecs = maxEventDelaySecs * 1000;
 		this.watermarkDelayMSecs = maxDelayMsecs < 10000 ? 10000 : maxDelayMsecs;
-		this.servingSpeed = servingSpeedFactor;
 	}
 
 	@Override
@@ -91,15 +77,44 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 
 	@Override
 	public void run(SourceContext<TaxiRide> sourceContext) throws Exception {
-
 		while (running) {
+			// check if the workload file changed and apply the new file if it is necessary
+			changeWorkloadFile();
+
 			generateTaxiRideArray(sourceContext);
 		}
+	}
 
-		this.reader.close();
-		this.reader = null;
-		this.gzipStream.close();
-		this.gzipStream = null;
+	private void changeWorkloadFile() {
+		File fileName = new File(WORKLOAD_FILE);
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(
+			new FileInputStream(fileName), StandardCharsets.UTF_8))) {
+
+			String line;
+			if ((line = br.readLine()) != null) {
+				System.out.println(line);
+				this.dataFilePath = line;
+				System.out.println(
+					"[" + sdf.format(new Date()) + "] Reading workload file [" + this.dataFilePath
+						+ "]");
+			} else {
+				System.out.println("[" + sdf.format(new Date()) + "] File [" + WORKLOAD_FILE
+					+ "] is empty. reading the original workload [" + ExerciseBase.pathToRideData
+					+ "]");
+				this.dataFilePath = ExerciseBase.pathToRideData;
+			}
+
+		} catch (FileNotFoundException e) {
+			System.out.println("File does not [" + WORKLOAD_FILE
+				+ "] exists. Reading the original workload ");
+			this.dataFilePath = ExerciseBase.pathToRideData;
+			e.printStackTrace();
+		} catch (IOException e) {
+			System.out.println("File does not [" + WORKLOAD_FILE
+				+ "] exists. Reading the original workload ");
+			this.dataFilePath = ExerciseBase.pathToRideData;
+			e.printStackTrace();
+		}
 	}
 
 	private void generateTaxiRideArray(SourceContext<TaxiRide> sourceContext) throws Exception {
@@ -117,6 +132,11 @@ public class TaxiRideSource extends RichSourceFunction<TaxiRide> {
 			// sleep in nanoseconds to have a reproducible data rate for the data source
 			this.dataRateListener.busySleep(startTime);
 		}
+
+		this.reader.close();
+		this.reader = null;
+		this.gzipStream.close();
+		this.gzipStream = null;
 	}
 
 	public long getEventTime(TaxiRide ride) {

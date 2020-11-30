@@ -55,6 +55,13 @@ cp /home/felipe/workspace-idea/flink-partition-tests/flink-adcom/target/flink-ad
 # /bin/flink run ../flink-applications/flink-adcom_2.12-1.12-SNAPSHOT-TaxiRideCountTablePreAggregate.jar -input /home/flink/flink-applications/nycTaxiRides.gz -input-par true -disableOperatorChaining false -parallelism-table 24 -output mqtt -sinkHost XXX.XXX.XXX.XXX -mini_batch_enabled true -mini_batch_latency 3_s -mini_batch_size 5000 -mini_batch_two_phase true
 
 
+########################################################################
+# Workload configuration
+########################################################################
+# echo "/home/flink/flink-applications/nycTaxiRides.gz" > /tmp/workloadFile.txt
+# echo "/home/flink/flink-applications/nycTaxiRidesSkew30.gz" > /tmp/workloadFile.txt
+# scp /tmp/workloadFile.txt  worker01:/tmp/workloadFile.txt && scp /tmp/workloadFile.txt worker02:/tmp/workloadFile.txt && scp /tmp/workloadFile.txt worker03:/tmp/workloadFile.txt
+
 
 ########################################################################
 # Data rate configuration

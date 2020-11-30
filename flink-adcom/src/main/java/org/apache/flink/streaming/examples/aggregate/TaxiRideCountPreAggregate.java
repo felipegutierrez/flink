@@ -45,9 +45,9 @@ public class TaxiRideCountPreAggregate {
 
 		DataStream<TaxiRide> rides = null;
 		if (genericParam.isParallelSource()) {
-			rides = env.addSource(new TaxiRideSourceParallel(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSourceParallel()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		} else {
-			rides = env.addSource(new TaxiRideSource(genericParam.getInput())).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
+			rides = env.addSource(new TaxiRideSource()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
 		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideDriverTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
