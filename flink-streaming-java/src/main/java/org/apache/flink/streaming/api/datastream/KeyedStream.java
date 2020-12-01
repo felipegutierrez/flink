@@ -112,15 +112,8 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
 	 *            Function for determining state partitions
 	 */
 	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector) {
-		// this(dataStream, keySelector, TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()), KeyedStreamType.ORIGINAL);
 		this(dataStream, keySelector, TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()));
 	}
-
-	/*
-	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector, KeyedStreamType keyedStreamType) {
-		this(dataStream, keySelector, TypeExtractor.getKeySelectorTypes(keySelector, dataStream.getType()), keyedStreamType);
-	}
-	*/
 
 	/**
 	 * Creates a new {@link KeyedStream} using the given {@link KeySelector}
@@ -136,24 +129,10 @@ public class KeyedStream<T, KEY> extends DataStream<T> {
 			dataStream,
 			new PartitionTransformation<>(
 				dataStream.getTransformation(),
-				// new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM, KeyedStreamType.ORIGINAL)),
 				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM)),
 			keySelector,
 			keyType);
 	}
-
-	/*
-	public KeyedStream(DataStream<T> dataStream, KeySelector<T, KEY> keySelector, TypeInformation<KEY> keyType, KeyedStreamType keyedStreamType) {
-		this(
-			dataStream,
-			new PartitionTransformation<>(
-				dataStream.getTransformation(),
-				// new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM, keyedStreamType)),
-				new KeyGroupStreamPartitioner<>(keySelector, StreamGraphGenerator.DEFAULT_LOWER_BOUND_MAX_PARALLELISM)),
-			keySelector,
-			keyType);
-	}
-	*/
 
 	/**
 	 * Creates a new {@link KeyedStream} using the given {@link KeySelector} and {@link TypeInformation}
