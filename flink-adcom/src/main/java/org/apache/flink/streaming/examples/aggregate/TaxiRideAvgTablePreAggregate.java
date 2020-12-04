@@ -2,13 +2,14 @@ package org.apache.flink.streaming.examples.aggregate;
 
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.examples.aggregate.udfs.*;
 import org.apache.flink.streaming.examples.aggregate.util.GenericParameters;
 import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
+import org.apache.flink.streaming.examples.aggregate.util.TaxiRideRichValues;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
@@ -22,7 +23,7 @@ import static org.apache.flink.table.api.Expressions.$;
  * -disableOperatorChaining false -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
  * </pre>
  */
-public class TaxiRideAvgPassengerTablePreAggregate {
+public class TaxiRideAvgTablePreAggregate {
 	public static void main(String[] args) throws Exception {
 		// @formatter:off
 		GenericParameters genericParam = new GenericParameters(args);
@@ -61,21 +62,24 @@ public class TaxiRideAvgPassengerTablePreAggregate {
 			rides = env.addSource(new TaxiRideSource()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
 		}
 
-		DataStream<TaxiRide> ridesToken = rides.map(new TaxiRideDummyMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).disableChaining();
+		DataStream<TaxiRideRichValues> ridesToken = rides.map(new TaxiRideRichValuesMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).disableChaining();
 
-		// "rideId, isStart, startTime, endTime, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
+		// "rideId, isStart, startTime, endTime, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId, euclideanDistance, elapsedTime"
 		Table ridesTableStream = tableEnv.fromDataStream(ridesToken);
 
 		Table resultTableStream = ridesTableStream
 			.groupBy($("driverId"))
-			.select($("driverId"), $("passengerCnt").avg().as("passengerAvg"));
+			.select($("driverId"),
+				$("passengerCnt").avg().as("passengerAvg"),
+				$("euclideanDistance").avg().as("euclideanDistanceAvg"),
+				$("elapsedTime").avg().as("elapsedTimeAvg")
+			);
 
-		// DataStream<TaxiRide> result = tableEnv.toAppendStream(resultTableStream, TaxiRide.class);
-		TypeInformation<Tuple2<Long, Long>> typeInfo = TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {
+		TypeInformation<Tuple4<Long, Long, Double, Double>> typeInfo = TypeInformation.of(new TypeHint<Tuple4<Long, Long, Double, Double>>() {
 		});
 		DataStream<String> rideCounts = tableEnv
 			.toRetractStream(resultTableStream, typeInfo)
-			.map(new TaxiRideTableOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
+			.map(new TaxiRideAvgTableOutputMap()).name(OPERATOR_FLAT_OUTPUT).uid(OPERATOR_FLAT_OUTPUT);
 
 		if (genericParam.getOutput().equalsIgnoreCase(SINK_DATA_MQTT)) {
 			rideCounts.addSink(new MqttDataSink(TOPIC_DATA_SINK, genericParam.getSinkHost(), genericParam.getSinkPort())).name(OPERATOR_SINK).uid(OPERATOR_SINK);
@@ -86,7 +90,7 @@ public class TaxiRideAvgPassengerTablePreAggregate {
 		}
 
 		System.out.println(env.getExecutionPlan());
-		env.execute(TaxiRideAvgPassengerTablePreAggregate.class.getSimpleName());
+		env.execute(TaxiRideAvgTablePreAggregate.class.getSimpleName());
 		// @formatter:on
 	}
 }
