@@ -57,7 +57,7 @@ public class PreAggregateControllerService extends Thread {
 		this.controllerFrequencySec = 120; // 60 sec, 120 sec
 		this.running = true;
 		// 1 - define the reference for the output buffers: this.reference
-		this.reference = new Reference(45, 75, 30, 90);
+		this.reference = new Reference(40, 65, 30, 85);
 
 		if (Strings.isNullOrEmpty(brokerServerHost)
 			|| brokerServerHost.equalsIgnoreCase("localhost")) {
