@@ -4,7 +4,7 @@ import io.airlift.tpch.LineItem;
 
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.examples.aggregate.util.DataRateListener;
 
 import java.io.*;
@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.TPCH_DATA_LINE_ITEM;
 
-public class LineItemSource extends RichSourceFunction<LineItem> {
+public class LineItemSourceParallel extends RichParallelSourceFunction<LineItem> {
 
 	public static final transient DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
 	private static final long serialVersionUID = 1L;
@@ -25,16 +25,16 @@ public class LineItemSource extends RichSourceFunction<LineItem> {
 	private DataRateListener dataRateListener;
 	private boolean running;
 
-	public LineItemSource() {
+	public LineItemSourceParallel() {
 		// maxCount = -1 means that we are going to generate data forever
 		this(TPCH_DATA_LINE_ITEM, -1);
 	}
 
-	public LineItemSource(long maxCount) {
+	public LineItemSourceParallel(long maxCount) {
 		this(TPCH_DATA_LINE_ITEM, maxCount);
 	}
 
-	public LineItemSource(String dataFilePath, long maxCount) {
+	public LineItemSourceParallel(String dataFilePath, long maxCount) {
 		this.running = true;
 		this.dataFilePath = dataFilePath;
 		this.maxCount = maxCount;

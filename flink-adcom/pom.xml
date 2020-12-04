@@ -508,6 +508,39 @@
 							</includes>
 						</configuration>
 					</execution>
+					<!-- TPCHQuery01PreAggregate -->
+					<execution>
+						<id>TPCHQuery01PreAggregate</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>TPCHQuery01PreAggregate</classifier>
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.aggregate.TPCHQuery01PreAggregate</program-class>
+								</manifestEntries>
+							</archive>
+							<includes>
+								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01PreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemSourceParallel.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemToTuple11Map.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemSumPreAgg.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemFlagAndStatusKeySelector.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/SumAndAvgLineItemReducer.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/Tuple11ToLineItemResult.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GenericParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateListener.class</include>
+								<include>io/airlift/tpch/LineItem.class</include>
+								<include>io/airlift/tpch/GenerateUtils.class</include>
+							</includes>
+						</configuration>
+					</execution>
 				</executions>
 			</plugin>
 		</plugins>
