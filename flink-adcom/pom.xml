@@ -541,6 +541,36 @@
 							</includes>
 						</configuration>
 					</execution>
+					<!-- TPCHQuery01TablePreAggregate -->
+					<execution>
+						<id>TPCHQuery01TablePreAggregate</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>TPCHQuery01TablePreAggregate</classifier>
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.streaming.examples.aggregate.TPCHQuery01TablePreAggregate</program-class>
+								</manifestEntries>
+							</archive>
+							<includes>
+								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01TablePreAggregate.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/TPCHQuery01TablePreAggregate$*.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemSource.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemSourceParallel.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemToTupleTableMap.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/LineItemTableOutputMap.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/udfs/MqttDataSink.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/GenericParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/CommonParameters.class</include>
+								<include>org/apache/flink/streaming/examples/aggregate/util/DataRateListener.class</include>
+								<include>io/airlift/tpch/LineItem.class</include>
+								<include>io/airlift/tpch/GenerateUtils.class</include>
+							</includes>
+						</configuration>
+					</execution>
 				</executions>
 			</plugin>
 		</plugins>
