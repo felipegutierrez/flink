@@ -19,7 +19,7 @@ import static org.apache.flink.table.api.Expressions.$;
 
 /**
  * <pre>
- * -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
+ * -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
  * </pre>
  */
 public class TaxiRideCountTablePreAggregate {
@@ -67,8 +67,8 @@ public class TaxiRideCountTablePreAggregate {
 		Table ridesTableStream = tableEnv.fromDataStream(ridesToken);
 
 		Table resultTableStream = ridesTableStream
-			.groupBy($("taxiId"))
-			.select($("taxiId"), $("passengerCnt").count().as("passengerCnt"));
+			.groupBy($("driverId"))
+			.select($("driverId"), $("passengerCnt").count().as("passengerCnt"));
 
 		// DataStream<TaxiRide> result = tableEnv.toAppendStream(resultTableStream, TaxiRide.class);
 		TypeInformation<Tuple2<Long, Long>> typeInfo = TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {
