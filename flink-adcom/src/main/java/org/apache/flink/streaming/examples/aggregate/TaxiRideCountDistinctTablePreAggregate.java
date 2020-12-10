@@ -18,7 +18,7 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
 
 /**
  * <pre>
- * -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -distinct_agg_split_enabled true -parallelism-table 4
+ * -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -distinct_agg_split_enabled true -parallelism-table 4
  * </pre>
  */
 public class TaxiRideCountDistinctTablePreAggregate {
@@ -62,12 +62,11 @@ public class TaxiRideCountDistinctTablePreAggregate {
 		} else {
 			rides = env.addSource(new TaxiRideSource()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE);
 		}
-
 		DataStream<TaxiRide> ridesToken = rides.map(new TaxiRideDummyMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).disableChaining();
 
 		// "rideId, isStart, startTime, endTime, dayOfTheYear, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
 		tableEnv.createTemporaryView("TaxiRide", ridesToken);
-		Table tableCountDistinct = tableEnv.sqlQuery("SELECT dayOfTheYear, COUNT(DISTINCT taxiId) FROM TaxiRide GROUP BY dayOfTheYear");
+		Table tableCountDistinct = tableEnv.sqlQuery("SELECT dayOfTheYear, COUNT(DISTINCT driverId) FROM TaxiRide GROUP BY dayOfTheYear");
 		// print the schema to create the TypeInformation accordingly
 		tableCountDistinct.printSchema();
 

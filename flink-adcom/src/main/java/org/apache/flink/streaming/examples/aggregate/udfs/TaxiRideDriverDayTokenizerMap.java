@@ -7,6 +7,6 @@ import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 public class TaxiRideDriverDayTokenizerMap implements MapFunction<TaxiRide, Tuple3<Integer, Long, Long>> {
 	@Override
 	public Tuple3<Integer, Long, Long> map(TaxiRide ride) {
-		return Tuple3.of(ride.dayOfTheYear, ride.taxiId, 1L);
+		return Tuple3.of(ride.dayOfTheYear, ride.driverId, 1L);
 	}
 }
