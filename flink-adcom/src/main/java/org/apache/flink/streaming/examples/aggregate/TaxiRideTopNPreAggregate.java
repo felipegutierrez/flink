@@ -11,14 +11,7 @@ import org.apache.flink.streaming.examples.aggregate.util.TaxiRide;
 
 import static org.apache.flink.streaming.examples.aggregate.util.CommonParameters.*;
 
-/**
- * <pre>
- * -controller true -pre-aggregate-window-timeout 1000 -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1
- *
- * -controller false -pre-aggregate-window-timeout 1000 -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1
- * </pre>
- */
-public class TaxiRideCountPreAggregate {
+public class TaxiRideTopNPreAggregate {
 	public static void main(String[] args) throws Exception {
 		// @formatter:off
 		GenericParameters genericParam = new GenericParameters(args);
@@ -50,10 +43,10 @@ public class TaxiRideCountPreAggregate {
 			rides = env.addSource(new TaxiRideSource()).name(OPERATOR_SOURCE).uid(OPERATOR_SOURCE).slotSharingGroup(slotGroup01);
 		}
 
-		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideDriverTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
+		DataStream<Tuple2<Long, Long>> tuples = rides.map(new TaxiRideDriverPassengerTokenizerMap()).name(OPERATOR_TOKENIZER).uid(OPERATOR_TOKENIZER).slotSharingGroup(slotGroup01);
 
 		DataStream<Tuple2<Long, Long>> preAggregatedStream = null;
-		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideCountPreAggregateFunction();
+		PreAggregateFunction<Long, Long, Tuple2<Long, Long>, Tuple2<Long, Long>> taxiRidePreAggregateFunction = new TaxiRideTopPassengerPreAggregateFunction();
 		if (!genericParam.isEnableController() && genericParam.getPreAggregationProcessingTimer() == -1) {
 			// no combiner
 			preAggregatedStream = tuples;
@@ -79,8 +72,9 @@ public class TaxiRideCountPreAggregate {
 		} else {
 			System.out.println("discarding output");
 		}
+
 		System.out.println("Execution plan >>>\n" + env.getExecutionPlan());
-		env.execute(TaxiRideCountPreAggregate.class.getSimpleName());
+		env.execute(TaxiRideTopNPreAggregate.class.getSimpleName());
 		// @formatter:on
 	}
 }
