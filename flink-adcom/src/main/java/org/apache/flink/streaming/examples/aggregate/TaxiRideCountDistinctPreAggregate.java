@@ -13,9 +13,9 @@ import static org.apache.flink.streaming.examples.aggregate.util.CommonParameter
 
 /**
  * <pre>
- * -controller true -pre-aggregate-window 1 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
+ * -controller true -pre-aggregate-window 1 -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1
  *
- * -controller false -pre-aggregate-window 100 -pre-aggregate-window-timeout 1 -disableOperatorChaining true -input /home/flink/nycTaxiRides.gz -input-par true -output mqtt -sinkHost 127.0.0.1
+ * -controller false -pre-aggregate-window 100 -pre-aggregate-window-timeout 1 -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1
  * </pre>
  */
 public class TaxiRideCountDistinctPreAggregate {

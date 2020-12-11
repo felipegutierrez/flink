@@ -66,7 +66,8 @@ public class TaxiRideCountDistinctTablePreAggregate {
 
 		// "rideId, isStart, startTime, endTime, dayOfTheYear, startLon, startLat, endLon, endLat, passengerCnt, taxiId, driverId"
 		tableEnv.createTemporaryView("TaxiRide", ridesToken);
-		Table tableCountDistinct = tableEnv.sqlQuery("SELECT dayOfTheYear, COUNT(DISTINCT driverId) FROM TaxiRide GROUP BY dayOfTheYear");
+		String query = "SELECT dayOfTheYear, COUNT(DISTINCT driverId) FROM TaxiRide GROUP BY dayOfTheYear";
+		Table tableCountDistinct = tableEnv.sqlQuery(query);
 		// print the schema to create the TypeInformation accordingly
 		tableCountDistinct.printSchema();
 

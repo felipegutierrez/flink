@@ -64,17 +64,13 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 	}
 
 	public static TaxiRide fromString(String line) {
-
 		String[] tokens = line.split(",");
 		if (tokens.length != 11) {
 			throw new RuntimeException("Invalid record: " + line);
 		}
-
 		TaxiRide ride = new TaxiRide();
-
 		try {
 			ride.rideId = Long.parseLong(tokens[0]);
-
 			switch (tokens[1]) {
 				case "START":
 					ride.isStart = true;
@@ -87,13 +83,12 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 					ride.isStart = false;
 					ride.endTime = DateTime.parse(tokens[2], timeFormatter);
 					ride.startTime = DateTime.parse(tokens[3], timeFormatter);
-					ride.dayOfTheYear = (ride.startTime
-						!= null) ? ride.startTime.getDayOfYear() : 0;
+					ride.dayOfTheYear = (ride.endTime
+						!= null) ? ride.endTime.getDayOfYear() : 0;
 					break;
 				default:
 					throw new RuntimeException("Invalid record: " + line);
 			}
-
 			ride.startLon = tokens[4].length() > 0 ? Float.parseFloat(tokens[4]) : 0.0f;
 			ride.startLat = tokens[5].length() > 0 ? Float.parseFloat(tokens[5]) : 0.0f;
 			ride.endLon = tokens[6].length() > 0 ? Float.parseFloat(tokens[6]) : 0.0f;
@@ -105,7 +100,6 @@ public class TaxiRide implements Comparable<TaxiRide>, Serializable {
 		} catch (NumberFormatException nfe) {
 			throw new RuntimeException("Invalid record: " + line, nfe);
 		}
-
 		return ride;
 	}
 
