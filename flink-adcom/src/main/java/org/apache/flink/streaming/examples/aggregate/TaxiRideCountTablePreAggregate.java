@@ -19,7 +19,7 @@ import static org.apache.flink.table.api.Expressions.$;
 
 /**
  * <pre>
- * -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -parallelism-table 4
+ * -disableOperatorChaining true -input-par true -output mqtt -sinkHost 127.0.0.1 -mini_batch_enabled true -mini_batch_latency 1_s -mini_batch_size 1000 -mini_batch_two_phase true -distinct_agg_split_enabled true -parallelism-table 4
  * </pre>
  */
 public class TaxiRideCountTablePreAggregate {
@@ -49,6 +49,9 @@ public class TaxiRideCountTablePreAggregate {
 			configuration.setString("table.optimizer.agg-phase-strategy", "TWO_PHASE");
 		} else {
 			configuration.setString("table.optimizer.agg-phase-strategy", "ONE_PHASE");
+		}
+		if (genericParam.isDistinct_agg_split_enabled()) {
+			configuration.setString("table.optimizer.distinct-agg.split.enabled", Boolean.toString(genericParam.isDistinct_agg_split_enabled()));
 		}
 		if (genericParam.isDisableOperatorChaining()) {
 			env.disableOperatorChaining();
