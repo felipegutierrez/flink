@@ -19,7 +19,7 @@ $ mvn clean install -DskipTests -Dfast -Dscala-2.12 -rf :flink-adcom_2.12
 
 ## Using
 
-One can use AdCom by calling the operator `adCombine(PreAggregateFunction())` which starts AdCom with 500 milliseconds and adapts the pre-aggregation during runtime. A static combine is also available by calling the `combine(PreAggregateFunction(), time in milliseconds)` operator which pre-aggregates win window times passed as parameter. Some examples of queries using AdCom can be found at the [AdCom module](flink-adcom/tree/master/flink-adcom/src/main/java/org/apache/flink/streaming/examples/aggregate).
+One can use AdCom by calling the operator `adCombine(PreAggregateFunction())` which starts AdCom with 500 milliseconds and adapts the pre-aggregation during runtime. A static combine is also available by calling the `combine(PreAggregateFunction(), time in milliseconds)` operator which pre-aggregates win window times passed as parameter. Some examples of queries using AdCom can be found at the [AdCom module](flink-adcom/src/main/java/org/apache/flink/streaming/examples/aggregate).
 
 ```
 StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
