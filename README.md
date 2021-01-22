@@ -17,6 +17,27 @@ $ ll flink-examples/flink-examples-streaming/target/
 $ mvn clean install -DskipTests -Dfast -Dscala-2.12 -rf :flink-adcom_2.12
 ```
 
+## Using
+
+One can use AdCom by calling the operator `adCombine(PreAggregateFunction())` which starts AdCom with 500 milliseconds and adapts the pre-aggregation during runtime. A static combine is also available by calling the `combine(PreAggregateFunction(), time in milliseconds)` operator which pre-aggregates win window times passed as parameter.
+
+```
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+// using the static combiner
+env.addSource(new TaxiRideSource())
+        .combine(taxiRidePreAggregateFunction, genericParam.getPreAggregationProcessingTimer())
+        .keyBy(new TaxiRideKeySelector())
+        .reduce(new TaxiRideSumReduceFunction())
+        .print();
+        
+// using the adaptive combiner with the PI controller
+env.addSource(new TaxiRideSource())
+        .adCombine(taxiRidePreAggregateFunction)
+        .keyBy(new TaxiRideKeySelector())
+        .reduce(new TaxiRideSumReduceFunction())
+        .print();
+```
 
 ## Troubleshooting
 ```
